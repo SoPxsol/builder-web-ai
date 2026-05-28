@@ -1,0 +1,462 @@
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================================
+ * theme.css — PXSOL Web / Nav FW4
+ * ----------------------------------------------------------------------------
+ * Sistema de tokens. Ver RFC-DS-001 (Fase 4 del refactor).
+ *
+ * REGLAS:
+ *   1. No usar valores hex/oklch/rgba crudos en JSX. Solo a través de tokens.
+ *   2. No consumir tokens de LAYER 1 (primitivos) directamente en componentes.
+ *      Los componentes consumen LAYER 2 (semánticos).
+ *   3. Si un token nuevo no tiene primitivo equivalente, agregarlo en LAYER 1.
+ * ============================================================================ */
+
+:root {
+  --font-size: 16px;
+
+  /* ──────────────────────────────────────────────────────────────────────
+   * LAYER 1 — PRIMITIVOS
+   * Valores crudos. NO consumir directamente en componentes — usar LAYER 2.
+   * ────────────────────────────────────────────────────────────────────── */
+
+  --primitive-gray-25: #252525;
+  --primitive-blue-100: #ccdefa;
+  --primitive-blue-700: #3366cc;
+
+  /* ──────────────────────────────────────────────────────────────────────
+   * LAYER 2 — TOKENS SEMÁNTICOS
+   * Lo que consumen los componentes. Pueden referenciar LAYER 1 o tener
+   * valores inline (mientras no aparezcan duplicados, son aceptables).
+   * ────────────────────────────────────────────────────────────────────── */
+
+  /* shadcn base (heredados) */
+  --background: #ffffff;
+  --foreground: oklch(0.145 0 0);
+  --card: #ffffff;
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: #030213;
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.95 0.0058 264.53);
+  --secondary-foreground: #030213;
+  --muted: #ececf0;
+  --muted-foreground: #717182;
+  --accent: #e9ebef;
+  --accent-foreground: #030213;
+  --destructive: #d4183d;
+  --destructive-foreground: #ffffff;
+  --border: rgba(0, 0, 0, 0.1);
+  --input: transparent;
+  --input-background: #f3f3f5;
+  --switch-background: #cbced4;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: #030213;
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+
+  /* PXSOL brand */
+  --brand: #e84a2c;
+  --brand-hover: #d03d21;
+
+  --shell-icon-bg: #111111;
+  --shell-nav-bg: #1a1a1a;
+  --shell-item-active-bg: #2a2a2a;
+  --shell-item-selector-bg: var(--primitive-gray-25);
+  --shell-item-active-border: #e84a2c;
+  --shell-separator: #333333;
+
+  --shell-icon-active: #e84a2c;
+  --shell-icon-inactive: #999999;
+  --shell-label-active: #ffffff;
+  --shell-label-inactive: #a3a3a3;
+  --shell-label-muted: #454545;
+
+  /* Focus ring (visible sobre superficies oscuras del shell) */
+  --ring-on-dark: #ffffff;
+
+  /* Avatar (usado en topbar y header del editor) */
+  --avatar-bg: var(--primitive-blue-100);
+  --avatar-text: var(--primitive-blue-700);
+
+  --surface-page: #f6f6f6;
+  --surface-card: #ffffff;
+  --surface-topbar: #ffffff;
+
+  --text-primary: #1a1a1a;
+  --text-secondary: #737373;
+  --text-tertiary: #a6a6a6;
+
+  --border-ui: #d1d1d1;
+
+  --status-active: #22c55e;
+  --status-warning: #f29e11;
+
+  --font-sans: 'Inter', sans-serif;
+  /* Escala Major Third (×1.25) anclada en 12px. Ver RFC-DS-001 §3.
+     xs: badges micro y labels de sección uppercase.
+     sm: metadatos secundarios.
+     base: body shell, inputs, nav items.
+     md: labels de botón, títulos card M.
+     lg: títulos de sección y card L, view headers secundarios.
+     xl: view headers principales (h2).
+     2xl: dashboard welcome (h1). */
+  --font-size-xs: 10px;
+  --font-size-sm: 11px;
+  --font-size-base: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+
+  --radius-card: 8px;
+  --radius-item: 7px;
+  --radius-nav: 6px;
+  --radius-icon: 7px;
+  --radius-badge: 13px;
+  --radius-dot: 4px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+
+  /* Altura de headers por contexto. Ver RFC-DS-001 §P1.3. */
+  --view-header-h-lg: 64px; /* Dashboard welcome banner */
+  --view-header-h:    56px; /* todas las vistas estándar */
+  --editor-topbar-h:  40px; /* topbar del editor */
+
+  /* ──────────────────────────────────────────────────────────────────────
+   * Tokens del Onboarding Wizard (Wizard 1).
+   * Sub-bloque acotado al wizard; si algún color se reutiliza en otro
+   * componente, promoverlo a token semántico general.
+   * ────────────────────────────────────────────────────────────────────── */
+  --wizard-coral:           var(--brand);
+  --wizard-coral-hover:     #c93d22;
+  --wizard-coral-light:     #fff0ee;
+  --wizard-coral-border:    #f5a48b;
+
+  --wizard-success:         #16a34a;
+  --wizard-success-done:    #22c55e;
+  --wizard-success-dark:    #15803d;
+  --wizard-success-light:   #f0fdf4;
+  --wizard-success-border:  #bbf7d0;
+
+  --wizard-amber-light:     #fff7ed;
+  --wizard-amber-border:    #fed7aa;
+  --wizard-amber-border-strong: #fdba74;
+  --wizard-amber-text:      #9a3412;
+  --wizard-amber-accent:    #f59e0b;
+
+  --wizard-blue-light:      #eff6ff;
+  --wizard-blue-border:     #bfdbfe;
+  --wizard-blue-text:       #1d4ed8;
+
+  --wizard-wa-bg:           #e8f5e9;
+  --wizard-wa-border:       #a5d6a7;
+  --wizard-wa-text:         #2e7d32;
+
+  --wizard-overlay:         rgba(0, 0, 0, 0.6);
+
+  /* W2 — tokens adicionales */
+  --wizard-purple-light:    #f5f3ff;
+  --wizard-purple-border:   #c4b5fd;
+  --wizard-purple-text:     #6d28d9;
+
+  --wizard-red-light:       #fef2f2;
+  --wizard-red-border:      #fecaca;
+  --wizard-red-text:        #991b1b;
+
+  --wizard-google-blue:     #1a0aab;
+  --wizard-google-green:    #0a6b0a;
+
+  /* Sidebar del W2 reutiliza tokens del shell pero agrega item-active del wizard */
+  --wizard-sidebar-item-active: #2a2a2a;
+  --wizard-sidebar-item-text:   #8c8c8c;
+
+  /* Teal — banners informativos del Módulo de Creación */
+  --teal:        #0fa37f;
+  --teal-bg:     #e0f5ee;
+  --teal-text:   #0a6e55;
+
+  /* editor dark-theme surfaces */
+  --editor-bg: #121212;
+  --editor-topbar: #171717;
+  --editor-panel: #262626;
+  --editor-panel-nav: #262626;
+  --editor-border: #2e2e2e;
+  --editor-separator: #383838;
+  --editor-canvas: #f0f0f0;
+  --editor-text-bright: #dedede;
+  --editor-text-dim: #737373;   /* AA 4.5:1 sobre --editor-bg #121212 */
+  --editor-text-muted: #8c8c8c;
+  --editor-item-active: #2e2e2e;
+
+  /* site-context sidebar */
+  --site-nav-section: #a3a3a3;
+  --site-nav-separator: #333333;
+  --site-nav-inactive: #a3a3a3;
+  --site-nav-dim: #4d4d4d;
+  --site-nav-add: #999999;
+
+  /* badge surfaces */
+  --badge-green-bg: #e5faeb;
+  --badge-green-text: #22c55e;
+  --badge-orange-bg: #fcf2e0;
+  --badge-orange-text: #f29e11;
+  --badge-blue-bg: #e5f0fc;
+  --badge-blue-text: #1a4dcc;
+  --badge-red-bg: #fee2e2;
+  --badge-neutral-bg: #efefef;
+  --badge-neutral-text: #737373;
+
+  /* AI surfaces — gradiente del asistente y herramientas IA */
+  --ai-gradient-start: #8b5cf6;
+  --ai-gradient-end:   #ec4899;
+  --ai-gradient:       linear-gradient(135deg, var(--ai-gradient-start) 0%, var(--ai-gradient-end) 100%);
+  --ai-glow:           rgba(139, 92, 246, 0.3);
+
+  /* ──────────────────────────────────────────────────────────────────────
+   * CONTRATO DE COLORES SEMÁNTICOS — leer antes de pintar nada
+   * ──────────────────────────────────────────────────────────────────────
+   * Regla del 10%: el brand (coral) NO debe ocupar más del ~10% de la
+   * superficie visible. Es color de FOCUS, no de fondo. Cada pantalla debería
+   * tener UNA acción primaria visible — no diez elementos compitiendo en rojo.
+   * Si dudás entre coral y otro, casi siempre la respuesta correcta es el otro.
+   *
+   *  --brand              (coral) → CTAs primarios de conversión + identidad PXSOL.
+   *                                  Botón "Crear sitio", "Guardar cambios", logo,
+   *                                  selección activa de icon-sidebar.
+   *                                  NUNCA: líneas de progreso, underlines, texto
+   *                                  decorativo, hints sutiles.
+   *  --accent-info        (azul)  → hints, sugerencias y links secundarios.
+   *                                  "Activá Schema.org →", "Ver todos →",
+   *                                  "Editar" en filas de un resumen.
+   *                                  Usar SIEMPRE que sea "deberías hacer esto" sin urgencia.
+   *  --status-active      (verde) → estados completados / positivos.
+   *                                  Badge "Activo", "Guardado ✓", tramos
+   *                                  completados de un step trail, schema activado.
+   *  --badge-orange-text  (naranja)→ warning / pendiente sin urgencia destructiva.
+   *                                  "Borrador", "Próximamente", "Setup incompleto".
+   *  --destructive        (rojo)  → errores y acciones destructivas (eliminar).
+   *                                  NUNCA mezclar con sugerencias — confunde con error.
+   * ────────────────────────────────────────────────────────────────────── */
+  --accent-info:       var(--badge-blue-text);
+  --accent-info-bg:    var(--badge-blue-bg);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.439 0 0);
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+}
+
+/* ============================================================================
+ * LAYER 3 — Tailwind v4 @theme inline
+ * Mapea tokens de LAYER 2 a clases utilitarias de Tailwind (bg-shell-nav-bg,
+ * text-shell-label-active, etc.). Solo agregar acá cuando una clase utility
+ * lo justifique; el consumo via style={{}} no lo necesita.
+ * ============================================================================ */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* PXSOL brand */
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-shell-icon-bg: var(--shell-icon-bg);
+  --color-shell-nav-bg: var(--shell-nav-bg);
+  --color-shell-item-active-bg: var(--shell-item-active-bg);
+  --color-shell-item-active-border: var(--shell-item-active-border);
+  --color-shell-separator: var(--shell-separator);
+  --color-shell-icon-active: var(--shell-icon-active);
+  --color-shell-icon-inactive: var(--shell-icon-inactive);
+  --color-shell-label-active: var(--shell-label-active);
+  --color-shell-label-inactive: var(--shell-label-inactive);
+  --color-shell-label-muted: var(--shell-label-muted);
+  --color-surface-page: var(--surface-page);
+  --color-surface-card: var(--surface-card);
+  --color-surface-topbar: var(--surface-topbar);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-border-ui: var(--border-ui);
+  --color-status-active: var(--status-active);
+  --color-status-warning: var(--status-warning);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /**
+  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
+  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
+  */
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h4 {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  label {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  input {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+  }
+}
+
+@layer components {
+  /* Focus-visible ring for shell buttons on dark surfaces.
+     Uses outline (respects border-radius in modern browsers) + offset. */
+  .focus-ring-dark:focus-visible {
+    outline: 2px solid var(--ring-on-dark);
+    outline-offset: 2px;
+  }
+
+  /* Scrollbar acorde a superficies oscuras (dropdown del SiteSwitcher, etc.).
+     La barra default del SO es clara y rompe con el fondo oscuro del shell. */
+  .scrollbar-dark {
+    scrollbar-width: thin;
+    scrollbar-color: var(--shell-separator) transparent;
+  }
+  .scrollbar-dark::-webkit-scrollbar {
+    width: 8px;
+  }
+  .scrollbar-dark::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-dark::-webkit-scrollbar-thumb {
+    background: var(--shell-separator);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .scrollbar-dark::-webkit-scrollbar-thumb:hover {
+    background: var(--shell-icon-inactive);
+    background-clip: padding-box;
+  }
+}
