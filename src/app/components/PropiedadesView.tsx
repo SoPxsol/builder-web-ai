@@ -153,8 +153,8 @@ export function PropiedadesView({ siteName, navigate }: Props) {
         <ViewHeader
           backTo="paginas"
           eyebrow={siteName}
-          title="Propiedades"
-          description="Configuración del hotel, contacto y operación."
+          title="Habitaciones y servicios"
+          description="Tipos de habitación, amenities, contacto y operación del hotel."
           navigate={navigate}
           action={
             <button

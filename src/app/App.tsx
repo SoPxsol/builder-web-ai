@@ -61,29 +61,43 @@ const initialSites: Site[] = [
 ];
 
 
-// Group 1: content tools (most used)
+// Group 1: contenido y creación (más usado).
+// AI vive acá porque es una herramienta de creación de contenido (genera copy
+// para páginas, posts y respuestas a reseñas), no una opción de configuración.
 const siteNavPrimary = [
   { id: "paginas",     label: "Páginas",        addon: false, disabled: false },
   { id: "blog",        label: "Blog",           addon: false, disabled: false },
   { id: "popups",      label: "Pop-ups",        addon: false, disabled: false },
   { id: "promociones", label: "Promociones",    addon: false, disabled: false },
+  { id: "ai",          label: "AI",             addon: false, disabled: false },
   { id: "redes",       label: "Redes Sociales", addon: true,  disabled: true  },
 ] as const;
 
-// Group 2: site configuration
-const siteNavSettings = [
-  { id: "seo",            label: "SEO",                    badge: null, disabled: false },
-  { id: "info-sitio",     label: "Información del sitio",  badge: null, disabled: false },
-  { id: "ai",             label: "AI",                     badge: null, disabled: false },
-  { id: "discovery",      label: "Discovery",              badge: null, disabled: false },
-  { id: "datos-basicos",  label: "Datos básicos",          badge: null, disabled: false },
-  { id: "idioma",         label: "Idioma",                 badge: null, disabled: false },
-  { id: "multilenguaje",  label: "Multilenguaje",          badge: null, disabled: false },
-  { id: "propiedades",    label: "Propiedades",            badge: null, disabled: false },
-  { id: "integraciones",  label: "Integraciones",          badge: null, disabled: false },
+/**
+ * Configuración del sitio — dividida en 3 sub-grupos con dividers internos.
+ * El orden refleja el flujo natural: identifico el hotel → me hago visible
+ * en buscadores → conecto sistemas externos.
+ *
+ * Items removidos del nav (siguen accesibles vía navigate()):
+ * - "discovery": redundante con "seo" (SEO & GEO ya cubre LLMs).
+ * - "multilenguaje": ahora vive como sección dentro de "Idiomas" (id "idioma").
+ */
+const siteNavIdentity = [
+  { id: "info-sitio",    label: "Información del sitio",    disabled: false },
+  { id: "datos-basicos", label: "Datos del hotel",          disabled: false },
+  { id: "propiedades",   label: "Habitaciones y servicios", disabled: false },
+  { id: "idioma",        label: "Idiomas",                  disabled: false },
 ] as const;
 
-// Group 3: least used
+const siteNavVisibility = [
+  { id: "seo",           label: "SEO & GEO",                disabled: false },
+] as const;
+
+const siteNavConnections = [
+  { id: "integraciones", label: "Integraciones",            disabled: false },
+] as const;
+
+// Group 3: histórico
 const siteNavBottom = [
   { id: "versiones", label: "Versiones", badge: null, disabled: false },
 ] as const;
@@ -511,11 +525,11 @@ export default function App() {
               );
             })}
 
-            {/* Divider */}
+            {/* Divider — fin del grupo contenido */}
             <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
 
-            {/* Group 2: site configuration */}
-            {siteNavSettings.map((item) => {
+            {/* Group 2A: Identidad del hotel */}
+            {siteNavIdentity.map((item) => {
               const active = view === item.id;
               return (
                 <button
@@ -530,7 +544,45 @@ export default function App() {
               );
             })}
 
-            {/* Divider */}
+            {/* Divider — entre Identidad y Visibilidad */}
+            <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
+
+            {/* Group 2B: Visibilidad */}
+            {siteNavVisibility.map((item) => {
+              const active = view === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => navigate(item.id as View)}
+                  aria-current={active ? "page" : undefined}
+                  className="focus-ring-dark w-full text-left px-3 h-8 mb-0.5 transition-colors"
+                  style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+
+            {/* Divider — entre Visibilidad y Conexiones */}
+            <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
+
+            {/* Group 2C: Conexiones */}
+            {siteNavConnections.map((item) => {
+              const active = view === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => navigate(item.id as View)}
+                  aria-current={active ? "page" : undefined}
+                  className="focus-ring-dark w-full text-left px-3 h-8 mb-0.5 transition-colors"
+                  style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+
+            {/* Divider — fin de configuración, antes de histórico */}
             <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
 
             {/* Group 3: versiones */}

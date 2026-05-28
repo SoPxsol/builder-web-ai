@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Languages, ArrowRight } from "lucide-react";
 import type { View } from "../types";
 import { ViewHeader } from "./ui/view-header";
 
@@ -41,7 +41,8 @@ export function IdiomaView({ siteName, navigate }: Props) {
         <ViewHeader
           backTo="paginas"
           eyebrow={siteName}
-          title="Idioma"
+          title="Idiomas"
+          description="Idioma principal del sitio y variantes multilenguaje."
           navigate={navigate}
           action={
             <button
@@ -109,6 +110,41 @@ export function IdiomaView({ siteName, navigate }: Props) {
             </button>
           ))}
         </div>
+
+        {/* Cross-link a Multilenguaje (antes vivía como item separado del nav). */}
+        <button
+          type="button"
+          onClick={() => navigate("multilenguaje")}
+          className="flex items-center justify-between w-full mt-5 px-4 transition-colors hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+          style={{
+            height: 64,
+            background: "var(--surface-card)",
+            border: "0.5px solid var(--border-ui)",
+            borderRadius: "var(--radius-card)",
+            textAlign: "left",
+            cursor: "pointer",
+            outlineColor: "var(--accent-info)",
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              aria-hidden="true"
+              className="flex items-center justify-center flex-shrink-0"
+              style={{ width: 36, height: 36, background: "var(--accent-info-bg)", borderRadius: "var(--radius-icon)" }}
+            >
+              <Languages size={16} style={{ color: "var(--accent-info)" }} />
+            </div>
+            <div>
+              <p style={{ fontSize: "var(--font-size-md)", fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.3 }}>
+                Multilenguaje
+              </p>
+              <p style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", lineHeight: 1.3, marginTop: 2 }}>
+                Activá variantes en otros idiomas y multiplicá tu alcance.
+              </p>
+            </div>
+          </div>
+          <ArrowRight size={14} aria-hidden="true" style={{ color: "var(--text-tertiary)", flexShrink: 0 }} />
+        </button>
       </div>
     </main>
   );
