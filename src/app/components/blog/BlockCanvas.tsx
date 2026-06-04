@@ -30,6 +30,12 @@ const DEMO_IMG =
 interface Props {
   blocks: ArticleBlock[];
   onChange: (blocks: ArticleBlock[]) => void;
+  /**
+   * Permite reordenar arrastrando y soltar desde la paleta. En mobile se apaga
+   * (brief §4): el ajuste fino con el dedo se difiere a desktop. Reordenar sigue
+   * disponible con los botones subir/bajar de la toolbar de cada bloque.
+   */
+  dragEnabled?: boolean;
 }
 
 /**
@@ -44,7 +50,7 @@ interface Props {
  * La data viaja siempre hacia arriba vía onChange(blocks); este componente no
  * guarda los bloques en estado propio (single source of truth en el artículo).
  */
-export function BlockCanvas({ blocks, onChange }: Props) {
+export function BlockCanvas({ blocks, onChange, dragEnabled = true }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -111,12 +117,13 @@ export function BlockCanvas({ blocks, onChange }: Props) {
   return (
     <div className="flex flex-col">
       {blocks.length === 0 && dropIndex === null ? (
-        <EmptyState />
+        <EmptyState dragEnabled={dragEnabled} />
       ) : null}
 
       {blocks.map((block, i) => (
         <div key={block.id}>
           <DropZone
+            enabled={dragEnabled}
             active={dropIndex === i}
             onOver={(e) => {
               if (dragHasPayload(e)) {
@@ -133,6 +140,7 @@ export function BlockCanvas({ blocks, onChange }: Props) {
             count={blocks.length}
             selected={selectedId === block.id}
             dimmed={draggingId === block.id}
+            dragEnabled={dragEnabled}
             number={headingNumbers[block.id]}
             onSelect={() => setSelectedId(block.id)}
             onDragStart={(e) => {
@@ -155,6 +163,7 @@ export function BlockCanvas({ blocks, onChange }: Props) {
 
       {/* Drop zone final (append) */}
       <DropZone
+        enabled={dragEnabled}
         active={dropIndex === blocks.length}
         tall={blocks.length === 0}
         onOver={(e) => {
@@ -191,18 +200,24 @@ function computeHeadingNumbers(blocks: ArticleBlock[]): Record<string, number> {
  * ════════════════════════════════════════════════════════════════════════ */
 
 function DropZone({
+  enabled = true,
   active,
   tall,
   onOver,
   onLeave,
   onDrop,
 }: {
+  enabled?: boolean;
   active: boolean;
   tall?: boolean;
   onOver: (e: React.DragEvent) => void;
   onLeave: () => void;
   onDrop: (e: React.DragEvent) => void;
 }) {
+  // Sin DnD (mobile) la zona es solo un espaciador inerte entre bloques.
+  if (!enabled) {
+    return <div aria-hidden="true" style={{ height: tall ? 8 : 6 }} />;
+  }
   return (
     <div
       onDragOver={onOver}
@@ -234,7 +249,7 @@ function DropZone({
  * Estado vacío
  * ════════════════════════════════════════════════════════════════════════ */
 
-function EmptyState() {
+function EmptyState({ dragEnabled = true }: { dragEnabled?: boolean }) {
   return (
     <div
       className="flex flex-col items-center justify-center"
@@ -251,7 +266,9 @@ function EmptyState() {
         Empezá a armar tu artículo
       </p>
       <p style={{ fontSize: 11, color: "var(--text-tertiary)", margin: 0, maxWidth: 280, lineHeight: 1.5 }}>
-        Arrastrá un componente desde la izquierda o hacé clic en él para sumarlo acá.
+        {dragEnabled
+          ? "Arrastrá un componente desde la izquierda o hacé clic en él para sumarlo acá."
+          : "Tocá “Componentes” abajo y elegí qué sumar al artículo."}
       </p>
     </div>
   );
@@ -267,6 +284,7 @@ function BlockShell({
   count,
   selected,
   dimmed,
+  dragEnabled = true,
   number,
   onSelect,
   onDragStart,
@@ -282,6 +300,7 @@ function BlockShell({
   count: number;
   selected: boolean;
   dimmed: boolean;
+  dragEnabled?: boolean;
   number?: number;
   onSelect: () => void;
   onDragStart: (e: React.DragEvent) => void;
@@ -294,7 +313,9 @@ function BlockShell({
 }) {
   const [hover, setHover] = useState(false);
   const def = BLOCK_DEF_BY_TYPE[block.type];
-  const showChrome = hover || selected;
+  // Sin hover en touch: con DnD apagado mostramos siempre el chrome para que la
+  // toolbar (subir/bajar/duplicar/eliminar) sea alcanzable con el dedo.
+  const showChrome = hover || selected || !dragEnabled;
 
   return (
     <div
@@ -315,22 +336,36 @@ function BlockShell({
       <div
         className="flex items-center justify-between"
         style={{
-          height: 18,
+          height: dragEnabled ? 18 : 32,
           marginBottom: showChrome ? 6 : 0,
           opacity: showChrome ? 1 : 0,
           transition: "opacity 0.12s ease",
           pointerEvents: showChrome ? "auto" : "none",
         }}
       >
-        <span
-          className="flex items-center"
-          draggable
-          onDragStart={onDragStart}
-          onDragEnd={onDragEnd}
-          title="Arrastrá para reordenar"
-          style={{ gap: 4, cursor: "grab" }}
-        >
-          <GripVertical size={12} style={{ color: "var(--text-tertiary)" }} aria-hidden="true" />
+        {dragEnabled ? (
+          <span
+            className="flex items-center"
+            draggable
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            title="Arrastrá para reordenar"
+            style={{ gap: 4, cursor: "grab" }}
+          >
+            <GripVertical size={12} style={{ color: "var(--text-tertiary)" }} aria-hidden="true" />
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+                color: "var(--text-tertiary)",
+              }}
+            >
+              {def.name}
+            </span>
+          </span>
+        ) : (
           <span
             style={{
               fontSize: 9,
@@ -342,12 +377,12 @@ function BlockShell({
           >
             {def.name}
           </span>
-        </span>
-        <div className="flex items-center" style={{ gap: 1 }}>
-          <ToolbarBtn icon={ArrowUp} label="Subir" disabled={index === 0} onClick={onMoveUp} />
-          <ToolbarBtn icon={ArrowDown} label="Bajar" disabled={index === count - 1} onClick={onMoveDown} />
-          <ToolbarBtn icon={Copy} label="Duplicar" onClick={onDuplicate} />
-          <ToolbarBtn icon={Trash2} label="Eliminar" danger onClick={onRemove} />
+        )}
+        <div className="flex items-center" style={{ gap: dragEnabled ? 1 : 4 }}>
+          <ToolbarBtn icon={ArrowUp} label="Subir" big={!dragEnabled} disabled={index === 0} onClick={onMoveUp} />
+          <ToolbarBtn icon={ArrowDown} label="Bajar" big={!dragEnabled} disabled={index === count - 1} onClick={onMoveDown} />
+          <ToolbarBtn icon={Copy} label="Duplicar" big={!dragEnabled} onClick={onDuplicate} />
+          <ToolbarBtn icon={Trash2} label="Eliminar" big={!dragEnabled} danger onClick={onRemove} />
         </div>
       </div>
 
@@ -363,13 +398,17 @@ function ToolbarBtn({
   onClick,
   disabled,
   danger,
+  big,
 }: {
   icon: typeof ArrowUp;
   label: string;
   onClick: () => void;
   disabled?: boolean;
   danger?: boolean;
+  /** Variante de mayor tamaño (touch target cómodo en mobile). */
+  big?: boolean;
 }) {
+  const size = big ? 32 : 22;
   return (
     <button
       type="button"
@@ -382,17 +421,17 @@ function ToolbarBtn({
       }}
       className="flex items-center justify-center transition-colors hover:bg-[#fff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
       style={{
-        width: 22,
-        height: 22,
-        background: "transparent",
-        border: "none",
-        borderRadius: 4,
+        width: size,
+        height: size,
+        background: big ? "var(--surface-card)" : "transparent",
+        border: big ? "0.5px solid var(--border-ui)" : "none",
+        borderRadius: big ? 6 : 4,
         cursor: disabled ? "default" : "pointer",
         opacity: disabled ? 0.3 : 1,
         outlineColor: "var(--accent-info)",
       }}
     >
-      <Icon size={12} style={{ color: danger ? "var(--destructive)" : "var(--text-secondary)" }} aria-hidden="true" />
+      <Icon size={big ? 15 : 12} style={{ color: danger ? "var(--destructive)" : "var(--text-secondary)" }} aria-hidden="true" />
     </button>
   );
 }

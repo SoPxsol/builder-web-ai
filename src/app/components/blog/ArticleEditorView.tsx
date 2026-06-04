@@ -9,8 +9,13 @@ import {
   Eye,
   History,
   Loader2,
+  Monitor,
+  MoreVertical,
   Pencil,
+  Plus,
   RotateCw,
+  Send,
+  SlidersHorizontal,
   Sparkles,
   SquarePen,
   TriangleAlert,
@@ -30,6 +35,7 @@ import {
 } from "../../types/articleBlocks";
 import { BlockPalette } from "./BlockPalette";
 import { BlockCanvas } from "./BlockCanvas";
+import { generateDraft } from "./generateDraft";
 import { ArticlePreviewFull } from "./ArticlePreviewFull";
 import { CodeView } from "./CodeView";
 import { ChatPanel } from "./ChatPanel";
@@ -150,10 +156,18 @@ export function ArticleEditorView({
   const [viewMode, setViewMode] = useState<"edit" | "preview" | "code">("edit");
   const [editingSlug, setEditingSlug] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  // En compact (<1024px) el panel de Ajustes pasa a pestaña.
+  // Dos quiebres (ver brief §5):
+  //  · isCompact (≤1023): tablet → el editor colapsa a pestañas.
+  //  · isMobile  (≤768):  celular → una columna, Ajustes en bottom sheet,
+  //    barra superior compacta y ajuste fino (DnD) diferido a desktop.
+  // isMobile ⊂ isCompact, así que el flujo mobile siempre se evalúa primero.
   const isCompact = useMediaQuery("(max-width: 1023px)");
+  const isMobile = useMediaQuery("(max-width: 768px)");
+  const isTablet = isCompact && !isMobile;
   const [rightTab, setRightTab] = useState<"content" | "chat">("content");
   const [mobileTab, setMobileTab] = useState<"blocks" | "body" | "content" | "chat">("body");
+  // En mobile, Ajustes/Componentes/Chat viven en un bottom sheet (uno por vez).
+  const [sheet, setSheet] = useState<null | "blocks" | "settings" | "chat">(null);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -206,10 +220,18 @@ export function ArticleEditorView({
   // En preview/código ocupamos todo el ancho. En edición: paleta (izq) ·
   // lienzo (centro) · panel derecho con tabs Contenido/Chat. En compact cada
   // zona es una pestaña inferior (Componentes/Cuerpo/Contenido/Chat).
+  // El flujo de 3 columnas / pestañas es para desktop y tablet; en mobile se
+  // usa el cuerpo dedicado (una columna + bottom sheets), así que estas zonas
+  // se apagan con !isMobile.
   const isEdit = viewMode === "edit";
-  const showPalette = isEdit && (!isCompact || mobileTab === "blocks");
-  const showCanvas = isEdit && (!isCompact || mobileTab === "body");
-  const showRight = isEdit && (!isCompact || mobileTab === "content" || mobileTab === "chat");
+  // "Vacío" = sin bloques o un único párrafo en blanco. En mobile, ese estado
+  // muestra el generador IA inline (brief §2).
+  const looksEmpty =
+    blocks.length === 0 ||
+    (blocks.length === 1 && blocks[0].type === "paragraph" && !blocks[0].text.trim());
+  const showPalette = isEdit && !isMobile && (!isCompact || mobileTab === "blocks");
+  const showCanvas = isEdit && !isMobile && (!isCompact || mobileTab === "body");
+  const showRight = isEdit && !isMobile && (!isCompact || mobileTab === "content" || mobileTab === "chat");
   // En desktop el panel derecho alterna por su tab interno; en compact lo
   // determina la pestaña inferior elegida.
   const rightActive: "content" | "chat" = isCompact ? (mobileTab === "chat" ? "chat" : "content") : rightTab;
@@ -248,10 +270,11 @@ export function ArticleEditorView({
         aria-label={`Editor del artículo ${article.title || "sin título"}`}
         className="flex flex-col"
         style={{
-          width: "98vw",
-          height: "98vh",
+          position: "relative",
+          width: isMobile ? "100vw" : "98vw",
+          height: isMobile ? "100vh" : "98vh",
           background: "var(--surface-page)",
-          borderRadius: 12,
+          borderRadius: isMobile ? 0 : 12,
           boxShadow: "0 12px 40px rgba(0,0,0,0.32)",
           overflow: "hidden",
           fontFamily: "var(--font-sans)",
@@ -304,84 +327,119 @@ export function ArticleEditorView({
 
           <div className="flex-1" />
 
-          {/* Derecha: autosave · pill estado · vista previa · publicar */}
-          <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
-            <SaveIndicator status={autosave.status} onRetry={autosave.flush} />
-
-            <StatusPill status={article.status} />
-
-            <ViewModeSwitch value={viewMode} onChange={setViewMode} />
-
-            <span aria-hidden="true" style={{ width: 1, height: 20, background: "var(--border-ui)" }} />
-
-            <button
-              type="button"
-              onClick={() => setShowHistory(true)}
-              className="flex items-center transition-colors hover:bg-[var(--surface-page)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-              style={{
-                height: 30,
-                padding: "0 10px",
-                gap: 6,
-                background: "transparent",
-                border: "0.5px solid var(--border-ui)",
-                borderRadius: 6,
-                fontSize: 12,
-                fontWeight: 500,
-                color: "var(--text-secondary)",
-                cursor: "pointer",
-                outlineColor: "var(--accent-info)",
-              }}
-            >
-              <History size={13} aria-hidden="true" />
-              Historial
-            </button>
-
-            {isPublished && (
+          {/* Derecha: autosave · pill estado · vista previa · publicar.
+              En mobile (≤768) el cluster se compacta: solo autosave (icono),
+              pill, Publicar y un kebab con el resto (brief §1). */}
+          {isMobile ? (
+            <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
+              <SaveIndicator status={autosave.status} onRetry={autosave.flush} compact />
+              <StatusPill status={article.status} />
               <button
                 type="button"
-                onClick={onUnpublish}
-                className="transition-opacity hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                onClick={handlePublish}
+                className="flex items-center transition-opacity hover:opacity-85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                 style={{
-                  height: 30,
-                  padding: "0 6px",
-                  background: "transparent",
+                  height: 32,
+                  padding: "0 14px",
+                  background: "var(--brand)",
                   border: "none",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: "var(--accent-info)",
-                  cursor: "pointer",
-                  outlineColor: "var(--accent-info)",
                   borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#fff",
+                  cursor: "pointer",
+                  outlineColor: "var(--brand)",
                 }}
               >
-                Pasar a borrador
+                {isPublished ? "Actualizar" : "Publicar"}
               </button>
-            )}
+              <MobileMoreMenu
+                viewMode={viewMode}
+                onViewMode={setViewMode}
+                isPublished={isPublished}
+                onHistory={() => setShowHistory(true)}
+                onUnpublish={onUnpublish}
+              />
+            </div>
+          ) : (
+            <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
+              <SaveIndicator status={autosave.status} onRetry={autosave.flush} />
 
-            <button
-              type="button"
-              onClick={handlePublish}
-              className="flex items-center transition-opacity hover:opacity-85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-              style={{
-                height: 30,
-                padding: "0 16px",
-                background: "var(--brand)",
-                border: "none",
-                borderRadius: 6,
-                fontSize: 12,
-                fontWeight: 600,
-                color: "#fff",
-                cursor: "pointer",
-                outlineColor: "var(--brand)",
-              }}
-            >
-              {isPublished ? "Actualizar" : "Publicar"}
-            </button>
-          </div>
+              <StatusPill status={article.status} />
+
+              <ViewModeSwitch value={viewMode} onChange={setViewMode} />
+
+              <span aria-hidden="true" style={{ width: 1, height: 20, background: "var(--border-ui)" }} />
+
+              <button
+                type="button"
+                onClick={() => setShowHistory(true)}
+                className="flex items-center transition-colors hover:bg-[var(--surface-page)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                style={{
+                  height: 30,
+                  padding: "0 10px",
+                  gap: 6,
+                  background: "transparent",
+                  border: "0.5px solid var(--border-ui)",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  outlineColor: "var(--accent-info)",
+                }}
+              >
+                <History size={13} aria-hidden="true" />
+                Historial
+              </button>
+
+              {isPublished && (
+                <button
+                  type="button"
+                  onClick={onUnpublish}
+                  className="transition-opacity hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  style={{
+                    height: 30,
+                    padding: "0 6px",
+                    background: "transparent",
+                    border: "none",
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: "var(--accent-info)",
+                    cursor: "pointer",
+                    outlineColor: "var(--accent-info)",
+                    borderRadius: 6,
+                  }}
+                >
+                  Pasar a borrador
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handlePublish}
+                className="flex items-center transition-opacity hover:opacity-85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                style={{
+                  height: 30,
+                  padding: "0 16px",
+                  background: "var(--brand)",
+                  border: "none",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#fff",
+                  cursor: "pointer",
+                  outlineColor: "var(--brand)",
+                }}
+              >
+                {isPublished ? "Actualizar" : "Publicar"}
+              </button>
+            </div>
+          )}
         </header>
 
-        {/* ── Tabs Componentes / Cuerpo / Contenido / Chat (solo compact, modo edición) ── */}
-        {isCompact && isEdit && (
+        {/* ── Tabs Componentes / Cuerpo / Contenido / Chat (solo tablet, modo edición) ── */}
+        {isTablet && isEdit && (
           <div
             role="tablist"
             aria-label="Secciones del editor"
@@ -538,7 +596,58 @@ export function ArticleEditorView({
               </div>
             </aside>
           )}
+
+          {/* EDICIÓN MOBILE — una sola columna; el contenido es el foco (brief §1).
+              Generación IA inline arriba, editor sin DnD, aviso de ajuste fino. */}
+          {isEdit && isMobile && (
+            <div className="flex-1 overflow-y-auto" style={{ minWidth: 0, background: "var(--surface-page)" }}>
+              <div style={{ padding: "16px 14px 24px" }}>
+                {looksEmpty && (
+                  <MobileAiGenerate
+                    onGenerated={(draft) => setBlocks(draft)}
+                  />
+                )}
+                <ContentEditor
+                  article={article}
+                  blocks={blocks}
+                  onPatch={onPatch}
+                  onBlocksChange={setBlocks}
+                  dragEnabled={false}
+                />
+                <DesktopFineTuneHint />
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* ── Barra inferior mobile (modo edición): abre los bottom sheets ── */}
+        {isMobile && isEdit && (
+          <MobileBottomBar active={sheet} onOpen={(s) => setSheet(s)} />
+        )}
+
+        {/* ── Bottom sheet mobile (Componentes / Ajustes / Chat) ── */}
+        {isMobile && sheet && (
+          <BottomSheet
+            title={sheet === "blocks" ? "Componentes" : sheet === "settings" ? "Ajustes" : "Asistente IA"}
+            onClose={() => setSheet(null)}
+          >
+            {sheet === "blocks" && (
+              <BlockPalette
+                onAdd={(type) => {
+                  addBlock(type);
+                  setSheet(null);
+                }}
+                dragEnabled={false}
+              />
+            )}
+            {sheet === "settings" && <div style={{ padding: 16 }}>{settingsZone}</div>}
+            {sheet === "chat" && (
+              <div style={{ padding: 12, height: "100%" }}>
+                <ChatPanel articleTitle={article.title} />
+              </div>
+            )}
+          </BottomSheet>
+        )}
       </div>
     </div>
     {showHistory && (
@@ -563,11 +672,13 @@ function ContentEditor({
   blocks,
   onPatch,
   onBlocksChange,
+  dragEnabled = true,
 }: {
   article: BlogArticle;
   blocks: ArticleBlock[];
   onPatch: (patch: Partial<BlogArticle>) => void;
   onBlocksChange: (blocks: ArticleBlock[]) => void;
+  dragEnabled?: boolean;
 }) {
   return (
     <div className="flex flex-col" style={{ gap: 12 }}>
@@ -595,7 +706,7 @@ function ContentEditor({
       />
 
       {/* Cuerpo por bloques */}
-      <BlockCanvas blocks={blocks} onChange={onBlocksChange} />
+      <BlockCanvas blocks={blocks} onChange={onBlocksChange} dragEnabled={dragEnabled} />
     </div>
   );
 }
@@ -1097,7 +1208,7 @@ function StatusPill({ status }: { status: BlogArticle["status"] }) {
   );
 }
 
-function SaveIndicator({ status, onRetry }: { status: AutosaveStatus; onRetry: () => void }) {
+function SaveIndicator({ status, onRetry, compact }: { status: AutosaveStatus; onRetry: () => void; compact?: boolean }) {
   // Refresca el "hace X" cada 10s mientras está en saved.
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -1111,25 +1222,31 @@ function SaveIndicator({ status, onRetry }: { status: AutosaveStatus; onRetry: (
   if (status.kind === "saving") {
     return (
       <span role="status" aria-live="polite" className="flex items-center" style={{ gap: 6, fontSize: 11, color: "var(--text-secondary)" }}>
-        <Loader2 size={12} className="animate-spin" style={{ color: "var(--text-tertiary)" }} aria-hidden="true" />
-        Guardando…
+        <Loader2 size={compact ? 14 : 12} className="animate-spin" style={{ color: "var(--text-tertiary)" }} aria-hidden="true" />
+        {!compact && "Guardando…"}
       </span>
     );
   }
 
   if (status.kind === "saved") {
     return (
-      <span role="status" aria-live="polite" className="flex items-center" style={{ gap: 6, fontSize: 11, color: "var(--text-secondary)" }}>
-        <CheckCircle2 size={12} style={{ color: "var(--status-active)" }} aria-hidden="true" />
-        Guardado {formatSavedAgo(status.savedAt)}
+      <span
+        role="status"
+        aria-live="polite"
+        className="flex items-center"
+        style={{ gap: 6, fontSize: 11, color: "var(--text-secondary)" }}
+        title={compact ? `Guardado ${formatSavedAgo(status.savedAt)}` : undefined}
+      >
+        <CheckCircle2 size={compact ? 14 : 12} style={{ color: "var(--status-active)" }} aria-hidden="true" />
+        {!compact && <>Guardado {formatSavedAgo(status.savedAt)}</>}
       </span>
     );
   }
 
   return (
     <span role="status" aria-live="assertive" className="flex items-center" style={{ gap: 6, fontSize: 11, color: "var(--destructive)" }}>
-      <TriangleAlert size={12} aria-hidden="true" />
-      No se pudo guardar
+      <TriangleAlert size={compact ? 14 : 12} aria-hidden="true" />
+      {!compact && "No se pudo guardar"}
       <button
         type="button"
         onClick={onRetry}
@@ -1140,5 +1257,432 @@ function SaveIndicator({ status, onRetry }: { status: AutosaveStatus; onRetry: (
         Reintentar
       </button>
     </span>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+ * Piezas mobile (≤768px)
+ * ════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Kebab de la barra superior en mobile: agrupa lo que no entra en fila a 390px
+ * (cambiar de vista, historial, pasar a borrador). `Publicar` queda afuera,
+ * siempre visible (brief §1).
+ */
+function MobileMoreMenu({
+  viewMode,
+  onViewMode,
+  isPublished,
+  onHistory,
+  onUnpublish,
+}: {
+  viewMode: "edit" | "preview" | "code";
+  onViewMode: (v: "edit" | "preview" | "code") => void;
+  isPublished: boolean;
+  onHistory: () => void;
+  onUnpublish: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    // ESC en captura: cierra el menú sin dejar que el editor (que escucha ESC en
+    // burbuja sobre document) se cierre también.
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, [open]);
+
+  function run(action: () => void) {
+    setOpen(false);
+    action();
+  }
+
+  const viewOpts = [
+    { id: "edit" as const, label: "Editar", Icon: SquarePen },
+    { id: "preview" as const, label: "Vista previa", Icon: Eye },
+    { id: "code" as const, label: "Código", Icon: Code2 },
+  ];
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Más opciones"
+        className="flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+        style={{
+          width: 36,
+          height: 32,
+          background: open ? "var(--surface-page)" : "transparent",
+          border: "0.5px solid var(--border-ui)",
+          borderRadius: 6,
+          cursor: "pointer",
+          outlineColor: "var(--accent-info)",
+        }}
+      >
+        <MoreVertical size={16} style={{ color: "var(--text-secondary)" }} aria-hidden="true" />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute"
+          style={{
+            top: 38,
+            right: 0,
+            zIndex: 120,
+            background: "var(--surface-card)",
+            borderRadius: "var(--radius-card)",
+            border: "0.5px solid var(--border-ui)",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.14)",
+            minWidth: 200,
+            overflow: "hidden",
+            padding: "4px 0",
+          }}
+        >
+          <p style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-tertiary)", padding: "6px 12px 2px", margin: 0 }}>
+            Ver como
+          </p>
+          {viewOpts.map(({ id, label, Icon }) => {
+            const active = viewMode === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={active}
+                onClick={() => run(() => onViewMode(id))}
+                className="flex items-center gap-2.5 w-full px-3 transition-colors hover:bg-[var(--surface-page)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+                style={{ height: 40, background: "transparent", fontSize: 13, color: "var(--text-primary)", textAlign: "left", border: "none", cursor: "pointer", outlineColor: "var(--accent-info)", fontWeight: active ? 600 : 400 }}
+              >
+                <Icon size={14} style={{ color: active ? "var(--text-primary)" : "var(--text-secondary)" }} aria-hidden="true" />
+                {label}
+                {active && <Check size={13} style={{ marginLeft: "auto", color: "var(--status-active)" }} aria-hidden="true" />}
+              </button>
+            );
+          })}
+          <div style={{ height: "0.5px", background: "var(--border-ui)", margin: "4px 0" }} />
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => run(onHistory)}
+            className="flex items-center gap-2.5 w-full px-3 transition-colors hover:bg-[var(--surface-page)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+            style={{ height: 40, background: "transparent", fontSize: 13, color: "var(--text-primary)", textAlign: "left", border: "none", cursor: "pointer", outlineColor: "var(--accent-info)" }}
+          >
+            <History size={14} style={{ color: "var(--text-secondary)" }} aria-hidden="true" />
+            Historial de versiones
+          </button>
+          {isPublished && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => run(onUnpublish)}
+              className="flex items-center gap-2.5 w-full px-3 transition-colors hover:bg-[var(--surface-page)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+              style={{ height: 40, background: "transparent", fontSize: 13, color: "var(--text-primary)", textAlign: "left", border: "none", cursor: "pointer", outlineColor: "var(--accent-info)" }}
+            >
+              <ArrowLeft size={14} style={{ color: "var(--text-secondary)" }} aria-hidden="true" />
+              Pasar a borrador
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Barra inferior mobile (modo edición). El cuerpo del artículo es la pantalla;
+ * Componentes / Ajustes / Chat se abren en bottom sheet desde acá (brief §3).
+ */
+function MobileBottomBar({
+  active,
+  onOpen,
+}: {
+  active: null | "blocks" | "settings" | "chat";
+  onOpen: (s: "blocks" | "settings" | "chat") => void;
+}) {
+  const items = [
+    { id: "blocks" as const, label: "Componentes", Icon: Plus },
+    { id: "settings" as const, label: "Ajustes", Icon: SlidersHorizontal },
+    { id: "chat" as const, label: "Asistente", Icon: Sparkles },
+  ];
+  return (
+    <nav
+      aria-label="Acciones del editor"
+      className="flex items-stretch flex-shrink-0"
+      style={{
+        background: "#fff",
+        borderTop: "0.5px solid var(--border-ui)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
+    >
+      {items.map(({ id, label, Icon }) => {
+        const isActive = active === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onOpen(id)}
+            aria-pressed={isActive}
+            className="flex-1 flex flex-col items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+            style={{
+              gap: 3,
+              minHeight: 54,
+              background: isActive ? "var(--surface-page)" : "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
+              outlineColor: "var(--accent-info)",
+            }}
+          >
+            <Icon size={18} aria-hidden="true" />
+            <span style={{ fontSize: 10, fontWeight: isActive ? 600 : 500 }}>{label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+/**
+ * Bottom sheet mobile. Se monta DENTRO del modal del editor (no es un portal
+ * nuevo): así queda dentro del focus trap y no toca `body.overflow` (que el
+ * editor ya bloqueó). ESC en captura cierra el sheet sin cerrar el editor.
+ */
+function BottomSheet({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    panelRef.current?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    }
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+
+  return (
+    <div
+      className="absolute inset-0 flex flex-col justify-end"
+      style={{ zIndex: 110 }}
+    >
+      {/* Scrim */}
+      <div
+        onClick={onClose}
+        aria-hidden="true"
+        style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }}
+      />
+      {/* Panel */}
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
+        className="flex flex-col"
+        style={{
+          position: "relative",
+          maxHeight: "80%",
+          minHeight: "40%",
+          background: "#fff",
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
+          boxShadow: "0 -8px 32px rgba(0,0,0,0.22)",
+          outline: "none",
+        }}
+      >
+        {/* Handle + header */}
+        <div className="flex flex-col items-center flex-shrink-0" style={{ paddingTop: 8 }}>
+          <span aria-hidden="true" style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border-ui)" }} />
+          <div className="flex items-center justify-between w-full" style={{ padding: "10px 14px 8px" }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>{title}</p>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Cerrar"
+              className="flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+              style={{ width: 32, height: 32, background: "var(--surface-page)", border: "0.5px solid var(--border-ui)", borderRadius: 8, cursor: "pointer", outlineColor: "var(--accent-info)" }}
+            >
+              <X size={15} style={{ color: "var(--text-secondary)" }} aria-hidden="true" />
+            </button>
+          </div>
+          <div style={{ height: "0.5px", width: "100%", background: "var(--border-ui)" }} />
+        </div>
+        {/* Cuerpo scrolleable */}
+        <div className="flex-1" style={{ minHeight: 0, overflowY: "auto" }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Generación con IA inline (mobile). idle → generando… → (el borrador cae en la
+ * zona de contenido) / error con reintentar. Mock: ver generateDraft (brief §8).
+ */
+function MobileAiGenerate({ onGenerated }: { onGenerated: (blocks: ArticleBlock[]) => void }) {
+  const [prompt, setPrompt] = useState("");
+  const [phase, setPhase] = useState<"idle" | "generating" | "error">("idle");
+
+  async function run() {
+    if (!prompt.trim() || phase === "generating") return;
+    setPhase("generating");
+    try {
+      const draft = await generateDraft(prompt);
+      onGenerated(draft);
+      // Al resolver, `looksEmpty` pasa a false y este panel se desmonta solo.
+    } catch {
+      setPhase("error");
+    }
+  }
+
+  return (
+    <div
+      className="flex flex-col"
+      style={{
+        gap: 10,
+        marginBottom: 16,
+        padding: 14,
+        background: "var(--surface-card)",
+        border: "0.5px solid var(--border-ui)",
+        borderRadius: 12,
+      }}
+    >
+      <div className="flex items-center" style={{ gap: 8 }}>
+        <span
+          aria-hidden="true"
+          className="flex items-center justify-center"
+          style={{ width: 28, height: 28, borderRadius: 8, background: "var(--ai-gradient)", color: "#fff", flexShrink: 0 }}
+        >
+          <Sparkles size={15} />
+        </span>
+        <div className="flex flex-col">
+          <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Generá con IA</p>
+          <p style={{ fontSize: 11, color: "var(--text-secondary)", margin: 0 }}>
+            Describí el artículo y la IA arma el borrador.
+          </p>
+        </div>
+      </div>
+
+      {phase === "generating" ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center justify-center"
+          style={{ gap: 8, padding: "18px 0", fontSize: 13, color: "var(--text-secondary)" }}
+        >
+          <Loader2 size={16} className="animate-spin" style={{ color: "var(--brand)" }} aria-hidden="true" />
+          Generando tu borrador…
+        </div>
+      ) : (
+        <>
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="Ej: Una guía de los mejores miradores de la cordillera, tono cercano, para huéspedes del hotel."
+            rows={3}
+            aria-label="Describí el artículo para generar con IA"
+            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              background: "#fff",
+              border: "0.5px solid var(--border-ui)",
+              borderRadius: 8,
+              fontSize: 13,
+              lineHeight: 1.5,
+              color: "var(--text-primary)",
+              outline: "none",
+              outlineColor: "var(--accent-info)",
+              fontFamily: "inherit",
+              resize: "vertical",
+              boxSizing: "border-box",
+            }}
+          />
+          {phase === "error" && (
+            <p role="alert" className="flex items-center" style={{ gap: 6, fontSize: 12, color: "var(--destructive)", margin: 0 }}>
+              <TriangleAlert size={13} aria-hidden="true" />
+              No se pudo generar. Probá de nuevo.
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={run}
+            disabled={!prompt.trim()}
+            className="flex items-center justify-center transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40"
+            style={{
+              height: 42,
+              gap: 8,
+              background: "var(--brand)",
+              border: "none",
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 600,
+              color: "#fff",
+              cursor: prompt.trim() ? "pointer" : "not-allowed",
+              outlineColor: "var(--brand)",
+            }}
+          >
+            {phase === "error" ? <RotateCw size={15} aria-hidden="true" /> : <Send size={15} aria-hidden="true" />}
+            {phase === "error" ? "Reintentar" : "Generar borrador"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Aviso no bloqueante (brief §4): el ajuste fino visual se difiere a desktop.
+ * Es un hint → azul, nunca un botón (ver contrato de color de la app).
+ */
+function DesktopFineTuneHint() {
+  return (
+    <div
+      className="flex items-start"
+      style={{
+        gap: 8,
+        marginTop: 20,
+        padding: "10px 12px",
+        background: "var(--badge-blue-bg)",
+        borderRadius: 8,
+      }}
+    >
+      <Monitor size={14} style={{ color: "var(--badge-blue-text)", flexShrink: 0, marginTop: 1 }} aria-hidden="true" />
+      <p style={{ fontSize: 11.5, lineHeight: 1.5, color: "var(--badge-blue-text)", margin: 0 }}>
+        El ajuste fino del diseño (reordenar y reacomodar bloques) se hace mejor desde una computadora.
+      </p>
+    </div>
   );
 }

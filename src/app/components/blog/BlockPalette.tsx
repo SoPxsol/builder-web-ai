@@ -9,6 +9,12 @@ import {
 interface Props {
   /** Agrega un bloque al final del artículo (click rápido). */
   onAdd: (type: BlockType) => void;
+  /**
+   * Habilita arrastrar ítems al lienzo. En mobile se apaga (el ajuste fino con
+   * el dedo es la fricción que evitamos; ver brief §4): el tap-para-agregar
+   * sigue funcionando.
+   */
+  dragEnabled?: boolean;
 }
 
 /**
@@ -23,7 +29,7 @@ interface Props {
  * Mismo patrón de DnD que el builder (setData con un MIME propio), para que
  * ambos editores se sientan parte del mismo producto.
  */
-export function BlockPalette({ onAdd }: Props) {
+export function BlockPalette({ onAdd, dragEnabled = true }: Props) {
   const [query, setQuery] = useState("");
 
   const groups = useMemo(() => {
@@ -44,9 +50,9 @@ export function BlockPalette({ onAdd }: Props) {
       aria-label="Componentes del artículo"
       className="flex flex-col flex-shrink-0"
       style={{
-        width: 232,
+        width: dragEnabled ? 232 : "100%",
         background: "var(--surface-page)",
-        borderRight: "0.5px solid var(--border-ui)",
+        borderRight: dragEnabled ? "0.5px solid var(--border-ui)" : "none",
       }}
     >
       {/* Header + buscador */}
@@ -99,7 +105,7 @@ export function BlockPalette({ onAdd }: Props) {
           />
         </label>
         <p style={{ fontSize: 10, color: "var(--text-tertiary)", margin: "8px 0 0", lineHeight: 1.4 }}>
-          Arrastrá al artículo o hacé clic para agregar.
+          {dragEnabled ? "Arrastrá al artículo o hacé clic para agregar." : "Tocá un componente para agregarlo."}
         </p>
       </div>
 
@@ -139,18 +145,22 @@ export function BlockPalette({ onAdd }: Props) {
                     key={b.type}
                     type="button"
                     onClick={() => onAdd(b.type)}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData(MIME_BLOCK_TYPE, b.type);
-                      e.dataTransfer.effectAllowed = "copy";
-                    }}
+                    draggable={dragEnabled}
+                    onDragStart={
+                      dragEnabled
+                        ? (e) => {
+                            e.dataTransfer.setData(MIME_BLOCK_TYPE, b.type);
+                            e.dataTransfer.effectAllowed = "copy";
+                          }
+                        : undefined
+                    }
                     title={`Agregar ${b.name}`}
                     className="flex items-center w-full transition-colors hover:bg-[#fff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
                     style={{
-                      padding: "6px 12px",
+                      padding: dragEnabled ? "6px 12px" : "10px 12px",
                       background: "transparent",
                       border: "none",
-                      cursor: "grab",
+                      cursor: dragEnabled ? "grab" : "pointer",
                       textAlign: "left",
                       gap: 9,
                       outlineColor: "var(--ring)",
