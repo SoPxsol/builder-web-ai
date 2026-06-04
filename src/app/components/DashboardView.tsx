@@ -1,10 +1,55 @@
-import { ArrowRight, Eye, Globe, Languages, Pencil, ExternalLink, Plus, Search, Sparkles } from "lucide-react";
+import { useState } from "react";
+import {
+  ArrowRight,
+  AppWindow,
+  Eye,
+  FilePlus,
+  FileText,
+  Globe,
+  Languages,
+  Megaphone,
+  MessageSquarePlus,
+  Newspaper,
+  Pencil,
+  PenLine,
+  ExternalLink,
+  Plus,
+  Search,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import type { View, Site } from "../types";
 import type { StepIndex } from "../types/wizard";
 import type { W2State } from "../types/wizard2";
 import type { PopupState } from "../types/creation";
 import { SetupProgressCard } from "./SetupProgressCard";
 import { CommercialCalendarCard } from "./CommercialCalendarCard";
+import { SitePickerDialog } from "./SitePickerDialog";
+
+/**
+ * Acciones rápidas del Dashboard. Apuntan a CONTEXTO DE SITIO, así que al
+ * elegir una se pregunta primero "¿en qué sitio?" (SitePickerDialog).
+ *
+ * Dos grupos:
+ *  - "create": abren un wizard de creación directo en el sitio elegido.
+ *  - "nav":    navegan a la vista (listado) de ese sitio.
+ */
+type QuickAction =
+  | { kind: "create"; create: "article" | "popup" | "page"; label: string; Icon: LucideIcon }
+  | { kind: "nav"; view: View; label: string; Icon: LucideIcon };
+
+const CREATE_ACTIONS: QuickAction[] = [
+  { kind: "create", create: "article", label: "Crear artículo", Icon: PenLine },
+  { kind: "create", create: "popup", label: "Crear pop-up", Icon: MessageSquarePlus },
+  { kind: "create", create: "page", label: "Crear página", Icon: FilePlus },
+];
+
+const NAV_ACTIONS: QuickAction[] = [
+  { kind: "nav", view: "paginas", label: "Páginas", Icon: FileText },
+  { kind: "nav", view: "blog", label: "Blog", Icon: Newspaper },
+  { kind: "nav", view: "popups", label: "Pop-ups", Icon: AppWindow },
+  { kind: "nav", view: "promociones", label: "Promociones", Icon: Megaphone },
+];
 
 /**
  * Variante visual del StatCard. Define el color del icono + fondo del icono.
@@ -36,6 +81,8 @@ interface Props {
    * para disparar pop-up countdown / lead capture / exit-intent pre-cargado.
    */
   openCreatePopupWith: (preset: Partial<PopupState>) => void;
+  /** Abre un wizard de creación directo en el sitio elegido (acciones rápidas). */
+  onCreateInSite: (kind: "article" | "popup" | "page", siteId: number) => void;
   /** Día actual del trial (1-indexed). */
   trialDay?: number;
   trialTotalDays?: number;
@@ -260,7 +307,74 @@ function SiteGradientCard({ site, onEdit }: { site: Site; onEdit: () => void }) 
   );
 }
 
-export function DashboardView({ sites, navigate, openWizard, openWizardAt, wizard2Draft, openWizard2, openCreatePopupWith, trialDay, trialTotalDays }: Props) {
+/** Grupo de acciones rápidas (Crear / Ir a) con su rótulo. */
+function QuickActionGroup({
+  title,
+  subtitle,
+  actions,
+  onRun,
+}: {
+  title: string;
+  subtitle: string;
+  actions: QuickAction[];
+  onRun: (a: QuickAction) => void;
+}) {
+  return (
+    <div>
+      <p
+        style={{
+          fontSize: "var(--font-size-xs)",
+          fontWeight: 600,
+          color: "var(--text-tertiary)",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+          margin: "0 0 8px",
+        }}
+      >
+        {title}
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {actions.map((action) => {
+          const Icon = action.Icon;
+          return (
+            <button
+              key={action.label}
+              type="button"
+              onClick={() => onRun(action)}
+              className="flex items-center gap-3 p-3 transition-colors hover:border-[var(--accent-info)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              style={{
+                background: "var(--surface-card)",
+                border: "0.5px solid var(--border-ui)",
+                borderRadius: "var(--radius-card)",
+                cursor: "pointer",
+                textAlign: "left",
+                outlineColor: "var(--accent-info)",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                className="flex items-center justify-center flex-shrink-0"
+                style={{ width: 36, height: 36, background: "var(--accent-info-bg)", borderRadius: "var(--radius-icon)" }}
+              >
+                <Icon size={18} style={{ color: "var(--accent-info)" }} />
+              </span>
+              <span className="flex flex-col min-w-0" style={{ gap: 1 }}>
+                <span style={{ fontSize: "var(--font-size-md)", fontWeight: 600, color: "var(--text-primary)" }}>
+                  {action.label}
+                </span>
+                <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
+                  {subtitle}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function DashboardView({ sites, navigate, openWizard, openWizardAt, wizard2Draft, openWizard2, openCreatePopupWith, onCreateInSite, trialDay, trialTotalDays }: Props) {
   const isEmpty = sites.length === 0;
   const activeSites = sites.filter((s) => s.status === "active");
 
@@ -283,6 +397,24 @@ export function DashboardView({ sites, navigate, openWizard, openWizardAt, wizar
       : { text: `Multilenguaje activo · ${idiomasCount} variantes`, tone: "positive" as const };
 
   const previewSites = sites.slice(0, 6);
+
+  // Acciones rápidas: solo aplican a sitios activos (los pending no tienen
+  // contenido todavía). Si hay un único sitio activo, vamos directo; si hay
+  // varios, abrimos el selector "¿en qué sitio?".
+  const [pendingAction, setPendingAction] = useState<QuickAction | null>(null);
+
+  function dispatchAction(action: QuickAction, siteId: number) {
+    if (action.kind === "create") onCreateInSite(action.create, siteId);
+    else navigate(action.view, siteId);
+  }
+
+  function runQuickAction(action: QuickAction) {
+    if (activeSites.length === 1) {
+      dispatchAction(action, activeSites[0].id);
+      return;
+    }
+    setPendingAction(action);
+  }
 
   return (
     <main className="flex-1 overflow-y-auto" style={{ background: "var(--surface-page)" }}>
@@ -390,6 +522,30 @@ export function DashboardView({ sites, navigate, openWizard, openWizardAt, wizar
             />
           </div>
 
+          {/* Acciones rápidas — dos grupos: Crear e Ir a (preguntan el sitio) */}
+          <section aria-labelledby="quick-actions-title" className="mb-6">
+            <h2
+              id="quick-actions-title"
+              style={{ fontSize: "var(--font-size-lg)", fontWeight: 600, color: "var(--text-primary)", margin: "0 0 12px" }}
+            >
+              Acciones rápidas
+            </h2>
+
+            <QuickActionGroup
+              title="Crear"
+              actions={CREATE_ACTIONS}
+              subtitle="Nuevo en un sitio"
+              onRun={runQuickAction}
+            />
+            <div style={{ height: 12 }} />
+            <QuickActionGroup
+              title="Ir a"
+              actions={NAV_ACTIONS}
+              subtitle="Ir al sitio"
+              onRun={runQuickAction}
+            />
+          </section>
+
           {/* Setup Progress Card — solo si hay draft del W2 */}
           {wizard2Draft && (
             <SetupProgressCard
@@ -431,6 +587,19 @@ export function DashboardView({ sites, navigate, openWizard, openWizardAt, wizar
             ))}
           </div>
         </div>
+      )}
+
+      {/* Selector de sitio para acciones rápidas */}
+      {pendingAction && (
+        <SitePickerDialog
+          action={{ label: pendingAction.label, Icon: pendingAction.Icon }}
+          sites={activeSites}
+          onPick={(siteId) => {
+            dispatchAction(pendingAction, siteId);
+            setPendingAction(null);
+          }}
+          onClose={() => setPendingAction(null)}
+        />
       )}
     </main>
   );

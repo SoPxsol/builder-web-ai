@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ChevronDown, ChevronRight, Component, Plus } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { ChevronDown, ChevronRight, Component } from "lucide-react";
 import type { BuilderModule, ModulePropType } from "../../types/builder";
 
 const MIME_MODULE = "application/x-module-id";
@@ -13,11 +13,17 @@ interface ModuleTreeProps {
   onSelectModule: (id: string) => void;
   onSelectProperty: (moduleId: string, propertyName: string) => void;
   onToggleExpand: (id: string) => void;
-  onCreatePage: () => void;
   /** Drop de un módulo del tree sobre otro → reordenar. */
   onReorderModule: (fromId: string, toId: string) => void;
   /** Drop de un componente del palette → agregar al tree. */
   onAddFromPalette: (componentId: string) => void;
+  /**
+   * Slot superior del aside. Acá vive el AddModulePicker (input siempre
+   * visible + catálogo desplegable + "Crear con IA"). Se renderiza encima
+   * del header "Árbol de módulos" para reflejar el flujo de la tarea
+   * principal del hotelero: primero agregar, después editar lo existente.
+   */
+  header?: ReactNode;
 }
 
 function badgeStyle(type: ModulePropType): React.CSSProperties {
@@ -43,9 +49,9 @@ export function ModuleTree({
   onSelectModule,
   onSelectProperty,
   onToggleExpand,
-  onCreatePage,
   onReorderModule,
   onAddFromPalette,
+  header,
 }: ModuleTreeProps) {
   const componentCount = modules.length;
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -80,17 +86,29 @@ export function ModuleTree({
     <aside
       className="flex flex-col flex-shrink-0"
       style={{
-        width: 210,
+        width: 240,
         background: "var(--surface-page)",
         borderRight: "0.5px solid var(--border-ui)",
       }}
     >
-      {/* Header */}
-      <div style={{ padding: "14px 14px 10px", borderBottom: "0.5px solid var(--border-ui)" }}>
-        <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)" }}>
+      {/* Slot superior — AddModulePicker (catálogo + Crear con IA).
+          Prioriza la tarea principal: agregar un módulo a la página. */}
+      {header}
+
+      {/* Header del árbol — reducido, ahora secundario al picker de arriba. */}
+      <div style={{ padding: "12px 14px 8px", borderBottom: "0.5px solid var(--border-ui)" }}>
+        <p
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: "var(--text-tertiary)",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+          }}
+        >
           Árbol de módulos
         </p>
-        <div className="flex items-baseline" style={{ gap: 6, marginTop: 4 }}>
+        <div className="flex items-baseline" style={{ gap: 6, marginTop: 3 }}>
           <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>{pageName}</span>
           <span style={{ fontSize: 9, color: "var(--text-tertiary)" }}>
             {componentCount} {componentCount === 1 ? "componente" : "componentes"}
@@ -276,47 +294,12 @@ export function ModuleTree({
         })}
       </div>
 
-      {/* Bottom bar: Páginas del sitio + CTA */}
-      <div
-        style={{
-          padding: 12,
-          borderTop: "0.5px solid var(--border-ui)",
-          background: "var(--surface-page)",
-        }}
-      >
-        <p
-          style={{
-            fontSize: 10,
-            fontWeight: 600,
-            color: "var(--text-tertiary)",
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            marginBottom: 8,
-          }}
-        >
-          Páginas del sitio
-        </p>
-        <button
-          type="button"
-          onClick={onCreatePage}
-          className="flex items-center justify-center w-full transition-opacity hover:opacity-85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-          style={{
-            height: 30,
-            background: "var(--text-primary)",
-            border: "none",
-            borderRadius: 6,
-            fontSize: 11,
-            fontWeight: 500,
-            color: "#fff",
-            cursor: "pointer",
-            gap: 6,
-            outlineColor: "var(--accent-info)",
-          }}
-        >
-          <Plus size={12} aria-hidden="true" />
-          Crear página
-        </button>
-      </div>
+      {/*
+        Bottom-bar "Páginas del sitio + Crear página" removida:
+        son acciones de nivel sitio que generan confusión de modo dentro
+        del editor de una página. Acceso preservado en PaginasView (botón
+        "Nueva página") y en la nav secundaria del sitio.
+      */}
     </aside>
   );
 }
