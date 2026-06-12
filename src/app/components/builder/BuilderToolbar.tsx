@@ -45,6 +45,11 @@ interface BuilderToolbarProps {
   onViewportChange: (v: ViewportMode) => void;
   canvasWidth: number;
   onCanvasWidthChange: (w: number) => void;
+  /**
+   * Muestra el control de ancho + el switcher de dispositivos. Se oculta en la
+   * pestaña Header, cuyo preview es dual (escritorio + mobile a la vez) y no
+   * usa el switcher. Default true. */
+  showViewportControls?: boolean;
   componentsOpen: boolean;
   onToggleComponents: () => void;
   aiOpen: boolean;
@@ -96,6 +101,7 @@ export function BuilderToolbar({
   onViewportChange,
   canvasWidth,
   onCanvasWidthChange,
+  showViewportControls = true,
   componentsOpen,
   onToggleComponents,
   aiOpen,
@@ -215,6 +221,8 @@ export function BuilderToolbar({
 
       {/* DERECHA: width · viewport · idioma · toggle modo · autosave · menú "⋯" · avatar · publicar */}
       <div className="flex items-center flex-shrink-0" style={{ gap: 6 }}>
+        {showViewportControls && (
+        <>
         <label
           className="flex items-center"
           style={{
@@ -297,6 +305,8 @@ export function BuilderToolbar({
             );
           })}
         </div>
+        </>
+        )}
 
         <LanguageSelector value={language} onChange={onLanguageChange} />
 

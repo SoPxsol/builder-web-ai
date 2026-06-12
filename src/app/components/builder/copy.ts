@@ -137,6 +137,53 @@ export const BUILDER_COPY = {
   },
 
   /**
+   * Pestaña Header — configuración global de la navegación del sitio.
+   * Spike: valida la UX de disposición mobile + preview dual. Estado local.
+   */
+  header: {
+    title: "Header",
+    /** Aviso de alcance: el header es global. */
+    scopeNote: "Se aplica a todas las páginas",
+    sections: {
+      content: "Contenido",
+      desktop: "Escritorio",
+      mobile: "Mobile · Disposición",
+    },
+    /** Filas mock de Contenido (no hay modelo real de header en el prototipo). */
+    contentItems: {
+      logo: "Logo",
+      pages: "Páginas del menú",
+      cta: "Botón de reserva",
+    },
+    /** Texto informativo de la sección Escritorio. */
+    desktopInfo: "Barra superior fija",
+    /** Radio cards de disposición mobile. */
+    layouts: {
+      superior: "Superior",
+      ambas: "Ambas",
+      inferior: "Inferior",
+    },
+    layoutGroupAria: "Disposición de la navegación en mobile",
+    /** Aviso condicional (disposición Ambas o Inferior). */
+    bottomBarHint: "El menú se mostrará en la barra inferior (☰)",
+    /** Toggle condicional. */
+    searchToggle: "Búsqueda colapsable",
+    searchToggleAria: "Búsqueda colapsable en la barra inferior",
+    /** Etiquetas del preview dual. */
+    preview: {
+      desktop: "Vista escritorio",
+      mobile: "Vista mobile",
+    },
+    /** Labels de los ítems de la barra inferior del preview mobile. */
+    bottomBar: {
+      menu: "Menú",
+      search: "Búsqueda",
+      reservar: "Reservar",
+      contacto: "Contacto",
+    },
+  },
+
+  /**
    * Panel de edición de un módulo — vive a la izquierda y reemplaza al panel
    * de estructura mientras se edita (se vuelve con "Estructura"). Agrupa la
    * configuración del módulo en pestañas; "Contenido" arranca activa por

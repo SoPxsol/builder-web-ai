@@ -8,6 +8,8 @@ import { Canvas } from "./Canvas";
 import { ComponentsPanel } from "./ComponentsPanel";
 import { AiAssistantPanel } from "./AiAssistantPanel";
 import { ModuleEditPanel, type EditTab } from "./ModuleEditPanel";
+import { HeaderPanel, DEFAULT_HEADER_CONFIG, type HeaderConfig, type MobileLayout } from "./HeaderPanel";
+import { HeaderDualPreview } from "./HeaderDualPreview";
 import { AddModulePicker } from "./AddModulePicker";
 import {
   getPublishStatus,
@@ -74,6 +76,11 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
   /** Módulo cuyo panel de edición (Contenido/Sección) está abierto a la izquierda. */
   const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
   const [editTab, setEditTab] = useState<EditTab>("content");
+  /**
+   * Configuración del header (spike, estado local en memoria — no persiste).
+   * Foco: disposición de la nav mobile + búsqueda colapsable.
+   */
+  const [headerConfig, setHeaderConfig] = useState<HeaderConfig>(DEFAULT_HEADER_CONFIG);
   const [viewport, setViewport] = useState<ViewportMode>("desktop");
   const [canvasWidth, setCanvasWidth] = useState<number>(VIEWPORT_TO_WIDTH.desktop);
   const [componentsOpen, setComponentsOpen] = useState(false);
@@ -540,6 +547,9 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
           onViewportChange={handleViewportChange}
           canvasWidth={canvasWidth}
           onCanvasWidthChange={setCanvasWidth}
+          // En la pestaña Header el preview es dual (escritorio + mobile a la vez):
+          // ocultamos el switcher de dispositivos para no duplicar el control.
+          showViewportControls={activeTab !== "header"}
           componentsOpen={componentsOpen}
           onToggleComponents={() => setComponentsOpen((v) => !v)}
           aiOpen={aiOpen}
@@ -561,9 +571,21 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
         />
 
         <div className="flex flex-1 min-h-0" style={{ position: "relative" }}>
-          {/* Panel izquierdo: edición del módulo (Contenido/Sección) si hay uno
-              en edición; si no, el panel de estructura con el AddModulePicker. */}
-          {editingModule ? (
+          {/* Panel izquierdo:
+              - Pestaña Header → panel de configuración global del header (spike).
+              - Si hay un módulo en edición → panel de edición (Contenido/Sección).
+              - Si no → panel de estructura con el AddModulePicker. */}
+          {activeTab === "header" ? (
+            <HeaderPanel
+              config={headerConfig}
+              onChangeLayout={(disposicion: MobileLayout) =>
+                setHeaderConfig((c) => ({ ...c, mobile: { ...c.mobile, disposicion } }))
+              }
+              onToggleSearch={(busquedaColapsable) =>
+                setHeaderConfig((c) => ({ ...c, mobile: { ...c.mobile, busquedaColapsable } }))
+              }
+            />
+          ) : editingModule ? (
             <ModuleEditPanel
               module={editingModule}
               propertyValues={activePropertyValues}
@@ -605,21 +627,25 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
             />
           )}
 
-          <Canvas
-            canvasWidth={canvasWidth}
-            viewport={viewport}
-            activeTab={activeTab}
-            pageName={PAGE_TITLES[activeTab]}
-            modules={activeTree}
-            propertyValues={activePropertyValues}
-            selectedId={selectedModuleId}
-            onSelectModule={handleSelectModule}
-            onReorderModule={handleReorderModule}
-            onAddFromPalette={handleAddFromPalette}
-            onEditModule={handleEditModule}
-            onDuplicateModule={handleDuplicateModule}
-            onRequestDeleteModule={setDeleteConfirmId}
-          />
+          {activeTab === "header" ? (
+            <HeaderDualPreview config={headerConfig} />
+          ) : (
+            <Canvas
+              canvasWidth={canvasWidth}
+              viewport={viewport}
+              activeTab={activeTab}
+              pageName={PAGE_TITLES[activeTab]}
+              modules={activeTree}
+              propertyValues={activePropertyValues}
+              selectedId={selectedModuleId}
+              onSelectModule={handleSelectModule}
+              onReorderModule={handleReorderModule}
+              onAddFromPalette={handleAddFromPalette}
+              onEditModule={handleEditModule}
+              onDuplicateModule={handleDuplicateModule}
+              onRequestDeleteModule={setDeleteConfirmId}
+            />
+          )}
 
           {componentsOpen && (
             <ComponentsPanel
