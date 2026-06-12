@@ -22,7 +22,7 @@ export function DatosBasicosView({ siteName, navigate }: Props) {
         <ViewHeader
           backTo="paginas"
           eyebrow={siteName}
-          title="Datos básicos"
+          title="Datos del hotel"
           navigate={navigate}
         />
         <div style={{ background: "var(--surface-card)", borderRadius: "var(--radius-card)", border: "0.5px solid var(--border-ui)" }}>

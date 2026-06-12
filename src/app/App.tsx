@@ -20,7 +20,10 @@ import { MultilenguajeView } from "./components/MultilenguajeView";
 import { PropiedadesView } from "./components/PropiedadesView";
 import { IntegracionesView } from "./components/IntegracionesView";
 import { PaginasView } from "./components/PaginasView";
+import { CreateArticleDialog } from "./components/blog/CreateArticleDialog";
 import { SiteSwitcher } from "./components/SiteSwitcher";
+import type { BlogArticle } from "./types/article";
+import { INITIAL_ARTICLES, makeArticle } from "./types/article";
 import type { StepIndex, WizardState } from "./types/wizard";
 import type { W2State } from "./types/wizard2";
 import { w1ToW2Initial } from "./types/wizard2";
@@ -43,8 +46,8 @@ const CreatePopupWizard = lazy(() =>
 const CreatePageWizard = lazy(() =>
   import("./components/creation/page/CreatePageWizard").then((m) => ({ default: m.CreatePageWizard })),
 );
-const CreateArticleWizard = lazy(() =>
-  import("./components/creation/article/CreateArticleWizard").then((m) => ({ default: m.CreateArticleWizard })),
+const ArticleEditorView = lazy(() =>
+  import("./components/blog/ArticleEditorView").then((m) => ({ default: m.ArticleEditorView })),
 );
 
 const initialSites: Site[] = [
@@ -61,29 +64,43 @@ const initialSites: Site[] = [
 ];
 
 
-// Group 1: content tools (most used)
+// Group 1: contenido y creación (más usado).
+// AI vive acá porque es una herramienta de creación de contenido (genera copy
+// para páginas, posts y respuestas a reseñas), no una opción de configuración.
 const siteNavPrimary = [
   { id: "paginas",     label: "Páginas",        addon: false, disabled: false },
   { id: "blog",        label: "Blog",           addon: false, disabled: false },
   { id: "popups",      label: "Pop-ups",        addon: false, disabled: false },
   { id: "promociones", label: "Promociones",    addon: false, disabled: false },
+  { id: "ai",          label: "AI",             addon: false, disabled: false },
   { id: "redes",       label: "Redes Sociales", addon: true,  disabled: true  },
 ] as const;
 
-// Group 2: site configuration
-const siteNavSettings = [
-  { id: "seo",            label: "SEO",                    badge: null, disabled: false },
-  { id: "info-sitio",     label: "Información del sitio",  badge: null, disabled: false },
-  { id: "ai",             label: "AI",                     badge: null, disabled: false },
-  { id: "discovery",      label: "Discovery",              badge: null, disabled: false },
-  { id: "datos-basicos",  label: "Datos básicos",          badge: null, disabled: false },
-  { id: "idioma",         label: "Idioma",                 badge: null, disabled: false },
-  { id: "multilenguaje",  label: "Multilenguaje",          badge: null, disabled: false },
-  { id: "propiedades",    label: "Propiedades",            badge: null, disabled: false },
-  { id: "integraciones",  label: "Integraciones",          badge: null, disabled: false },
+/**
+ * Configuración del sitio — dividida en 3 sub-grupos con dividers internos.
+ * El orden refleja el flujo natural: identifico el hotel → me hago visible
+ * en buscadores → conecto sistemas externos.
+ *
+ * Items removidos del nav (siguen accesibles vía navigate()):
+ * - "discovery": redundante con "seo" (SEO & GEO ya cubre LLMs).
+ * - "multilenguaje": ahora vive como sección dentro de "Idiomas" (id "idioma").
+ */
+const siteNavIdentity = [
+  { id: "info-sitio",    label: "Información del sitio",    disabled: false },
+  { id: "datos-basicos", label: "Datos del hotel",          disabled: false },
+  { id: "propiedades",   label: "Habitaciones y servicios", disabled: false },
+  { id: "idioma",        label: "Idiomas",                  disabled: false },
 ] as const;
 
-// Group 3: least used
+const siteNavVisibility = [
+  { id: "seo",           label: "SEO & GEO",                disabled: false },
+] as const;
+
+const siteNavConnections = [
+  { id: "integraciones", label: "Integraciones",            disabled: false },
+] as const;
+
+// Group 3: histórico
 const siteNavBottom = [
   { id: "versiones", label: "Versiones", badge: null, disabled: false },
 ] as const;
@@ -167,6 +184,15 @@ export default function App() {
     setCreatePopupInitial(preset);
     setCreatePopupOpen(true);
   }
+  // Abre un wizard de creación directamente en el sitio elegido (acciones
+  // rápidas del Dashboard). Setea el sitio activo para que el wizard tome el
+  // contexto correcto (dominio, etc.) y luego abre el flujo.
+  function openCreateInSite(kind: "article" | "popup" | "page", siteId: number) {
+    setActiveSiteId(siteId);
+    if (kind === "article") setCreateArticleOpen(true);
+    else if (kind === "popup") setCreatePopupOpen(true);
+    else setCreatePageOpen(true);
+  }
   const [createPageOpen, setCreatePageOpen] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.search).get("createPage") === "true";
@@ -175,6 +201,62 @@ export default function App() {
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.search).get("createArticle") === "true";
   });
+
+  // ── Blog: store de artículos (single source of truth, mockeado en memoria) ──
+  // Vive acá para compartirse entre el listado (BlogView) y el editor unificado.
+  const [articles, setArticles] = useState<BlogArticle[]>(INITIAL_ARTICLES);
+  const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
+  const editingArticle = articles.find((a) => a.id === editingArticleId) ?? null;
+
+  // Simula la persistencia de la creación optimista. En el prototipo, un título
+  // que contenga "error" falla a propósito para poder demostrar el estado de
+  // error + reintentar de la fila.
+  function persistCreation(id: string, title: string) {
+    const shouldFail = title.toLowerCase().includes("error");
+    window.setTimeout(() => {
+      setArticles((prev) =>
+        prev.map((a) =>
+          a.id === id ? { ...a, creation: shouldFail ? "error" : undefined } : a,
+        ),
+      );
+    }, 1200);
+  }
+
+  function createArticle(title: string) {
+    const id = `art-${Date.now()}`;
+    const article = makeArticle(id, title, new Date().toISOString());
+    // 1) Optimistic update: aparece en la lista al instante, en estado "saving".
+    setArticles((prev) => [article, ...prev]);
+    // 2) Cerramos el diálogo y ruteamos directo al editor del artículo nuevo.
+    setCreateArticleOpen(false);
+    setEditingArticleId(id);
+    // 3) Disparamos la persistencia (resuelve la fila a asentada o error).
+    persistCreation(id, title);
+  }
+
+  function retryArticle(id: string) {
+    setArticles((prev) => prev.map((a) => (a.id === id ? { ...a, creation: "saving" } : a)));
+    const article = articles.find((a) => a.id === id);
+    // Al reintentar quitamos el "error" del título demo para que ahora sí asiente.
+    persistCreation(id, (article?.title ?? "").replace(/error/gi, "ok"));
+  }
+
+  function patchArticle(id: string, patch: Partial<BlogArticle>) {
+    setArticles((prev) =>
+      prev.map((a) =>
+        a.id === id ? { ...a, ...patch, updatedAt: new Date().toISOString() } : a,
+      ),
+    );
+  }
+
+  function setArticleStatus(id: string, status: BlogArticle["status"]) {
+    patchArticle(id, { status });
+  }
+
+  function deleteArticle(id: string) {
+    setArticles((prev) => prev.filter((a) => a.id !== id));
+    if (editingArticleId === id) setEditingArticleId(null);
+  }
   // El Builder es un modal full-screen, no una vista del shell.
   const [builderOpen, setBuilderOpen] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -189,7 +271,13 @@ export default function App() {
   // Los modales se renderizan vía createPortal a document.body — quedan fuera de este ref.
   const shellRef = useRef<HTMLDivElement>(null);
   const anyModalOpen =
-    wizardOpen || wizard2Open || createPopupOpen || createPageOpen || createArticleOpen || builderOpen;
+    wizardOpen ||
+    wizard2Open ||
+    createPopupOpen ||
+    createPageOpen ||
+    createArticleOpen ||
+    editingArticleId !== null ||
+    builderOpen;
   useEffect(() => {
     const el = shellRef.current;
     if (!el) return;
@@ -511,11 +599,11 @@ export default function App() {
               );
             })}
 
-            {/* Divider */}
+            {/* Divider — fin del grupo contenido */}
             <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
 
-            {/* Group 2: site configuration */}
-            {siteNavSettings.map((item) => {
+            {/* Group 2A: Identidad del hotel */}
+            {siteNavIdentity.map((item) => {
               const active = view === item.id;
               return (
                 <button
@@ -530,7 +618,45 @@ export default function App() {
               );
             })}
 
-            {/* Divider */}
+            {/* Divider — entre Identidad y Visibilidad */}
+            <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
+
+            {/* Group 2B: Visibilidad */}
+            {siteNavVisibility.map((item) => {
+              const active = view === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => navigate(item.id as View)}
+                  aria-current={active ? "page" : undefined}
+                  className="focus-ring-dark w-full text-left px-3 h-8 mb-0.5 transition-colors"
+                  style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+
+            {/* Divider — entre Visibilidad y Conexiones */}
+            <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
+
+            {/* Group 2C: Conexiones */}
+            {siteNavConnections.map((item) => {
+              const active = view === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => navigate(item.id as View)}
+                  aria-current={active ? "page" : undefined}
+                  className="focus-ring-dark w-full text-left px-3 h-8 mb-0.5 transition-colors"
+                  style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+
+            {/* Divider — fin de configuración, antes de histórico */}
             <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
 
             {/* Group 3: versiones */}
@@ -562,6 +688,7 @@ export default function App() {
             wizard2Draft={wizard2Draft}
             openWizard2={() => setWizard2Open(true)}
             openCreatePopupWith={openCreatePopupWith}
+            onCreateInSite={openCreateInSite}
             trialDay={trialDay}
             trialTotalDays={trialTotalDays}
           />
@@ -588,7 +715,21 @@ export default function App() {
         {view === "discovery"     && <DiscoveryView siteName={activeSite?.name ?? ""} navigate={navigate} />}
         {view === "datos-basicos" && <DatosBasicosView siteName={activeSite?.name ?? ""} navigate={navigate} />}
         {view === "versiones"     && <VersionesView siteName={activeSite?.name ?? ""} navigate={navigate} />}
-        {view === "blog"          && <BlogView siteName={activeSite?.name ?? ""} navigate={navigate} openCreateArticle={() => setCreateArticleOpen(true)} />}
+        {view === "blog"          && (
+          <BlogView
+            siteName={activeSite?.name ?? ""}
+            navigate={navigate}
+            articles={articles}
+            onCreate={() => setCreateArticleOpen(true)}
+            onEdit={(id) => setEditingArticleId(id)}
+            onDelete={deleteArticle}
+            onRetry={retryArticle}
+            onPublishToggle={(id) => {
+              const a = articles.find((x) => x.id === id);
+              if (a) setArticleStatus(id, a.status === "published" ? "draft" : "published");
+            }}
+          />
+        )}
         {view === "popups"        && <PopupsView siteName={activeSite?.name ?? ""} navigate={navigate} openCreatePopup={() => setCreatePopupOpen(true)} />}
         {view === "promociones"   && <PromocionesView siteName={activeSite?.name ?? ""} navigate={navigate} />}
         {view === "idioma"        && <IdiomaView siteName={activeSite?.name ?? ""} navigate={navigate} />}
@@ -663,14 +804,21 @@ export default function App() {
           />
         )}
 
-        {createArticleOpen && (
-          <CreateArticleWizard
-            isOpen={createArticleOpen}
+        <CreateArticleDialog
+          open={createArticleOpen}
+          contextLabel={activeSite?.domain ?? "academiapx.com"}
+          onCancel={() => setCreateArticleOpen(false)}
+          onCreate={createArticle}
+        />
+
+        {editingArticle && (
+          <ArticleEditorView
+            article={editingArticle}
             contextLabel={activeSite?.domain ?? "academiapx.com"}
-            onClose={() => setCreateArticleOpen(false)}
-            onPublish={(state) => {
-              console.log("Artículo creado", state);
-            }}
+            onPatch={(patch) => patchArticle(editingArticle.id, patch)}
+            onPublish={() => setArticleStatus(editingArticle.id, "published")}
+            onUnpublish={() => setArticleStatus(editingArticle.id, "draft")}
+            onClose={() => setEditingArticleId(null)}
           />
         )}
 
