@@ -8,6 +8,7 @@ import {
   GripVertical,
   MoreHorizontal,
   Pencil,
+  SlidersHorizontal,
   Trash2,
 } from "lucide-react";
 import type { BuilderModule, ModulePropType } from "../../types/builder";
@@ -38,6 +39,8 @@ interface ModuleTreeProps {
   onReorderModule: (fromId: string, toIndex: number) => void;
   /** Drop de un componente del palette → insertar en `atIndex` (o al final). */
   onAddFromPalette: (componentId: string, atIndex?: number) => void;
+  /** Abre el panel de edición (Contenido/Sección) de la sección. */
+  onEditModule: (id: string) => void;
   /** Renombra el alias de la sección. */
   onRenameModule: (id: string, alias: string) => void;
   /** Alterna oculto/visible. */
@@ -80,6 +83,7 @@ export function ModuleTree({
   onToggleExpand,
   onReorderModule,
   onAddFromPalette,
+  onEditModule,
   onRenameModule,
   onToggleHidden,
   onDuplicateModule,
@@ -295,6 +299,10 @@ export function ModuleTree({
               onCancelRename={() => setRenamingId(null)}
               onToggleMenu={() => setMenuOpenId((curr) => (curr === mod.id ? null : mod.id))}
               onCloseMenu={() => setMenuOpenId(null)}
+              onEdit={() => {
+                setMenuOpenId(null);
+                onEditModule(mod.id);
+              }}
               onDuplicate={() => {
                 setMenuOpenId(null);
                 onDuplicateModule(mod.id);
@@ -309,7 +317,8 @@ export function ModuleTree({
               }}
             />
 
-            {/* Drill-down de properties (se conserva: alimenta el PropertyPanel). */}
+            {/* Drill-down de properties: al clickear una prop se abre el panel
+                de edición a la izquierda en la pestaña que corresponde. */}
             {mod.expanded && (
               <div style={{ position: "relative", paddingLeft: 34 }}>
                 <span
@@ -426,6 +435,7 @@ interface SectionRowProps {
   onCancelRename: () => void;
   onToggleMenu: () => void;
   onCloseMenu: () => void;
+  onEdit: () => void;
   onDuplicate: () => void;
   onToggleHidden: () => void;
   onDelete: () => void;
@@ -452,6 +462,7 @@ function SectionRow({
   onCancelRename,
   onToggleMenu,
   onCloseMenu,
+  onEdit,
   onDuplicate,
   onToggleHidden,
   onDelete,
@@ -650,6 +661,7 @@ function SectionRow({
             <RowActionsMenu
               hidden={!!mod.hidden}
               onClose={onCloseMenu}
+              onEdit={onEdit}
               onRename={onStartRename}
               onDuplicate={onDuplicate}
               onToggleHidden={onToggleHidden}
@@ -744,6 +756,7 @@ function RenameInput({
 interface RowActionsMenuProps {
   hidden: boolean;
   onClose: () => void;
+  onEdit: () => void;
   onRename: () => void;
   onDuplicate: () => void;
   onToggleHidden: () => void;
@@ -753,6 +766,7 @@ interface RowActionsMenuProps {
 function RowActionsMenu({
   hidden,
   onClose,
+  onEdit,
   onRename,
   onDuplicate,
   onToggleHidden,
@@ -771,6 +785,7 @@ function RowActionsMenu({
   }, [onClose]);
 
   const items = [
+    { key: "edit", label: BUILDER_COPY.tree.actions.edit, icon: SlidersHorizontal, onClick: onEdit },
     { key: "rename", label: BUILDER_COPY.tree.actions.rename, icon: Pencil, onClick: onRename },
     { key: "duplicate", label: BUILDER_COPY.tree.actions.duplicate, icon: Copy, onClick: onDuplicate },
     {

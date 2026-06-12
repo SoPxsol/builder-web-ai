@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useRef, useState } from "react";
-import { GripVertical } from "lucide-react";
+import { Copy, GripVertical, SlidersHorizontal, Trash2 } from "lucide-react";
 import type { BuilderModule, BuilderTab, ViewportMode } from "../../types/builder";
 import { HOTEL_IMAGES } from "../wizard/preview/hotelImages";
 import { BUILDER_COPY } from "./copy";
@@ -21,6 +21,10 @@ interface CanvasProps {
   onReorderModule: (fromId: string, toIndex: number) => void;
   /** Drop de componente del palette → insertar en `atIndex`. */
   onAddFromPalette: (componentId: string, atIndex?: number) => void;
+  /** Acciones al hover sobre una sección. */
+  onEditModule: (id: string) => void;
+  onDuplicateModule: (id: string) => void;
+  onRequestDeleteModule: (id: string) => void;
 }
 
 export function Canvas({
@@ -34,6 +38,9 @@ export function Canvas({
   onSelectModule,
   onReorderModule,
   onAddFromPalette,
+  onEditModule,
+  onDuplicateModule,
+  onRequestDeleteModule,
 }: CanvasProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
@@ -142,6 +149,9 @@ export function Canvas({
                   selected={selectedId === mod.id}
                   dragging={draggingId === mod.id}
                   onSelect={() => onSelectModule(mod.id)}
+                  onEdit={() => onEditModule(mod.id)}
+                  onDuplicate={() => onDuplicateModule(mod.id)}
+                  onDelete={() => onRequestDeleteModule(mod.id)}
                   onDragStart={(e) => {
                     e.dataTransfer.setData(MIME_MODULE, mod.id);
                     e.dataTransfer.effectAllowed = "move";
@@ -180,6 +190,44 @@ function CanvasDropLine({ active }: { active: boolean }) {
   );
 }
 
+/* ─── Botón de acción del toolbar de hover (canvas) ──────────────────────── */
+function CanvasActionButton({
+  label,
+  onClick,
+  destructive,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  destructive?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="flex items-center justify-center transition-colors hover:bg-[var(--surface-page)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+      style={{
+        width: 24,
+        height: 24,
+        background: "transparent",
+        border: "none",
+        borderRadius: 5,
+        cursor: "pointer",
+        color: destructive ? "var(--destructive)" : "var(--text-secondary)",
+        outlineColor: "var(--accent-info)",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 /* ─── Bloque de sección con handle + selección ───────────────────────────── */
 interface SectionBlockProps {
   mod: BuilderModule;
@@ -190,13 +238,16 @@ interface SectionBlockProps {
   selected: boolean;
   dragging: boolean;
   onSelect: () => void;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   onRowDragOver: (e: React.DragEvent) => void;
 }
 
 const SectionBlock = forwardRef<HTMLDivElement, SectionBlockProps>(function SectionBlock(
-  { mod, viewport, pageName, alias, subtitle, selected, dragging, onSelect, onDragStart, onDragEnd, onRowDragOver },
+  { mod, viewport, pageName, alias, subtitle, selected, dragging, onSelect, onEdit, onDuplicate, onDelete, onDragStart, onDragEnd, onRowDragOver },
   ref,
 ) {
   return (
@@ -247,10 +298,10 @@ const SectionBlock = forwardRef<HTMLDivElement, SectionBlockProps>(function Sect
         </button>
       </div>
 
-      {/* Etiqueta flotante de la sección al hover (recognition). */}
+      {/* Toolbar de acciones al hover (Editar / Duplicar / Eliminar).
+          Mover ↑↓ se reemplazó por el handle de arrastre. */}
       <div
         className="absolute transition-opacity group-hover:opacity-100"
-        aria-hidden="true"
         style={{
           top: 8,
           right: 8,
@@ -258,21 +309,38 @@ const SectionBlock = forwardRef<HTMLDivElement, SectionBlockProps>(function Sect
           opacity: selected ? 1 : 0,
           display: "flex",
           alignItems: "center",
-          gap: 6,
-          padding: "2px 8px",
-          background: "rgba(255,255,255,0.92)",
+          gap: 2,
+          padding: 2,
+          background: "rgba(255,255,255,0.94)",
           border: "0.5px solid var(--border-ui)",
-          borderRadius: 6,
-          fontSize: 10,
-          color: "var(--text-secondary)",
+          borderRadius: 7,
           boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
-          maxWidth: "60%",
         }}
       >
-        <span style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <span
+          aria-hidden="true"
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: "var(--text-secondary)",
+            padding: "0 6px",
+            maxWidth: 140,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
           {alias}
         </span>
-        <span style={{ whiteSpace: "nowrap" }}>· {subtitle}</span>
+        <CanvasActionButton label={`${BUILDER_COPY.tree.actions.edit}: ${alias}`} onClick={onEdit}>
+          <SlidersHorizontal size={13} aria-hidden="true" />
+        </CanvasActionButton>
+        <CanvasActionButton label={`${BUILDER_COPY.tree.actions.duplicate}: ${alias}`} onClick={onDuplicate}>
+          <Copy size={13} aria-hidden="true" />
+        </CanvasActionButton>
+        <CanvasActionButton label={`${BUILDER_COPY.tree.actions.delete}: ${alias}`} onClick={onDelete} destructive>
+          <Trash2 size={13} aria-hidden="true" />
+        </CanvasActionButton>
       </div>
 
       {mod.hidden ? (

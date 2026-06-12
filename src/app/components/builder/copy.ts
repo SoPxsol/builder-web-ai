@@ -100,6 +100,7 @@ export const BUILDER_COPY = {
     rowActionsMenuLabel: "Acciones de la sección",
     /** Acciones por fila. */
     actions: {
+      edit: "Editar",
       rename: "Renombrar",
       duplicate: "Duplicar",
       hide: "Ocultar",
@@ -132,6 +133,45 @@ export const BUILDER_COPY = {
       dropped: (alias: string, pos: number, total: number) =>
         `${alias} soltada en la posición ${pos} de ${total}.`,
       cancelled: (alias: string) => `Movimiento de ${alias} cancelado.`,
+    },
+  },
+
+  /**
+   * Panel de edición de un módulo — vive a la izquierda y reemplaza al panel
+   * de estructura mientras se edita (se vuelve con "Estructura"). Agrupa la
+   * configuración del módulo en pestañas; "Contenido" arranca activa por
+   * default porque es lo que el hotelero edita más seguido.
+   */
+  edit: {
+    /** Acción para volver al panel de estructura. */
+    back: "Estructura",
+    backAria: "Volver a la estructura de la página",
+    /** aria-label del título del panel. */
+    panelAria: "Editar la sección",
+    tabs: {
+      content: "Contenido",
+      section: "Sección",
+    },
+    /** Empty state de la pestaña Contenido. */
+    contentEmpty: "Esta sección no tiene campos de contenido editables.",
+    /** Label del valor de cada campo cuando el nombre técnico no alcanza. */
+    valueLabel: "Valor",
+    /** Campos de la pestaña Sección. */
+    section: {
+      aliasLabel: "Nombre de la sección",
+      aliasPlaceholder: "Sin nombre",
+      visibilityLabel: "Visibilidad",
+      visible: "Visible",
+      hidden: "Oculta",
+      typeLabel: "Tipo",
+      originLabel: "Origen",
+      advancedLabel: "Configuración avanzada",
+    },
+    /** Etiquetas legibles del origen, para el campo read-only de la pestaña Sección. */
+    originLabels: {
+      manual: "Manual",
+      ai: "Generada con IA",
+      global: "Global",
     },
   },
 

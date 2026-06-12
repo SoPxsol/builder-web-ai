@@ -7,7 +7,7 @@ import { ModuleTree } from "./ModuleTree";
 import { Canvas } from "./Canvas";
 import { ComponentsPanel } from "./ComponentsPanel";
 import { AiAssistantPanel } from "./AiAssistantPanel";
-import { PropertyPanel } from "./PropertyPanel";
+import { ModuleEditPanel, type EditTab } from "./ModuleEditPanel";
 import { AddModulePicker } from "./AddModulePicker";
 import {
   getPublishStatus,
@@ -71,6 +71,9 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
     INITIAL_TREE[0]?.id ?? null,
   );
   const [selectedPropertyName, setSelectedPropertyName] = useState<string | null>(null);
+  /** Módulo cuyo panel de edición (Contenido/Sección) está abierto a la izquierda. */
+  const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
+  const [editTab, setEditTab] = useState<EditTab>("content");
   const [viewport, setViewport] = useState<ViewportMode>("desktop");
   const [canvasWidth, setCanvasWidth] = useState<number>(VIEWPORT_TO_WIDTH.desktop);
   const [componentsOpen, setComponentsOpen] = useState(false);
@@ -198,6 +201,8 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
       setActiveTab("page");
       setSelectedModuleId(null);
       setSelectedPropertyName(null);
+      setEditingModuleId(null);
+      setEditTab("content");
       setViewport("desktop");
       setCanvasWidth(VIEWPORT_TO_WIDTH.desktop);
       setComponentsOpen(false);
@@ -262,6 +267,12 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
   const activeSlice = entities[activeTab];
   const activeTree = activeSlice.tree;
   const activePropertyValues = activeSlice.propertyValues;
+  // Módulo en edición (si el id sigue existiendo en la entidad activa). El
+  // lookup acá hace que cambiar de tab o eliminar la sección cierre el panel
+  // de edición automáticamente, sin efectos extra.
+  const editingModule = editingModuleId
+    ? activeTree.find((m) => m.id === editingModuleId) ?? null
+    : null;
 
   /* ─── Helpers para mutar la entidad activa ───────────────────────────── */
   function updateActiveSlice(updater: (slice: EntitySlice) => EntitySlice) {
@@ -274,8 +285,35 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
   }
 
   function handleSelectProperty(moduleId: string, propertyName: string) {
+    // Click en una propiedad del árbol → abrir el panel de edición a la
+    // izquierda en la pestaña que corresponde (las props `__` son de Sección).
     setSelectedModuleId(moduleId);
     setSelectedPropertyName(propertyName);
+    setEditingModuleId(moduleId);
+    setEditTab(propertyName.startsWith("__") ? "section" : "content");
+  }
+
+  /** Abre el panel de edición de un módulo (default pestaña Contenido). */
+  function handleEditModule(id: string) {
+    setSelectedModuleId(id);
+    setSelectedPropertyName(null);
+    setEditingModuleId(id);
+    setEditTab("content");
+  }
+
+  /** Vuelve del panel de edición al panel de estructura. */
+  function handleCloseEdit() {
+    setEditingModuleId(null);
+    setSelectedPropertyName(null);
+  }
+
+  /** Edición en vivo de una propiedad desde el panel de edición. */
+  function handleChangeProperty(moduleId: string, propertyName: string, value: string) {
+    const key = `${moduleId}::${propertyName}`;
+    updateActiveSlice((slice) => ({
+      ...slice,
+      propertyValues: { ...slice.propertyValues, [key]: value },
+    }));
   }
 
   function handleToggleExpand(id: string) {
@@ -398,6 +436,7 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
       setSelectedModuleId(null);
       setSelectedPropertyName(null);
     }
+    if (editingModuleId === id) setEditingModuleId(null);
     setDeleteConfirmId(null);
   }
 
@@ -433,14 +472,6 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
     const selIdx = tree.findIndex((m) => m.id === selectedModuleId);
     const insertAt = selIdx >= 0 ? selIdx + 1 : tree.length;
     insertModule(newModule, insertAt);
-  }
-
-  function handleApplyProperty(moduleId: string, propertyName: string, value: string) {
-    const key = `${moduleId}::${propertyName}`;
-    updateActiveSlice((slice) => ({
-      ...slice,
-      propertyValues: { ...slice.propertyValues, [key]: value },
-    }));
   }
 
   function handleViewportChange(v: ViewportMode) {
@@ -530,31 +561,49 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
         />
 
         <div className="flex flex-1 min-h-0" style={{ position: "relative" }}>
-          <ModuleTree
-            modules={activeTree}
-            propertyValues={activePropertyValues}
-            pageName={PAGE_TITLES[activeTab]}
-            selectedId={selectedModuleId}
-            selectedPropertyName={selectedPropertyName}
-            onSelectModule={handleSelectModule}
-            onSelectProperty={handleSelectProperty}
-            onToggleExpand={handleToggleExpand}
-            onReorderModule={handleReorderModule}
-            onAddFromPalette={handleAddFromPalette}
-            onRenameModule={handleRenameModule}
-            onToggleHidden={handleToggleHidden}
-            onDuplicateModule={handleDuplicateModule}
-            onRequestDeleteModule={setDeleteConfirmId}
-            header={
-              <AddModulePicker
-                onAddComponent={(comp) => handleAddFromPalette(comp.id)}
-                onCreateWithAi={() => {
-                  // TODO(backend): endpoint de generación de módulos por IA.
-                  setAiOpen(true);
-                }}
-              />
-            }
-          />
+          {/* Panel izquierdo: edición del módulo (Contenido/Sección) si hay uno
+              en edición; si no, el panel de estructura con el AddModulePicker. */}
+          {editingModule ? (
+            <ModuleEditPanel
+              module={editingModule}
+              propertyValues={activePropertyValues}
+              activeTab={editTab}
+              onTabChange={setEditTab}
+              onChangeProperty={(propName, value) =>
+                handleChangeProperty(editingModule.id, propName, value)
+              }
+              onRename={(alias) => handleRenameModule(editingModule.id, alias)}
+              onToggleHidden={() => handleToggleHidden(editingModule.id)}
+              onBack={handleCloseEdit}
+            />
+          ) : (
+            <ModuleTree
+              modules={activeTree}
+              propertyValues={activePropertyValues}
+              pageName={PAGE_TITLES[activeTab]}
+              selectedId={selectedModuleId}
+              selectedPropertyName={selectedPropertyName}
+              onSelectModule={handleSelectModule}
+              onSelectProperty={handleSelectProperty}
+              onToggleExpand={handleToggleExpand}
+              onReorderModule={handleReorderModule}
+              onAddFromPalette={handleAddFromPalette}
+              onEditModule={handleEditModule}
+              onRenameModule={handleRenameModule}
+              onToggleHidden={handleToggleHidden}
+              onDuplicateModule={handleDuplicateModule}
+              onRequestDeleteModule={setDeleteConfirmId}
+              header={
+                <AddModulePicker
+                  onAddComponent={(comp) => handleAddFromPalette(comp.id)}
+                  onCreateWithAi={() => {
+                    // TODO(backend): endpoint de generación de módulos por IA.
+                    setAiOpen(true);
+                  }}
+                />
+              }
+            />
+          )}
 
           <Canvas
             canvasWidth={canvasWidth}
@@ -567,6 +616,9 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
             onSelectModule={handleSelectModule}
             onReorderModule={handleReorderModule}
             onAddFromPalette={handleAddFromPalette}
+            onEditModule={handleEditModule}
+            onDuplicateModule={handleDuplicateModule}
+            onRequestDeleteModule={setDeleteConfirmId}
           />
 
           {componentsOpen && (
@@ -585,25 +637,6 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
               onSubmit={handleAiGenerate}
             />
           )}
-
-          {(() => {
-            if (!selectedModuleId || !selectedPropertyName) return null;
-            const module = activeTree.find((m) => m.id === selectedModuleId);
-            if (!module) return null;
-            const property = module.properties.find((p) => p.name === selectedPropertyName);
-            if (!property) return null;
-            const key = `${selectedModuleId}::${selectedPropertyName}`;
-            const initialValue = activePropertyValues[key] ?? "";
-            return (
-              <PropertyPanel
-                module={module}
-                property={property}
-                initialValue={initialValue}
-                onApply={(v) => handleApplyProperty(selectedModuleId, selectedPropertyName, v)}
-                onClose={() => setSelectedPropertyName(null)}
-              />
-            );
-          })()}
         </div>
       </div>
 
