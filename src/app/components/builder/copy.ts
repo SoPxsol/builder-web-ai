@@ -73,6 +73,69 @@ export const BUILDER_COPY = {
   },
 
   /**
+   * Panel de estructura de la página (árbol de módulos).
+   * Todo el copy de filas, acciones por fila, distintivos y anuncios de
+   * accesibilidad del reordenamiento vive acá — nada inline en el componente.
+   */
+  tree: {
+    /** Título del panel de estructura. */
+    panelTitle: "Estructura de la página",
+    /** Contador de secciones. n = cantidad. */
+    sectionCount: (n: number) => `${n} ${n === 1 ? "sección" : "secciones"}`,
+    /** Placeholder cuando el alias está vacío. */
+    aliasPlaceholder: "Sin nombre",
+    /** Subtítulo de filas según origen. */
+    subtitleAi: "Generada con IA",
+    subtitleGlobal: "Sección global",
+    /** Sufijo del subtítulo de secciones manuales ("Hero · Custom"). */
+    subtitleCustomSuffix: "Custom",
+    /** Distintivos de origen. */
+    pillAi: "IA",
+    pillGlobal: "Global",
+    /** aria-label del handle de arrastre. */
+    dragHandleLabel: "Arrastrar para reordenar",
+    /** aria-label del icon-button de acciones de la fila. */
+    rowActionsLabel: "Acciones de la sección",
+    /** aria-label del menú desplegado de acciones. */
+    rowActionsMenuLabel: "Acciones de la sección",
+    /** Acciones por fila. */
+    actions: {
+      rename: "Renombrar",
+      duplicate: "Duplicar",
+      hide: "Ocultar",
+      show: "Mostrar",
+      delete: "Eliminar",
+    },
+    /** Tooltip del estado oculto en la fila. */
+    hiddenHint: "Sección oculta",
+    /** Edición inline del alias. */
+    rename: {
+      inputLabel: "Nuevo nombre de la sección",
+      placeholder: "Nombre de la sección",
+    },
+    /** Confirmación destructiva al eliminar una sección. */
+    deleteConfirm: {
+      title: "¿Eliminar esta sección?",
+      description: "Se quita de la página. Podés volver a agregarla desde el catálogo.",
+      cancel: "Cancelar",
+      confirm: "Eliminar",
+    },
+    /**
+     * Anuncios de la live region para el reordenamiento por teclado.
+     * Mantener cortos: los lee el lector de pantalla en cada movimiento.
+     */
+    announce: {
+      grabbed: (alias: string, pos: number, total: number) =>
+        `${alias} tomada, posición ${pos} de ${total}. Usá las flechas para mover, Enter para soltar, Escape para cancelar.`,
+      moved: (alias: string, pos: number, total: number) =>
+        `${alias} movida a la posición ${pos} de ${total}.`,
+      dropped: (alias: string, pos: number, total: number) =>
+        `${alias} soltada en la posición ${pos} de ${total}.`,
+      cancelled: (alias: string) => `Movimiento de ${alias} cancelado.`,
+    },
+  },
+
+  /**
    * Menú de herramientas del editor — vive a la izquierda de la barra, entre
    * "Configuración de la página" y el bloque centro. Agrupa acciones que
    * son herramientas reales (no "más opciones" miscelánea) para que el bloque

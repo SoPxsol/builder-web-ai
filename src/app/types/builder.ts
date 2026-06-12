@@ -12,9 +12,34 @@ export interface ModuleProperty {
   type: ModulePropType;
 }
 
+/**
+ * Origen de una sección. Define el distintivo (pill) y, en el caso de IA,
+ * el subtítulo de la fila.
+ *   - manual : agregada por el hotelero desde el catálogo. Subtítulo "Tipo · Custom".
+ *   - ai     : generada por el asistente. Pill "IA", subtítulo "Generada con IA".
+ *   - global : header/footer global del sitio. Pill "Global".
+ */
+export type SectionOrigin = "manual" | "ai" | "global";
+
 export interface BuilderModule {
   id: string;
+  /** Nombre técnico del componente (ej. "CustomComponent1"). NO se muestra como título. */
   name: string;
+  /**
+   * Alias editable: lo que la sección ES para el hotelero ("Sobre nosotros").
+   * Si está vacío, la fila deriva un título del primer heading del contenido
+   * (ver deriveAlias en sectionMeta) y, en última instancia, del typeLabel —
+   * nunca del `name` técnico.
+   */
+  alias?: string;
+  /** Tipo legible del componente para el subtítulo de la fila ("Hero", "Galería"). */
+  typeLabel?: string;
+  /** Origen de la sección. Default "manual". */
+  origin?: SectionOrigin;
+  /** Nombre lógico de ícono lucide (clave de SECTION_ICONS en sectionMeta). */
+  icon?: string;
+  /** Sección oculta: no se renderiza en el canvas y la fila se muestra atenuada. */
+  hidden?: boolean;
   /** Si el módulo está expandido en el tree. */
   expanded: boolean;
   /** Propiedades del módulo, en el orden que aparecen. */
@@ -37,35 +62,28 @@ export interface ComponentDef {
 
 export type ViewportMode = "desktop" | "tablet" | "mobile";
 
-/** Datos mock iniciales del árbol — replica el screenshot del brief. */
+/**
+ * Datos mock iniciales del árbol de la página "Inicio".
+ *
+ * Cada sección lleva alias legible, tipo, origen e ícono — el canvas se
+ * renderiza a partir de este array (ver Canvas.tsx) y el panel de estructura
+ * lo etiqueta. Incluye una sección de origen "ai" para mostrar el flujo de
+ * secciones generadas por IA como ciudadanas de primera (arrastrables, no
+ * clavadas al pie).
+ */
 export const INITIAL_TREE: BuilderModule[] = [
-  {
-    id: "custom-component-1",
-    name: "CustomComponent1",
-    expanded: true,
-    properties: [
-      { name: "__template", type: "OBJECT" },
-      { name: "__variables", type: "OBJECT" },
-      { name: "__renderMode", type: "STRING" },
-      { name: "titulo", type: "OBJECT" },
-      { name: "texto", type: "OBJECT" },
-      { name: "boton", type: "OBJECT" },
-      { name: "kicker", type: "STRING" },
-      { name: "headline1", type: "STRING" },
-      { name: "headline2", type: "STRING" },
-      { name: "headline3", type: "STRING" },
-      { name: "subtitle", type: "STRING" },
-      { name: "verticalWord", type: "STRING" },
-      { name: "imagen", type: "OBJECT" },
-      { name: "imagenAlt", type: "STRING" },
-    ],
-  },
   {
     id: "hero",
     name: "HeroSection",
+    alias: "Portada",
+    typeLabel: "Hero",
+    origin: "manual",
+    icon: "layout",
     expanded: false,
     properties: [
+      { name: "kicker", type: "STRING" },
       { name: "headline", type: "STRING" },
+      { name: "subtitle", type: "STRING" },
       { name: "ctaText", type: "STRING" },
       { name: "backgroundImage", type: "OBJECT" },
     ],
@@ -73,10 +91,58 @@ export const INITIAL_TREE: BuilderModule[] = [
   {
     id: "rooms",
     name: "RoomsGrid",
+    alias: "Habitaciones",
+    typeLabel: "Habitaciones",
+    origin: "manual",
+    icon: "layout-grid",
     expanded: false,
     properties: [
+      { name: "titulo", type: "STRING" },
       { name: "rooms", type: "ARRAY" },
       { name: "showPrices", type: "BOOLEAN" },
+    ],
+  },
+  {
+    id: "promos-ai",
+    name: "CustomComponent1",
+    alias: "Promociones",
+    typeLabel: "Texto destacado",
+    origin: "ai",
+    icon: "sparkles",
+    expanded: false,
+    properties: [
+      { name: "kicker", type: "STRING" },
+      { name: "headline", type: "STRING" },
+      { name: "texto", type: "OBJECT" },
+      { name: "boton", type: "OBJECT" },
+    ],
+  },
+  {
+    id: "about",
+    name: "TextImage",
+    alias: "Sobre nosotros",
+    typeLabel: "Texto e imagen",
+    origin: "manual",
+    icon: "columns",
+    expanded: false,
+    properties: [
+      { name: "titulo", type: "STRING" },
+      { name: "texto", type: "OBJECT" },
+      { name: "imagen", type: "OBJECT" },
+      { name: "imagenAlt", type: "STRING" },
+    ],
+  },
+  {
+    id: "gallery",
+    name: "Gallery",
+    alias: "Galería",
+    typeLabel: "Galería",
+    origin: "manual",
+    icon: "images",
+    expanded: false,
+    properties: [
+      { name: "images", type: "ARRAY" },
+      { name: "columns", type: "NUMBER" },
     ],
   },
 ];

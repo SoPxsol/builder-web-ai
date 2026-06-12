@@ -19,6 +19,9 @@ import {
 } from "./draftStore";
 import { useAutosave, type AutosaveStatus } from "./useAutosave";
 import { ExitConfirmDialog } from "../creation/shared/ExitConfirmDialog";
+import { ConfirmDestructiveDialog } from "../ui/confirm-destructive-dialog";
+import { BUILDER_COPY } from "./copy";
+import { deriveAlias } from "./sectionMeta";
 
 interface Props {
   isOpen: boolean;
@@ -85,6 +88,9 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
 
   /* ─── Confirm dialog para publish de header/footer ───────────────────── */
   const [publishConfirmEntity, setPublishConfirmEntity] = useState<BuilderTab | null>(null);
+
+  /* ─── Confirm dialog para eliminar una sección ───────────────────────── */
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -279,35 +285,154 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
     }));
   }
 
-  function handleReorderModule(fromId: string, toId: string) {
+  /**
+   * Motor único de reordenamiento. Mueve la sección `fromId` a la posición
+   * final `toIndex` (0-based en el array resultante). Lo invocan las dos
+   * superficies de arrastre (panel y canvas) y el reordenamiento por teclado.
+   * El cambio muta `tree` → dispara el autosave del borrador.
+   */
+  function handleReorderModule(fromId: string, toIndex: number) {
     updateActiveSlice((slice) => {
       const fromIdx = slice.tree.findIndex((m) => m.id === fromId);
-      const toIdx = slice.tree.findIndex((m) => m.id === toId);
-      if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return slice;
+      if (fromIdx < 0) return slice;
       const nextTree = [...slice.tree];
       const [moved] = nextTree.splice(fromIdx, 1);
-      nextTree.splice(toIdx, 0, moved);
+      const clamped = Math.max(0, Math.min(toIndex, nextTree.length));
+      if (clamped === fromIdx) return slice;
+      nextTree.splice(clamped, 0, moved);
       return { ...slice, tree: nextTree };
     });
   }
 
-  function handleAddFromPalette(componentId: string) {
+  function makePaletteModule(componentId: string): BuilderModule | null {
     const def = COMPONENT_LIBRARY.find((c) => c.id === componentId);
-    if (!def) return;
-    const newId = `${def.id}-${Date.now()}`;
-    const newModule: BuilderModule = {
-      id: newId,
+    if (!def) return null;
+    return {
+      id: `${def.id}-${Date.now()}`,
       name: def.name.replace(/\s+/g, ""),
+      alias: def.name,
+      typeLabel: def.name,
+      origin: "manual",
+      icon: def.icon,
       expanded: false,
       properties: [
-        { name: "__template", type: "OBJECT" },
-        { name: "__variables", type: "OBJECT" },
         { name: "titulo", type: "STRING" },
+        { name: "texto", type: "OBJECT" },
+        { name: "imagen", type: "OBJECT" },
       ],
     };
-    updateActiveSlice((slice) => ({ ...slice, tree: [...slice.tree, newModule] }));
+  }
+
+  /** Inserta un módulo en `atIndex` (o al final si no se especifica). */
+  function insertModule(newModule: BuilderModule, atIndex?: number) {
+    updateActiveSlice((slice) => {
+      const nextTree = [...slice.tree];
+      const idx = atIndex == null ? nextTree.length : Math.max(0, Math.min(atIndex, nextTree.length));
+      nextTree.splice(idx, 0, newModule);
+      return { ...slice, tree: nextTree };
+    });
+    setSelectedModuleId(newModule.id);
+    setSelectedPropertyName(null);
+  }
+
+  function handleAddFromPalette(componentId: string, atIndex?: number) {
+    const newModule = makePaletteModule(componentId);
+    if (!newModule) return;
+    insertModule(newModule, atIndex);
+  }
+
+  function handleRenameModule(id: string, alias: string) {
+    updateActiveSlice((slice) => ({
+      ...slice,
+      tree: slice.tree.map((m) => (m.id === id ? { ...m, alias } : m)),
+    }));
+  }
+
+  function handleToggleHidden(id: string) {
+    updateActiveSlice((slice) => ({
+      ...slice,
+      tree: slice.tree.map((m) => (m.id === id ? { ...m, hidden: !m.hidden } : m)),
+    }));
+  }
+
+  function handleDuplicateModule(id: string) {
+    const slice = entities[activeTab];
+    const idx = slice.tree.findIndex((m) => m.id === id);
+    if (idx < 0) return;
+    const source = slice.tree[idx];
+    const newId = `${source.id}-copy-${Date.now()}`;
+    const baseAlias = deriveAlias(source, slice.propertyValues);
+    const clone: BuilderModule = {
+      ...source,
+      id: newId,
+      alias: baseAlias ? `${baseAlias} (copia)` : undefined,
+    };
+    // Clonar también los values editados de las props de la sección origen.
+    const clonedValues: Record<string, string> = {};
+    for (const [key, value] of Object.entries(slice.propertyValues)) {
+      const prefix = `${source.id}::`;
+      if (key.startsWith(prefix)) clonedValues[`${newId}::${key.slice(prefix.length)}`] = value;
+    }
+    updateActiveSlice((s) => {
+      const nextTree = [...s.tree];
+      nextTree.splice(idx + 1, 0, clone);
+      return { ...s, tree: nextTree, propertyValues: { ...s.propertyValues, ...clonedValues } };
+    });
     setSelectedModuleId(newId);
     setSelectedPropertyName(null);
+  }
+
+  function handleConfirmDelete() {
+    if (!deleteConfirmId) return;
+    const id = deleteConfirmId;
+    updateActiveSlice((slice) => {
+      // Limpiar también los values de las props de la sección eliminada.
+      const prefix = `${id}::`;
+      const nextValues: Record<string, string> = {};
+      for (const [key, value] of Object.entries(slice.propertyValues)) {
+        if (!key.startsWith(prefix)) nextValues[key] = value;
+      }
+      return { tree: slice.tree.filter((m) => m.id !== id), propertyValues: nextValues };
+    });
+    if (selectedModuleId === id) {
+      setSelectedModuleId(null);
+      setSelectedPropertyName(null);
+    }
+    setDeleteConfirmId(null);
+  }
+
+  /**
+   * Genera una sección con IA e inserta como ciudadana de primera: arrastrable,
+   * insertada según la selección actual (no clavada al pie).
+   *
+   * TODO(backend): el endpoint de generación de módulos por IA hoy NO existe
+   * y, cuando exista, debe aceptar un índice/posición de inserción. Hoy el
+   * cliente decide la posición (a continuación de la sección seleccionada).
+   * Dependencia de plataforma: `POST /sites/:siteId/ai/sections { prompt, insertIndex }`.
+   */
+  function handleAiGenerate(prompt: string) {
+    const trimmed = prompt.trim();
+    if (!trimmed) return;
+    const words = trimmed.split(/\s+/).slice(0, 5).join(" ");
+    const alias = words.charAt(0).toUpperCase() + words.slice(1);
+    const newModule: BuilderModule = {
+      id: `ai-${Date.now()}`,
+      name: "CustomComponent1",
+      alias,
+      origin: "ai",
+      icon: "sparkles",
+      expanded: false,
+      properties: [
+        { name: "kicker", type: "STRING" },
+        { name: "headline", type: "STRING" },
+        { name: "texto", type: "OBJECT" },
+        { name: "boton", type: "OBJECT" },
+      ],
+    };
+    const tree = entities[activeTab].tree;
+    const selIdx = tree.findIndex((m) => m.id === selectedModuleId);
+    const insertAt = selIdx >= 0 ? selIdx + 1 : tree.length;
+    insertModule(newModule, insertAt);
   }
 
   function handleApplyProperty(moduleId: string, propertyName: string, value: string) {
@@ -407,6 +532,7 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
         <div className="flex flex-1 min-h-0" style={{ position: "relative" }}>
           <ModuleTree
             modules={activeTree}
+            propertyValues={activePropertyValues}
             pageName={PAGE_TITLES[activeTab]}
             selectedId={selectedModuleId}
             selectedPropertyName={selectedPropertyName}
@@ -415,6 +541,10 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
             onToggleExpand={handleToggleExpand}
             onReorderModule={handleReorderModule}
             onAddFromPalette={handleAddFromPalette}
+            onRenameModule={handleRenameModule}
+            onToggleHidden={handleToggleHidden}
+            onDuplicateModule={handleDuplicateModule}
+            onRequestDeleteModule={setDeleteConfirmId}
             header={
               <AddModulePicker
                 onAddComponent={(comp) => handleAddFromPalette(comp.id)}
@@ -431,6 +561,12 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
             viewport={viewport}
             activeTab={activeTab}
             pageName={PAGE_TITLES[activeTab]}
+            modules={activeTree}
+            propertyValues={activePropertyValues}
+            selectedId={selectedModuleId}
+            onSelectModule={handleSelectModule}
+            onReorderModule={handleReorderModule}
+            onAddFromPalette={handleAddFromPalette}
           />
 
           {componentsOpen && (
@@ -446,7 +582,7 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
           {aiOpen && (
             <AiAssistantPanel
               onClose={() => setAiOpen(false)}
-              onSubmit={(prompt) => console.log("Builder — prompt AI", prompt)}
+              onSubmit={handleAiGenerate}
             />
           )}
 
@@ -484,6 +620,17 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
         confirmLabel={publishConfirmEntity === "header" ? "Publicar header" : "Publicar footer"}
         onCancel={() => setPublishConfirmEntity(null)}
         onConfirm={confirmPublishGlobal}
+      />
+
+      {/* Confirmación destructiva al eliminar una sección. */}
+      <ConfirmDestructiveDialog
+        open={deleteConfirmId !== null}
+        title={BUILDER_COPY.tree.deleteConfirm.title}
+        description={BUILDER_COPY.tree.deleteConfirm.description}
+        cancelLabel={BUILDER_COPY.tree.deleteConfirm.cancel}
+        confirmLabel={BUILDER_COPY.tree.deleteConfirm.confirm}
+        onCancel={() => setDeleteConfirmId(null)}
+        onConfirm={handleConfirmDelete}
       />
     </div>
   );
