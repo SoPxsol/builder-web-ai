@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { BuilderModule, BuilderTab, ViewportMode } from "../../types/builder";
-import { COMPONENT_LIBRARY, INITIAL_TREE } from "../../types/builder";
+import type { BuilderModule, BuilderTab, NavConfig, ViewportMode } from "../../types/builder";
+import { COMPONENT_LIBRARY, DEFAULT_NAV_CONFIG, INITIAL_TREE } from "../../types/builder";
 import { BuilderToolbar, type EditorLanguage } from "./BuilderToolbar";
 import { ModuleTree } from "./ModuleTree";
 import { Canvas } from "./Canvas";
 import { ComponentsPanel } from "./ComponentsPanel";
 import { AiAssistantPanel } from "./AiAssistantPanel";
 import { ModuleEditPanel, type EditTab } from "./ModuleEditPanel";
+import { HeaderConfigPanel } from "./HeaderConfigPanel";
 import { AddModulePicker } from "./AddModulePicker";
 import {
   getPublishStatus,
@@ -49,6 +50,8 @@ const VIEWPORT_TO_WIDTH: Record<ViewportMode, number> = {
 interface EntitySlice {
   tree: BuilderModule[];
   propertyValues: Record<string, string>;
+  /** Solo el tab "header" usa este campo; page y footer lo ignoran. */
+  navConfig?: NavConfig;
 }
 
 const EMPTY_SLICE: EntitySlice = { tree: [], propertyValues: {} };
@@ -61,7 +64,7 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
   // draftStore por su cuenta vía useAutosave.
   const [entities, setEntities] = useState<Record<BuilderTab, EntitySlice>>({
     page:   { tree: INITIAL_TREE, propertyValues: {} },
-    header: { tree: [], propertyValues: {} },
+    header: { tree: [], propertyValues: {}, navConfig: DEFAULT_NAV_CONFIG },
     footer: { tree: [], propertyValues: {} },
   });
 
@@ -114,12 +117,22 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
       const draft = loadDraft(siteId, t);
       const published = loadPublished(siteId, t);
       if (draft) {
-        hydrated[t] = { tree: draft.tree, propertyValues: draft.propertyValues };
+        hydrated[t] = {
+          tree: draft.tree,
+          propertyValues: draft.propertyValues,
+          // Para header: preservar navConfig tipado; draft viejo sin él cae al default.
+          ...(t === "header" ? { navConfig: (draft as typeof draft & { navConfig?: NavConfig }).navConfig ?? DEFAULT_NAV_CONFIG } : {}),
+        };
       } else if (published) {
-        hydrated[t] = { tree: published.tree, propertyValues: published.propertyValues };
+        hydrated[t] = {
+          tree: published.tree,
+          propertyValues: published.propertyValues,
+          // Para header: igual que con draft.
+          ...(t === "header" ? { navConfig: (published as typeof published & { navConfig?: NavConfig }).navConfig ?? DEFAULT_NAV_CONFIG } : {}),
+        };
       }
       // Si no hay draft ni published, dejamos el slice inicial (INITIAL_TREE
-      // para "page", vacío para header/footer).
+      // para "page", vacío para header/footer, DEFAULT_NAV_CONFIG para header.navConfig).
     }
     setEntities(hydrated);
     setPublishStatus({
@@ -277,6 +290,11 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
   /* ─── Helpers para mutar la entidad activa ───────────────────────────── */
   function updateActiveSlice(updater: (slice: EntitySlice) => EntitySlice) {
     setEntities((prev) => ({ ...prev, [activeTab]: updater(prev[activeTab]) }));
+  }
+
+  /** Actualiza el navConfig del header (solo se llama desde HeaderConfigPanel). */
+  function handleNavConfigChange(next: NavConfig) {
+    updateActiveSlice((slice) => ({ ...slice, navConfig: next }));
   }
 
   function handleSelectModule(id: string) {
@@ -561,9 +579,15 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
         />
 
         <div className="flex flex-1 min-h-0" style={{ position: "relative" }}>
-          {/* Panel izquierdo: edición del módulo (Contenido/Sección) si hay uno
-              en edición; si no, el panel de estructura con el AddModulePicker. */}
-          {editingModule ? (
+          {/* Panel izquierdo: cuando el tab es "header", muestra el configurador
+              de navegación; para page/footer, muestra el panel de edición de módulo
+              (si hay uno en edición) o el árbol de estructura. */}
+          {activeTab === "header" ? (
+            <HeaderConfigPanel
+              navConfig={entities.header.navConfig ?? DEFAULT_NAV_CONFIG}
+              onChange={handleNavConfigChange}
+            />
+          ) : editingModule ? (
             <ModuleEditPanel
               module={editingModule}
               propertyValues={activePropertyValues}

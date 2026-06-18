@@ -176,6 +176,121 @@ export const BUILDER_COPY = {
   },
 
   /**
+   * Panel de configuración del header — reemplaza al panel de estructura
+   * cuando el tab activo es "header". Organizado en secciones colapsadas
+   * visualmente por SectionLabel uppercase.
+   *
+   * Convención de este bloque:
+   *   - `sections.*`  → encabezados de sección (uppercase en pantalla).
+   *   - campos sueltos → label del field o SegBtn.
+   *   - `list.*`      → controles de listas ordenables (mover/eliminar).
+   */
+  headerConfig: {
+    panelAria: "Configuración del header",
+    title: "Header",
+
+    /** Etiquetas de sección (se muestran en uppercase por SectionLabel). */
+    sections: {
+      logo: "Logotipo",
+      layout: "Disposición",
+      utilityBar: "Barra utilitaria",
+      mainBar: "Barra principal",
+      bottomBar: "Barra inferior (mobile)",
+      drawerSections: "Menú de navegación",
+      drawerUtility: "Acciones del menú",
+      languages: "Idiomas",
+      currencies: "Monedas",
+    },
+
+    /** Etiquetas genéricas reutilizadas en varios SegBtns. */
+    visible: "Visible",
+    hidden: "Oculta",
+    yes: "Sí",
+    no: "No",
+    enabled: "Activo",
+
+    /** Logo. */
+    logo: {
+      type: "Tipo de logo",
+      typeImage: "Imagen",
+      typeText: "Texto",
+      imageUrl: "URL de la imagen",
+      imageAlt: "Texto alternativo",
+      imageAltPlaceholder: "Logo del hotel",
+      textFallback: "Texto de respaldo",
+      textFallbackPlaceholder: "Nombre del hotel",
+    },
+
+    /** Disposición. */
+    layout: {
+      mobile: "Distribución mobile",
+      mobileTop: "Superior",
+      mobileBoth: "Ambas",
+      mobileBottom: "Inferior",
+      desktop: "Distribución escritorio",
+      desktopSingle: "Una fila",
+      desktopTwo: "Dos filas",
+    },
+
+    /** Barra utilitaria. */
+    utilityBar: {
+      visible: "Visibilidad",
+      leftSlot: "Acción izquierda",
+      rightSlot: "Acción derecha",
+    },
+
+    /** Barra principal. */
+    mainBar: {
+      sticky: "Barra fija al scroll",
+      showBookingButton: "Botón de reserva",
+      bookingButtonLabel: "Texto del botón",
+      bookingButtonLabelPlaceholder: "Reservar",
+    },
+
+    /** Barra inferior (mobile). */
+    bottomBar: {
+      visible: "Visibilidad",
+      backdropBlur: "Desenfoque de fondo",
+      slots: "Acciones",
+      addSlot: "Agregar acción",
+      maxSlotsHint: "Máximo 4 acciones en la barra inferior.",
+      minSlotsHint: "Mínimo 2 acciones requeridas.",
+    },
+
+    /** Drawer — menú de navegación. */
+    drawer: {
+      addSection: "Agregar sección",
+      sectionLabel: "Nombre",
+      sectionLabelPlaceholder: "Habitaciones",
+      sectionHref: "Enlace",
+      sectionVisible: "Visibilidad",
+    },
+
+    /** Utilidad del drawer. */
+    drawerUtility: {
+      add: "Agregar acción",
+    },
+
+    /** Editor de UtilityAction (campos individuales). */
+    action: {
+      label: "Etiqueta",
+      labelPlaceholder: "Ej. Check-in",
+      icon: "Ícono (nombre lucide)",
+      iconPlaceholder: "key-round",
+      type: "Tipo de acción",
+      href: "URL de destino",
+      phone: "Número de WhatsApp",
+    },
+
+    /** Controles de listas ordenables. */
+    list: {
+      moveUp: "Mover arriba",
+      moveDown: "Mover abajo",
+      remove: "Eliminar",
+    },
+  },
+
+  /**
    * Menú de herramientas del editor — vive a la izquierda de la barra, entre
    * "Configuración de la página" y el bloque centro. Agrupa acciones que
    * son herramientas reales (no "más opciones" miscelánea) para que el bloque
