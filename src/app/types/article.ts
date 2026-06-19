@@ -103,7 +103,7 @@ export const BLOG_URL_PREFIX = "/blog/";
 export function slugify(input: string): string {
   return input
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "") // quita diacríticos (á → a)
+    .replace(/[\u0300-\u036f]/g, "") // quita diacríticos (á → a)
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9\s-]/g, "")

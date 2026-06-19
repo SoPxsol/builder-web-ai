@@ -1,0 +1,28 @@
+{
+  "pkg": "@figma/my-make-file",
+  "globalName": "PxsolWebDS",
+  "shape": "package",
+  "projectId": "a474608c-586f-457d-8f81-83a0848e21d0",
+  "srcDir": "../../../src/app",
+  "cssEntry": "tokens.css",
+  "buildCmd": "npm run build",
+  "readmeHeader": ".design-sync/conventions.md",
+  "extraFonts": [
+    "../../../.design-sync/fonts/inter.css"
+  ],
+  "componentSrcMap": {
+    "App": null
+  },
+  "overrides": {
+    "BuilderToolbar": { "cardMode": "column" },
+    "Canvas": { "cardMode": "column" },
+    "SeoCard": { "cardMode": "column" },
+    "StepBar": { "cardMode": "column" },
+    "ToggleRow": { "cardMode": "column" },
+    "UploadZone": { "cardMode": "column" },
+    "WizardCard": { "cardMode": "column" },
+    "StepTrail": { "cardMode": "column" },
+    "WizardFooter": { "cardMode": "column" },
+    "StepTrailW2": { "cardMode": "column" }
+  }
+}

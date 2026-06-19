@@ -1,0 +1,77 @@
+name: DS build check
+
+# Valida que el sistema de diseño (bundle de design-sync) compile en cada push
+# a main y en cada PR. NO sube a Claude Design — esa parte necesita el login de
+# claude.ai y se hace con el re-sync manual (ver .design-sync/RESYNC.md).
+# El bundle se guarda como artefacto descargable de la corrida.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/app/**"
+      - ".design-sync/**"
+      - ".ds-sync/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ds-build.yml"
+  pull_request:
+    paths:
+      - "src/app/**"
+      - ".design-sync/**"
+      - ".ds-sync/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ds-build.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install app deps (root)
+        run: npm ci
+
+      # ts-morph resuelve los tipos de los componentes desde el node_modules raíz;
+      # @types/react no está en package.json (se instala --no-save), igual que en el setup local.
+      - name: Install @types/react (no-save)
+        run: npm install --no-save @types/react@19.2.17
+
+      # Stub que el design-sync espera en node_modules/@figma/my-make-file:
+      # el package.json (= el del repo, name @figma/my-make-file) + el tokens.css
+      # compilado (CSS de tailwind, versionado en .design-sync/stub/). Cualquier
+      # npm install lo prunea, por eso se recrea acá después del ci.
+      - name: Setup @figma/my-make-file stub
+        run: |
+          mkdir -p node_modules/@figma/my-make-file
+          cp package.json node_modules/@figma/my-make-file/package.json
+          cp .design-sync/stub/tokens.css node_modules/@figma/my-make-file/tokens.css
+
+      # esbuild + ts-morph para el build. Sin chromium (no corremos capture acá).
+      - name: Install design-sync toolchain
+        working-directory: .ds-sync
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: npm ci
+
+      - name: Build DS bundle
+        run: node .ds-sync/package-build.mjs --config .design-sync/config.json --node-modules ./node_modules --out ./ds-bundle
+
+      - name: Upload bundle artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ds-bundle
+          path: |
+            ds-bundle
+            !ds-bundle/_screenshots
+          if-no-files-found: error
+          retention-days: 14

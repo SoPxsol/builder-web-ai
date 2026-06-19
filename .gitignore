@@ -30,3 +30,11 @@ Thumbs.db
 
 # Local Claude state (transcripts, settings)
 .claude/settings.local.json
+
+# design-sync (Claude Design import)
+# La toolchain .ds-sync/ se versiona (la necesita el CI); solo se ignoran sus deps.
+.ds-sync/node_modules/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules

@@ -41,7 +41,7 @@
  * la misma API pública (save/load/clear/getStatus) para no tocar componentes.
  */
 
-import type { BuilderModule, BuilderTab } from "../../types/builder";
+import type { BuilderModule, BuilderTab, NavConfig } from "../../types/builder";
 
 /** Identificador de la entidad del editor. Coincide con los tabs Header/Página/Footer. */
 export type EntityType = BuilderTab;
@@ -53,6 +53,13 @@ export interface EntityDraft {
   propertyValues: Record<string, string>;
   /** Timestamp ISO del último save. */
   updatedAt: string;
+  /**
+   * Configuración tipada del header/navegación (WEB-686).
+   * Opcional para mantener compatibilidad con drafts previos serializados
+   * en localStorage que no incluían este campo. El consumidor (HeaderConfigPanel)
+   * es quien aplica DEFAULT_NAV_CONFIG cuando este campo llega como `undefined`.
+   */
+  navConfig?: NavConfig;
 }
 
 /** Estado publicado de una entidad. */
@@ -60,6 +67,12 @@ export interface EntityPublished {
   tree: BuilderModule[];
   propertyValues: Record<string, string>;
   publishedAt: string;
+  /**
+   * Configuración tipada del header/navegación (WEB-686).
+   * Opcional para mantener compatibilidad con versiones publicadas previas
+   * serializadas en localStorage sin este campo.
+   */
+  navConfig?: NavConfig;
 }
 
 /** Estado relativo de una entidad respecto a su versión publicada. */
@@ -148,6 +161,8 @@ export function publishDraft(
     tree: draft.tree,
     propertyValues: draft.propertyValues,
     publishedAt,
+    // Propaga navConfig si el draft lo trae; si no, queda undefined (retrocompat).
+    navConfig: draft.navConfig,
   };
   const ok = writeToStorage(publishedKey(siteId, entity), published);
   if (ok) clearDraft(siteId, entity);
