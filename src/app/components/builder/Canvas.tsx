@@ -682,12 +682,19 @@ function NavHeaderPreview({
   const showBottomBar =
     isMobile && cfg.bottomBar.visible && (cfg.mobileLayout === "both" || cfg.mobileLayout === "bottom");
 
+  /* Estado del drawer: solo aplica en mobile; en desktop siempre cerrado. */
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   /* Ordenamos las secciones y slots por campo order (asc). */
   const visibleSections = [...cfg.drawerSections]
     .filter((s) => s.visible)
     .sort((a, b) => a.order - b.order);
 
   const sortedSlots = [...cfg.bottomBar.slots].sort((a, b) => a.order - b.order);
+
+  /* Idiomas y monedas habilitados para el selector mock del drawer. */
+  const enabledLanguages = cfg.languages.filter((l) => l.enabled);
+  const enabledCurrencies = cfg.currencies.filter((c) => c.enabled);
 
   /* Logo: imagen si hay url, texto como fallback. */
   function LogoEl() {
@@ -835,11 +842,28 @@ function NavHeaderPreview({
               {cfg.mainBar.bookingButtonLabel || "Reservar"}
             </button>
           )}
-          {/* Hamburguesa en mobile */}
+          {/* Hamburguesa en mobile — togglea el drawer preview */}
           {isMobile && (
-            <div
-              aria-hidden="true"
-              style={{ display: "flex", flexDirection: "column", gap: 4, cursor: "default" }}
+            <button
+              type="button"
+              aria-label={BUILDER_COPY.headerConfig.drawerPreview.openMenuAriaLabel}
+              aria-expanded={drawerOpen}
+              onClick={() => setDrawerOpen((prev) => !prev)}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+                cursor: "pointer",
+                background: "none",
+                border: "none",
+                padding: 4,
+                borderRadius: 4,
+                /* Asegura target táctil de ≥44px */
+                minWidth: 44,
+                minHeight: 44,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
             >
               {[0, 1, 2].map((i) => (
                 <div
@@ -847,7 +871,7 @@ function NavHeaderPreview({
                   style={{ width: 18, height: 2, background: "var(--text-secondary)", borderRadius: 1 }}
                 />
               ))}
-            </div>
+            </button>
           )}
         </div>
       </div>
@@ -908,9 +932,243 @@ function NavHeaderPreview({
     );
   }
 
+  /* Drawer preview — panel lateral que aparece desde la derecha sobre el
+     marco del canvas cuando el hotelero activa el hamburguer en mobile.
+     Posicionado absolute dentro del wrapper (igual que BottomBar) para no
+     afectar el layout del canvas circundante. z-index 5 queda por encima de
+     la bottom bar (z 4). El scrim cubre toda la altura del marco. */
+  function DrawerPanel() {
+    if (!drawerOpen || !isMobile) return null;
+
+    /* Divisor horizontal liviano, mismo tono que los bordes del header. */
+    function Divider() {
+      return (
+        <div
+          style={{
+            height: "0.5px",
+            background: "var(--border-ui)",
+            margin: "8px 0",
+          }}
+        />
+      );
+    }
+
+    return (
+      <>
+        {/* Scrim semi-translúcido — cubre el frame salvo el panel */}
+        <div
+          aria-hidden="true"
+          onClick={() => setDrawerOpen(false)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            zIndex: 5,
+          }}
+        />
+
+        {/* Panel lateral — 80% del ancho del marco, desde la derecha */}
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={BUILDER_COPY.headerConfig.drawerPreview.openMenuAriaLabel}
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            right: 0,
+            width: "80%",
+            background: "#fff",
+            zIndex: 6,
+            display: "flex",
+            flexDirection: "column",
+            boxShadow: "-4px 0 24px rgba(0,0,0,0.12)",
+            overflowY: "auto",
+          }}
+        >
+          {/* Cabecera del drawer con botón cerrar */}
+          <div
+            className="flex items-center justify-end"
+            style={{
+              height: 48,
+              padding: "0 14px",
+              borderBottom: "0.5px solid var(--border-ui)",
+              flexShrink: 0,
+            }}
+          >
+            <button
+              type="button"
+              aria-label={BUILDER_COPY.headerConfig.drawerPreview.closeMenuAriaLabel}
+              onClick={() => setDrawerOpen(false)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 44,
+                height: 44,
+                background: "none",
+                border: "none",
+                borderRadius: 4,
+                cursor: "pointer",
+                color: "var(--text-secondary)",
+              }}
+            >
+              {/* X compuesta por dos líneas rotadas, mismo grosor que el hamburger */}
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                aria-hidden="true"
+              >
+                <line x1="2" y1="2" x2="14" y2="14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                <line x1="14" y1="2" x2="2" y2="14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Cuerpo del drawer */}
+          <div style={{ padding: "12px 16px", flex: 1 }}>
+
+            {/* Secciones de navegación */}
+            {visibleSections.length > 0 && (
+              <nav aria-label="Navegación principal">
+                {visibleSections.map((section) => (
+                  <div
+                    key={section.id}
+                    style={{
+                      padding: "10px 0",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: "var(--text-primary)",
+                      cursor: "default",
+                      borderBottom: "0.5px solid var(--border-ui)",
+                    }}
+                  >
+                    {section.label || "—"}
+                  </div>
+                ))}
+              </nav>
+            )}
+
+            <Divider />
+
+            {/* Acciones de utilidad del drawer */}
+            {cfg.drawerUtility.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {cfg.drawerUtility.map((action) => (
+                  <div
+                    key={action.id}
+                    className="flex items-center"
+                    style={{
+                      gap: 10,
+                      padding: "8px 0",
+                      fontSize: 12,
+                      color: "var(--text-secondary)",
+                      cursor: "default",
+                    }}
+                  >
+                    <span style={{ flexShrink: 0 }}>
+                      <NavIcon name={action.icon} size={14} />
+                    </span>
+                    <span>{action.label || "—"}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Idiomas y monedas — solo cuando hay opciones habilitadas */}
+            {(enabledLanguages.length > 0 || enabledCurrencies.length > 0) && (
+              <>
+                <Divider />
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+                  {/* Selector de idiomas */}
+                  {enabledLanguages.length > 0 && (
+                    <div>
+                      <p
+                        style={{
+                          fontSize: 9,
+                          color: "var(--text-tertiary)",
+                          letterSpacing: "0.08em",
+                          textTransform: "uppercase",
+                          marginBottom: 6,
+                        }}
+                      >
+                        {BUILDER_COPY.headerConfig.drawerPreview.languagesTitle}
+                      </p>
+                      <div className="flex items-center" style={{ gap: 6, flexWrap: "wrap" }}>
+                        {enabledLanguages.map((lang, idx) => (
+                          <span
+                            key={lang.code}
+                            style={{
+                              fontSize: 10,
+                              fontWeight: idx === 0 ? 600 : 400,
+                              color: idx === 0 ? "#fff" : "var(--text-secondary)",
+                              background: idx === 0 ? "var(--brand)" : "var(--surface-page)",
+                              border: `0.5px solid ${idx === 0 ? "transparent" : "var(--border-ui)"}`,
+                              borderRadius: 4,
+                              padding: "3px 8px",
+                              cursor: "default",
+                            }}
+                          >
+                            {lang.code.toUpperCase()}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Selector de monedas */}
+                  {enabledCurrencies.length > 0 && (
+                    <div>
+                      <p
+                        style={{
+                          fontSize: 9,
+                          color: "var(--text-tertiary)",
+                          letterSpacing: "0.08em",
+                          textTransform: "uppercase",
+                          marginBottom: 6,
+                        }}
+                      >
+                        {BUILDER_COPY.headerConfig.drawerPreview.currenciesTitle}
+                      </p>
+                      <div className="flex items-center" style={{ gap: 6, flexWrap: "wrap" }}>
+                        {enabledCurrencies.map((cur, idx) => (
+                          <span
+                            key={cur.code}
+                            style={{
+                              fontSize: 10,
+                              fontWeight: idx === 0 ? 600 : 400,
+                              color: idx === 0 ? "#fff" : "var(--text-secondary)",
+                              background: idx === 0 ? "var(--brand)" : "var(--surface-page)",
+                              border: `0.5px solid ${idx === 0 ? "transparent" : "var(--border-ui)"}`,
+                              borderRadius: 4,
+                              padding: "3px 8px",
+                              cursor: "default",
+                            }}
+                          >
+                            {cur.code}
+                            {cur.symbol && cur.symbol !== cur.code ? ` ${cur.symbol}` : ""}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              </>
+            )}
+
+          </div>
+        </div>
+      </>
+    );
+  }
+
   /* El wrapper exterior lleva el outline highlighted de acento igual que el
      SiteHeader mock que reemplaza. position: relative permite que la bottom
-     bar se posicione absolute dentro del marco blanco del canvas. */
+     bar y el drawer se posicionen absolute dentro del marco blanco del canvas. */
   return (
     <div
       style={{
@@ -952,6 +1210,8 @@ function NavHeaderPreview({
         </>
       )}
       {showBottomBar && <BottomBar />}
+      {/* Drawer preview — solo mobile, solo cuando drawerOpen */}
+      <DrawerPanel />
     </div>
   );
 }
