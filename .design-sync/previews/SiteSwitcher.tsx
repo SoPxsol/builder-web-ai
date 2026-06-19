@@ -1,4 +1,5 @@
 import { SiteSwitcher } from "@figma/my-make-file";
+import { useEffect, useRef } from "react";
 
 const noop = () => {};
 
@@ -11,10 +12,29 @@ const sites = [
 
 // Selector de sitio activo del shell (sidebar oscuro). El trigger usa tokens --shell-*,
 // así que lo montamos sobre un contenedor oscuro para que lea con contraste correcto.
-// El dropdown es estado interno (open) — se abre al hacer click; la preview muestra
-// el trigger en su estado por defecto (cerrado) con el sitio activo.
+
+// Estado por defecto: solo el trigger con el sitio activo.
 export const Trigger = () => (
   <div style={{ width: 248, padding: 12, background: "var(--shell-nav-bg)", borderRadius: 8 }}>
     <SiteSwitcher sites={sites} activeSiteId={1} onSelect={noop} onSeeAll={noop} />
   </div>
 );
+
+// Dropdown abierto: el estado `open` es interno (no hay prop para forzarlo), así que
+// al montar disparamos un click sobre el trigger para desplegar el listado de sitios
+// (buscador + filas con thumbnail/stats + "Ver todos"). Es interacción solo-preview.
+export const Abierto = () => {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const btn = ref.current?.querySelector<HTMLButtonElement>('button[aria-haspopup="listbox"]');
+    btn?.click();
+  }, []);
+  return (
+    <div
+      ref={ref}
+      style={{ position: "relative", width: 300, minHeight: 420, padding: 12, background: "var(--shell-nav-bg)", borderRadius: 8 }}
+    >
+      <SiteSwitcher sites={sites} activeSiteId={1} onSelect={noop} onSeeAll={noop} />
+    </div>
+  );
+};
