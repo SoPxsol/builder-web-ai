@@ -3,12 +3,12 @@
   "globalName": "PxsolWebDS",
   "shape": "package",
   "projectId": "a474608c-586f-457d-8f81-83a0848e21d0",
-  "srcDir": "C:/Users/socue/Documents/pxsol-presencia-online/builder-web-ai/src/app",
+  "srcDir": "../../../src/app",
   "cssEntry": "tokens.css",
   "buildCmd": "npm run build",
   "readmeHeader": ".design-sync/conventions.md",
   "extraFonts": [
-    "C:/Users/socue/Documents/pxsol-presencia-online/builder-web-ai/.design-sync/fonts/inter.css"
+    "../../../.design-sync/fonts/inter.css"
   ],
   "componentSrcMap": {
     "App": null
