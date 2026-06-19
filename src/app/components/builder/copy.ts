@@ -288,6 +288,21 @@ export const BUILDER_COPY = {
       moveDown: "Mover abajo",
       remove: "Eliminar",
     },
+
+    /**
+     * Preview del drawer abierto en el canvas (mobile).
+     * El drawer es solo visual (mock); no navega ni cierra la página.
+     */
+    drawerPreview: {
+      /** aria-label del botón hamburguesa cuando el drawer está cerrado. */
+      openMenuAriaLabel: "Abrir menú de navegación",
+      /** aria-label del botón cerrar (X) dentro del drawer. */
+      closeMenuAriaLabel: "Cerrar menú de navegación",
+      /** Encabezado de la sección de idiomas dentro del drawer. */
+      languagesTitle: "Idioma",
+      /** Encabezado de la sección de monedas dentro del drawer. */
+      currenciesTitle: "Moneda",
+    },
   },
 
   /**
