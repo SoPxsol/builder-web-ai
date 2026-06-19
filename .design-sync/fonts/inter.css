@@ -1,0 +1,10 @@
+/* Inter (variable, latin) — SIL Open Font License 1.1
+ * Source: @fontsource-variable/inter (jsDelivr). Shipped with the DS bundle
+ * because the app's tokens reference "Inter" but the repo never bundled it. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("./inter-latin-wght-normal.woff2") format("woff2");
+}
