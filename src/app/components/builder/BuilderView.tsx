@@ -121,14 +121,14 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
           tree: draft.tree,
           propertyValues: draft.propertyValues,
           // Para header: preservar navConfig tipado; draft viejo sin él cae al default.
-          ...(t === "header" ? { navConfig: (draft as typeof draft & { navConfig?: NavConfig }).navConfig ?? DEFAULT_NAV_CONFIG } : {}),
+          ...(t === "header" ? { navConfig: draft.navConfig ?? DEFAULT_NAV_CONFIG } : {}),
         };
       } else if (published) {
         hydrated[t] = {
           tree: published.tree,
           propertyValues: published.propertyValues,
           // Para header: igual que con draft.
-          ...(t === "header" ? { navConfig: (published as typeof published & { navConfig?: NavConfig }).navConfig ?? DEFAULT_NAV_CONFIG } : {}),
+          ...(t === "header" ? { navConfig: published.navConfig ?? DEFAULT_NAV_CONFIG } : {}),
         };
       }
       // Si no hay draft ni published, dejamos el slice inicial (INITIAL_TREE
