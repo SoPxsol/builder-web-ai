@@ -637,6 +637,7 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
             modules={activeTree}
             propertyValues={activePropertyValues}
             selectedId={selectedModuleId}
+            navConfig={entities.header.navConfig ?? DEFAULT_NAV_CONFIG}
             onSelectModule={handleSelectModule}
             onReorderModule={handleReorderModule}
             onAddFromPalette={handleAddFromPalette}

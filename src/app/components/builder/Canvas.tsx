@@ -1,9 +1,39 @@
 import { forwardRef, useEffect, useRef, useState } from "react";
-import { Copy, GripVertical, SlidersHorizontal, Trash2 } from "lucide-react";
-import type { BuilderModule, BuilderTab, ViewportMode } from "../../types/builder";
+import {
+  CalendarCheck,
+  Copy,
+  GripVertical,
+  KeyRound,
+  MessageCircle,
+  SlidersHorizontal,
+  Sparkles,
+  Trash2,
+  User,
+  type LucideIcon,
+} from "lucide-react";
+import type { BuilderModule, BuilderTab, NavConfig, ViewportMode } from "../../types/builder";
+import { DEFAULT_NAV_CONFIG } from "../../types/builder";
 import { HOTEL_IMAGES } from "../wizard/preview/hotelImages";
 import { BUILDER_COPY } from "./copy";
 import { displayAlias, sectionSubtitle } from "./sectionMeta";
+
+/* ─── Resolver de íconos del nav (nombre lógico → componente lucide) ────────
+ * Solo los íconos que aparecen en UtilityAction.icon del NavConfig.
+ * No usamos dynamic import para mantener el bundle determinístico. */
+const NAV_ICON_MAP: Record<string, LucideIcon> = {
+  "calendar-check": CalendarCheck,
+  "message-circle": MessageCircle,
+  sparkles: Sparkles,
+  "key-round": KeyRound,
+  user: User,
+};
+
+function NavIcon({ name, size = 14 }: { name?: string; size?: number }) {
+  if (!name) return null;
+  const Icon = NAV_ICON_MAP[name];
+  if (!Icon) return null;
+  return <Icon size={size} aria-hidden="true" />;
+}
 
 const MIME_MODULE = "application/x-module-id";
 const MIME_COMPONENT = "application/x-component-id";
@@ -16,6 +46,8 @@ interface CanvasProps {
   modules: BuilderModule[];
   propertyValues: Record<string, string>;
   selectedId: string | null;
+  /** Configuración del header. Solo se usa cuando activeTab === "header". */
+  navConfig?: NavConfig;
   onSelectModule: (id: string) => void;
   /** Mismo motor de reordenamiento que el panel: mover a posición final. */
   onReorderModule: (fromId: string, toIndex: number) => void;
@@ -35,6 +67,7 @@ export function Canvas({
   modules,
   propertyValues,
   selectedId,
+  navConfig,
   onSelectModule,
   onReorderModule,
   onAddFromPalette,
@@ -118,7 +151,15 @@ export function Canvas({
           fontFamily: "var(--font-sans)",
         }}
       >
-        {(activeTab === "header" || isPageTab) && <SiteHeader highlighted={activeTab === "header"} />}
+        {/* Header tab → preview real driven by navConfig.
+            Page tab   → mock SiteHeader de siempre (unificación queda como follow-up). */}
+        {activeTab === "header" && (
+          <NavHeaderPreview
+            navConfig={navConfig ?? DEFAULT_NAV_CONFIG}
+            viewport={viewport}
+          />
+        )}
+        {isPageTab && <SiteHeader highlighted={false} />}
 
         {/* Cuerpo = secciones del árbol. Para header/footer el array está vacío
             por defecto → empty state. */}
@@ -608,6 +649,310 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     >
       {children}
     </p>
+  );
+}
+
+/* ─── Preview real del header (driven by NavConfig + viewport) ───────────── */
+
+/**
+ * NavHeaderPreview — representación visual fiel del header según la
+ * configuración activa. Es mock visual (no interactivo): los botones tienen
+ * cursor: default, igual que HeroBlock.
+ *
+ * Comportamiento por viewport:
+ *   - desktop / tablet: muestra barra utilitaria (si visible) + barra principal.
+ *     En two-rows: util arriba, main abajo. En single-row: todo en una fila.
+ *   - mobile: según mobileLayout:
+ *       "top"    → solo barra superior.
+ *       "both"   → barra superior + bottom bar.
+ *       "bottom" → solo bottom bar (sin barra superior).
+ *
+ * NOTA: mainBar.sticky no se simula con scroll real; se muestra un chip
+ * indicativo "Sticky" en desktop para que el hotelero sepa que está activo.
+ */
+function NavHeaderPreview({
+  navConfig: cfg,
+  viewport,
+}: {
+  navConfig: NavConfig;
+  viewport: ViewportMode;
+}) {
+  const isMobile = viewport === "mobile";
+  const showTopBar = !isMobile || cfg.mobileLayout === "top" || cfg.mobileLayout === "both";
+  const showBottomBar =
+    isMobile && cfg.bottomBar.visible && (cfg.mobileLayout === "both" || cfg.mobileLayout === "bottom");
+
+  /* Ordenamos las secciones y slots por campo order (asc). */
+  const visibleSections = [...cfg.drawerSections]
+    .filter((s) => s.visible)
+    .sort((a, b) => a.order - b.order);
+
+  const sortedSlots = [...cfg.bottomBar.slots].sort((a, b) => a.order - b.order);
+
+  /* Logo: imagen si hay url, texto como fallback. */
+  function LogoEl() {
+    if (cfg.logo.type === "image" && cfg.logo.imageUrl) {
+      return (
+        <img
+          src={cfg.logo.imageUrl}
+          alt={cfg.logo.imageAlt ?? "Logo"}
+          style={{ maxHeight: 32, maxWidth: 120, objectFit: "contain" }}
+        />
+      );
+    }
+    return (
+      <span style={{ fontSize: 16, fontWeight: 700, color: "var(--brand)", letterSpacing: "-0.02em" }}>
+        {cfg.logo.textFallback || "HOTEL"}
+      </span>
+    );
+  }
+
+  /* Acción utilitaria: ícono + label en fila. */
+  function UtilityChip({ label, icon }: { label: string; icon?: string }) {
+    return (
+      <span
+        className="flex items-center"
+        style={{ gap: 4, fontSize: 10, color: "var(--text-secondary)", cursor: "default" }}
+      >
+        <NavIcon name={icon} size={12} />
+        {label}
+      </span>
+    );
+  }
+
+  /* Barra utilitaria (franja superior fina). */
+  function UtilityBar() {
+    if (!cfg.utilityBar.visible) return null;
+    return (
+      <div
+        className="flex items-center justify-between"
+        style={{
+          height: 30,
+          padding: "0 20px",
+          background: "var(--surface-page)",
+          borderBottom: "0.5px solid var(--border-ui)",
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          {cfg.utilityBar.leftSlot && (
+            <UtilityChip
+              label={cfg.utilityBar.leftSlot.label}
+              icon={cfg.utilityBar.leftSlot.icon}
+            />
+          )}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          {cfg.utilityBar.rightSlot && (
+            <UtilityChip
+              label={cfg.utilityBar.rightSlot.label}
+              icon={cfg.utilityBar.rightSlot.icon}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* Barra principal (logo + nav + botón). */
+  function MainBar() {
+    return (
+      <div
+        className="flex items-center justify-between"
+        style={{
+          height: isMobile ? 48 : 52,
+          padding: isMobile ? "0 14px" : "0 24px",
+          background: "#fff",
+          borderBottom: "0.5px solid var(--border-ui)",
+          gap: 12,
+        }}
+      >
+        {/* Logo */}
+        <div style={{ flexShrink: 0 }}>
+          <LogoEl />
+        </div>
+
+        {/* Nav items (solo desktop/tablet — mobile usa drawer) */}
+        {!isMobile && (
+          <div
+            className="flex items-center"
+            style={{ gap: 18, flex: 1, justifyContent: "center", overflow: "hidden" }}
+          >
+            {visibleSections.slice(0, 5).map((s) => (
+              <span
+                key={s.id}
+                style={{
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: "var(--text-secondary)",
+                  cursor: "default",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {s.label || "—"}
+              </span>
+            ))}
+            {visibleSections.length > 5 && (
+              <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+                +{visibleSections.length - 5}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Lado derecho: sticky chip (desktop) + botón reserva */}
+        <div className="flex items-center" style={{ gap: 8, flexShrink: 0 }}>
+          {!isMobile && cfg.mainBar.sticky && (
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 600,
+                color: "var(--accent-info)",
+                background: "var(--accent-info-bg)",
+                padding: "2px 6px",
+                borderRadius: 4,
+                letterSpacing: "0.04em",
+              }}
+            >
+              STICKY
+            </span>
+          )}
+          {cfg.mainBar.showBookingButton && (
+            <button
+              type="button"
+              style={{
+                height: isMobile ? 30 : 28,
+                padding: "0 12px",
+                background: "var(--brand)",
+                border: "none",
+                borderRadius: 4,
+                fontSize: isMobile ? 11 : 11,
+                fontWeight: 600,
+                color: "#fff",
+                cursor: "default",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {cfg.mainBar.bookingButtonLabel || "Reservar"}
+            </button>
+          )}
+          {/* Hamburguesa en mobile */}
+          {isMobile && (
+            <div
+              aria-hidden="true"
+              style={{ display: "flex", flexDirection: "column", gap: 4, cursor: "default" }}
+            >
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  style={{ width: 18, height: 2, background: "var(--text-secondary)", borderRadius: 1 }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* Bottom bar: slots repartidos horizontalmente, fijada al pie del marco. */
+  function BottomBar() {
+    return (
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-around",
+          height: 56,
+          /* Blur real requeriría backdrop-filter sobre contenido subyacente.
+             En el preview usamos un fondo semi-translúcido que lo evoca
+             sin depender del contexto de stacking del canvas. */
+          background: cfg.bottomBar.backdropBlur
+            ? "rgba(255,255,255,0.88)"
+            : "#fff",
+          borderTop: "0.5px solid var(--border-ui)",
+          boxShadow: "0 -2px 12px rgba(0,0,0,0.08)",
+          padding: "0 8px",
+          zIndex: 4,
+        }}
+      >
+        {sortedSlots.map((slot) => (
+          <div
+            key={slot.id}
+            className="flex flex-col items-center"
+            style={{ gap: 3, cursor: "default", flex: 1, minWidth: 0 }}
+          >
+            <span style={{ color: "var(--text-secondary)" }}>
+              <NavIcon name={slot.action.icon} size={18} />
+            </span>
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 500,
+                color: "var(--text-secondary)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: "100%",
+                textAlign: "center",
+              }}
+            >
+              {slot.action.label || "—"}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  /* El wrapper exterior lleva el outline highlighted de acento igual que el
+     SiteHeader mock que reemplaza. position: relative permite que la bottom
+     bar se posicione absolute dentro del marco blanco del canvas. */
+  return (
+    <div
+      style={{
+        outline: "2px solid var(--accent-info)",
+        outlineOffset: -2,
+        position: "relative",
+        /* Reservamos espacio para la bottom bar cuando está activa.
+           Así el placeholder de debajo no se superpone. */
+        paddingBottom: showBottomBar ? 56 : 0,
+      }}
+    >
+      {/* Layout two-rows en desktop/tablet: util arriba, main abajo.
+          Single-row: colapsamos la util dentro de la main bar (se muestra igual
+          porque el campo utilityBar.visible controla UtilityBar() por separado). */}
+      {showTopBar && (
+        <>
+          {/* Utility bar siempre va encima de la main bar.
+              Desktop two-rows: franja superior explícita.
+              Desktop single-row: nota de preview (se integra inline en producción).
+              Mobile: siempre encima de la main bar si está visible. */}
+          {cfg.desktopLayout === "two-rows" && !isMobile && <UtilityBar />}
+          {cfg.desktopLayout === "single-row" && !isMobile && cfg.utilityBar.visible && (
+            <div
+              className="flex items-center justify-between"
+              style={{
+                height: 24,
+                padding: "0 20px",
+                background: "var(--surface-page)",
+                borderBottom: "0.5px solid var(--border-ui)",
+                fontSize: 9,
+                color: "var(--text-tertiary)",
+              }}
+            >
+              <span style={{ fontStyle: "italic" }}>Barra utilitaria — integrada inline en la fila del logo en producción</span>
+            </div>
+          )}
+          {isMobile && <UtilityBar />}
+          <MainBar />
+        </>
+      )}
+      {showBottomBar && <BottomBar />}
+    </div>
   );
 }
 
