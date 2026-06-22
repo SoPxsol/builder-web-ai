@@ -1,5 +1,5 @@
 import { GripVertical, Plus, Trash2 } from "lucide-react";
-import type { NavConfig, UtilityAction, NavSection, BottomBarSlot } from "../../types/builder";
+import type { NavConfig, UtilityAction, NavSection, BottomBarSlot, ViewportMode } from "../../types/builder";
 import { BUILDER_COPY } from "./copy";
 
 const H = BUILDER_COPY.headerConfig;
@@ -410,9 +410,19 @@ function removeById<T>(arr: T[], keyOf: (i: T) => string, key: string): T[] {
 interface HeaderConfigPanelProps {
   navConfig: NavConfig;
   onChange: (next: NavConfig) => void;
+  /** Viewport activo en el canvas — se usa para derivar el tab activo del panel. */
+  viewport: ViewportMode;
+  /** Callback para cambiar el viewport desde el panel (sincroniza con el toolbar). */
+  onViewportChange: (v: ViewportMode) => void;
 }
 
-export function HeaderConfigPanel({ navConfig: cfg, onChange }: HeaderConfigPanelProps) {
+export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewportChange }: HeaderConfigPanelProps) {
+  /**
+   * El tab activo DERIVA del viewport — no hay estado local propio.
+   * mobile → tab "mobile"; desktop | tablet → tab "desktop".
+   * Cambiar el tab llama onViewportChange para mantener la invariante.
+   */
+  const activeDevice: "mobile" | "desktop" = viewport === "mobile" ? "mobile" : "desktop";
   const set = <K extends keyof NavConfig>(key: K, value: NavConfig[K]) =>
     onChange({ ...cfg, [key]: value });
 
