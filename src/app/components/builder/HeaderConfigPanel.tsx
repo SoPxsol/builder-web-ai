@@ -499,6 +499,14 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
       cfg.bottomBar.slots.map((s) => (s.id === slotId ? next : s)),
     );
 
+  /* ── Handlers de cambio de tab (sincroniza con el viewport del canvas) ── */
+  function handleTabClick(device: "mobile" | "desktop") {
+    // Evita disparar onViewportChange si ya estamos en el device correcto
+    // (no genera un ciclo de re-render innecesario ni afecta el autosave).
+    if (device === activeDevice) return;
+    onViewportChange(device === "mobile" ? "mobile" : "desktop");
+  }
+
   return (
     <aside
       role="complementary"
@@ -535,6 +543,33 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
         className="flex-1 overflow-y-auto"
         style={{ padding: 14, display: "flex", flexDirection: "column", gap: 14 }}
       >
+
+        {/* ══════════════════════════════════════════════════════════════
+            BLOQUE COMÚN — aplica a mobile y escritorio
+           ══════════════════════════════════════════════════════════════ */}
+
+        {/* Rótulo de bloque común */}
+        <div
+          style={{
+            padding: "5px 8px",
+            background: "var(--surface-raised, #f5f5f5)",
+            border: "0.5px solid var(--border-ui)",
+            borderRadius: 5,
+          }}
+        >
+          <p
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: "var(--text-tertiary)",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              margin: 0,
+            }}
+          >
+            {H.deviceScope.common}
+          </p>
+        </div>
 
         {/* ── LOGO ─────────────────────────────────────────────────────── */}
         <SectionLabel>{H.sections.logo}</SectionLabel>
@@ -592,46 +627,6 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
 
         <Divider />
 
-        {/* ── DISPOSICIÓN ──────────────────────────────────────────────── */}
-        <SectionLabel>{H.sections.layout}</SectionLabel>
-
-        <Field label={H.layout.mobile}>
-          <div className="flex items-center" style={{ gap: 6 }}>
-            <SegBtn
-              label={H.layout.mobileTop}
-              active={cfg.mobileLayout === "top"}
-              onClick={() => set("mobileLayout", "top")}
-            />
-            <SegBtn
-              label={H.layout.mobileBoth}
-              active={cfg.mobileLayout === "both"}
-              onClick={() => set("mobileLayout", "both")}
-            />
-            <SegBtn
-              label={H.layout.mobileBottom}
-              active={cfg.mobileLayout === "bottom"}
-              onClick={() => set("mobileLayout", "bottom")}
-            />
-          </div>
-        </Field>
-
-        <Field label={H.layout.desktop}>
-          <div className="flex items-center" style={{ gap: 6 }}>
-            <SegBtn
-              label={H.layout.desktopSingle}
-              active={cfg.desktopLayout === "single-row"}
-              onClick={() => set("desktopLayout", "single-row")}
-            />
-            <SegBtn
-              label={H.layout.desktopTwo}
-              active={cfg.desktopLayout === "two-rows"}
-              onClick={() => set("desktopLayout", "two-rows")}
-            />
-          </div>
-        </Field>
-
-        <Divider />
-
         {/* ── BARRA UTILITARIA ─────────────────────────────────────────── */}
         <SectionLabel>{H.sections.utilityBar}</SectionLabel>
 
@@ -683,23 +678,8 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
 
         <Divider />
 
-        {/* ── BARRA PRINCIPAL ──────────────────────────────────────────── */}
-        <SectionLabel>{H.sections.mainBar}</SectionLabel>
-
-        <Field label={H.mainBar.sticky}>
-          <div className="flex items-center" style={{ gap: 6 }}>
-            <SegBtn
-              label={H.yes}
-              active={cfg.mainBar.sticky}
-              onClick={() => setMainBar("sticky", true)}
-            />
-            <SegBtn
-              label={H.no}
-              active={!cfg.mainBar.sticky}
-              onClick={() => setMainBar("sticky", false)}
-            />
-          </div>
-        </Field>
+        {/* ── BOTÓN DE RESERVA (compartido) ────────────────────────────── */}
+        <SectionLabel>{H.sections.bookingButton}</SectionLabel>
 
         <Field label={H.mainBar.showBookingButton}>
           <div className="flex items-center" style={{ gap: 6 }}>
@@ -728,201 +708,6 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
             />
           </Field>
         )}
-
-        <Divider />
-
-        {/* ── BARRA INFERIOR (MOBILE) ───────────────────────────────────── */}
-        <SectionLabel>{H.sections.bottomBar}</SectionLabel>
-
-        <Field label={H.bottomBar.visible}>
-          <div className="flex items-center" style={{ gap: 6 }}>
-            <SegBtn
-              label={H.visible}
-              active={cfg.bottomBar.visible}
-              onClick={() => setBottomBar("visible", true)}
-            />
-            <SegBtn
-              label={H.hidden}
-              active={!cfg.bottomBar.visible}
-              onClick={() => setBottomBar("visible", false)}
-            />
-          </div>
-        </Field>
-
-        {cfg.bottomBar.visible && (
-          <>
-            <Field label={H.bottomBar.backdropBlur}>
-              <div className="flex items-center" style={{ gap: 6 }}>
-                <SegBtn
-                  label={H.yes}
-                  active={cfg.bottomBar.backdropBlur}
-                  onClick={() => setBottomBar("backdropBlur", true)}
-                />
-                <SegBtn
-                  label={H.no}
-                  active={!cfg.bottomBar.backdropBlur}
-                  onClick={() => setBottomBar("backdropBlur", false)}
-                />
-              </div>
-            </Field>
-
-            <div className="flex flex-col" style={{ gap: 4 }}>
-              <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)" }}>
-                {H.bottomBar.slots}
-              </span>
-              <ReorderableList
-                items={cfg.bottomBar.slots}
-                keyOf={(s) => s.id}
-                canAdd={cfg.bottomBar.slots.length < BOTTOM_MAX}
-                canRemove={cfg.bottomBar.slots.length > BOTTOM_MIN}
-                addLabel={H.bottomBar.addSlot}
-                addDisabledHint={H.bottomBar.maxSlotsHint}
-                removeDisabledHint={H.bottomBar.minSlotsHint}
-                onAdd={addBottomSlot}
-                onRemove={(key) =>
-                  setBottomBar(
-                    "slots",
-                    removeById(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
-                      ...s,
-                      order: i,
-                    })),
-                  )
-                }
-                onMoveUp={(key) =>
-                  setBottomBar(
-                    "slots",
-                    moveUp(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
-                      ...s,
-                      order: i,
-                    })),
-                  )
-                }
-                onMoveDown={(key) =>
-                  setBottomBar(
-                    "slots",
-                    moveDown(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
-                      ...s,
-                      order: i,
-                    })),
-                  )
-                }
-                renderItem={(slot) => (
-                  <UtilityActionEditor
-                    action={slot.action}
-                    onChange={(nextAction) =>
-                      updateBottomSlot(slot.id, { ...slot, action: nextAction })
-                    }
-                  />
-                )}
-              />
-            </div>
-          </>
-        )}
-
-        <Divider />
-
-        {/* ── SECCIONES DEL MENÚ (DRAWER) ──────────────────────────────── */}
-        <SectionLabel>{H.sections.drawerSections}</SectionLabel>
-
-        <ReorderableList
-          items={cfg.drawerSections}
-          keyOf={(s) => s.id}
-          canAdd
-          canRemove={cfg.drawerSections.length > 1}
-          addLabel={H.drawer.addSection}
-          onAdd={addDrawerSection}
-          onRemove={(key) =>
-            set(
-              "drawerSections",
-              removeById(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
-                ...s,
-                order: i,
-              })),
-            )
-          }
-          onMoveUp={(key) =>
-            set(
-              "drawerSections",
-              moveUp(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({ ...s, order: i })),
-            )
-          }
-          onMoveDown={(key) =>
-            set(
-              "drawerSections",
-              moveDown(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({ ...s, order: i })),
-            )
-          }
-          renderItem={(section) => (
-            <div className="flex flex-col" style={{ gap: 8 }}>
-              <Field label={H.drawer.sectionLabel}>
-                <input
-                  type="text"
-                  value={section.label}
-                  onChange={(e) => updateDrawerSection(section.id, { label: e.target.value })}
-                  placeholder={H.drawer.sectionLabelPlaceholder}
-                  aria-label={H.drawer.sectionLabel}
-                  style={textInputStyle}
-                />
-              </Field>
-              <Field label={H.drawer.sectionHref}>
-                <input
-                  type="text"
-                  value={section.href}
-                  onChange={(e) => updateDrawerSection(section.id, { href: e.target.value })}
-                  placeholder="#seccion"
-                  aria-label={H.drawer.sectionHref}
-                  style={textInputStyle}
-                />
-              </Field>
-              <div className="flex items-center" style={{ gap: 6 }}>
-                <span
-                  style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)", flex: 1 }}
-                >
-                  {H.drawer.sectionVisible}
-                </span>
-                <SegBtn
-                  label={H.visible}
-                  active={section.visible}
-                  onClick={() => updateDrawerSection(section.id, { visible: true })}
-                />
-                <SegBtn
-                  label={H.hidden}
-                  active={!section.visible}
-                  onClick={() => updateDrawerSection(section.id, { visible: false })}
-                />
-              </div>
-            </div>
-          )}
-        />
-
-        <Divider />
-
-        {/* ── UTILIDAD DEL DRAWER ───────────────────────────────────────── */}
-        <SectionLabel>{H.sections.drawerUtility}</SectionLabel>
-
-        <ReorderableList
-          items={cfg.drawerUtility}
-          keyOf={(a) => a.id}
-          canAdd
-          canRemove={cfg.drawerUtility.length > 1}
-          addLabel={H.drawerUtility.add}
-          onAdd={addDrawerUtility}
-          onRemove={(key) =>
-            set("drawerUtility", removeById(cfg.drawerUtility, (a) => a.id, key))
-          }
-          onMoveUp={(key) =>
-            set("drawerUtility", moveUp(cfg.drawerUtility, (a) => a.id, key))
-          }
-          onMoveDown={(key) =>
-            set("drawerUtility", moveDown(cfg.drawerUtility, (a) => a.id, key))
-          }
-          renderItem={(action) => (
-            <UtilityActionEditor
-              action={action}
-              onChange={(next) => updateDrawerUtility(action.id, next)}
-            />
-          )}
-        />
 
         <Divider />
 
@@ -1011,6 +796,344 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
               />
             </div>
           ))}
+        </div>
+
+        <Divider />
+
+        {/* ══════════════════════════════════════════════════════════════
+            TABS DEVICE — Mobile | Desktop
+            Sincronizados 1:1 con el viewport del canvas vía activeDevice.
+           ══════════════════════════════════════════════════════════════ */}
+
+        {/* Barra de tabs */}
+        <div
+          role="tablist"
+          aria-label={H.deviceScope.tablistAria}
+          className="flex"
+          style={{
+            borderBottom: "0.5px solid var(--border-ui)",
+            gap: 0,
+          }}
+        >
+          {(["mobile", "desktop"] as const).map((device) => {
+            const isActive = activeDevice === device;
+            const label = device === "mobile" ? H.deviceScope.tabMobile : H.deviceScope.tabDesktop;
+            return (
+              <button
+                key={device}
+                role="tab"
+                id={`header-tab-${device}`}
+                aria-selected={isActive}
+                aria-controls={`header-tabpanel-${device}`}
+                type="button"
+                onClick={() => handleTabClick(device)}
+                className="flex-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+                style={{
+                  padding: "7px 10px",
+                  fontSize: 11,
+                  fontWeight: isActive ? 600 : 500,
+                  color: isActive ? "var(--accent-info)" : "var(--text-secondary)",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: isActive
+                    ? "2px solid var(--accent-info)"
+                    : "2px solid transparent",
+                  cursor: "pointer",
+                  outlineColor: "var(--accent-info)",
+                  marginBottom: -1,
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Panel Mobile */}
+        <div
+          role="tabpanel"
+          id="header-tabpanel-mobile"
+          aria-labelledby="header-tab-mobile"
+          hidden={activeDevice !== "mobile"}
+          className="flex flex-col"
+          style={{ gap: 14 }}
+        >
+          {/* ── DISPOSICIÓN MOBILE ───────────────────────────────────── */}
+          <SectionLabel>{H.sections.layout}</SectionLabel>
+
+          <Field label={H.layout.mobile}>
+            <div className="flex items-center" style={{ gap: 6 }}>
+              <SegBtn
+                label={H.layout.mobileTop}
+                active={cfg.mobileLayout === "top"}
+                onClick={() => set("mobileLayout", "top")}
+              />
+              <SegBtn
+                label={H.layout.mobileBoth}
+                active={cfg.mobileLayout === "both"}
+                onClick={() => set("mobileLayout", "both")}
+              />
+              <SegBtn
+                label={H.layout.mobileBottom}
+                active={cfg.mobileLayout === "bottom"}
+                onClick={() => set("mobileLayout", "bottom")}
+              />
+            </div>
+          </Field>
+
+          <Divider />
+
+          {/* ── BARRA INFERIOR (MOBILE) ──────────────────────────────── */}
+          <SectionLabel>{H.sections.bottomBar}</SectionLabel>
+
+          <Field label={H.bottomBar.visible}>
+            <div className="flex items-center" style={{ gap: 6 }}>
+              <SegBtn
+                label={H.visible}
+                active={cfg.bottomBar.visible}
+                onClick={() => setBottomBar("visible", true)}
+              />
+              <SegBtn
+                label={H.hidden}
+                active={!cfg.bottomBar.visible}
+                onClick={() => setBottomBar("visible", false)}
+              />
+            </div>
+          </Field>
+
+          {cfg.bottomBar.visible && (
+            <>
+              <Field label={H.bottomBar.backdropBlur}>
+                <div className="flex items-center" style={{ gap: 6 }}>
+                  <SegBtn
+                    label={H.yes}
+                    active={cfg.bottomBar.backdropBlur}
+                    onClick={() => setBottomBar("backdropBlur", true)}
+                  />
+                  <SegBtn
+                    label={H.no}
+                    active={!cfg.bottomBar.backdropBlur}
+                    onClick={() => setBottomBar("backdropBlur", false)}
+                  />
+                </div>
+              </Field>
+
+              <div className="flex flex-col" style={{ gap: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)" }}>
+                  {H.bottomBar.slots}
+                </span>
+                <ReorderableList
+                  items={cfg.bottomBar.slots}
+                  keyOf={(s) => s.id}
+                  canAdd={cfg.bottomBar.slots.length < BOTTOM_MAX}
+                  canRemove={cfg.bottomBar.slots.length > BOTTOM_MIN}
+                  addLabel={H.bottomBar.addSlot}
+                  addDisabledHint={H.bottomBar.maxSlotsHint}
+                  removeDisabledHint={H.bottomBar.minSlotsHint}
+                  onAdd={addBottomSlot}
+                  onRemove={(key) =>
+                    setBottomBar(
+                      "slots",
+                      removeById(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
+                        ...s,
+                        order: i,
+                      })),
+                    )
+                  }
+                  onMoveUp={(key) =>
+                    setBottomBar(
+                      "slots",
+                      moveUp(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
+                        ...s,
+                        order: i,
+                      })),
+                    )
+                  }
+                  onMoveDown={(key) =>
+                    setBottomBar(
+                      "slots",
+                      moveDown(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
+                        ...s,
+                        order: i,
+                      })),
+                    )
+                  }
+                  renderItem={(slot) => (
+                    <UtilityActionEditor
+                      action={slot.action}
+                      onChange={(nextAction) =>
+                        updateBottomSlot(slot.id, { ...slot, action: nextAction })
+                      }
+                    />
+                  )}
+                />
+              </div>
+            </>
+          )}
+
+          <Divider />
+
+          {/* ── SECCIONES DEL MENÚ (DRAWER) ─────────────────────────── */}
+          <SectionLabel>{H.sections.drawerSections}</SectionLabel>
+
+          <ReorderableList
+            items={cfg.drawerSections}
+            keyOf={(s) => s.id}
+            canAdd
+            canRemove={cfg.drawerSections.length > 1}
+            addLabel={H.drawer.addSection}
+            onAdd={addDrawerSection}
+            onRemove={(key) =>
+              set(
+                "drawerSections",
+                removeById(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
+                  ...s,
+                  order: i,
+                })),
+              )
+            }
+            onMoveUp={(key) =>
+              set(
+                "drawerSections",
+                moveUp(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
+                  ...s,
+                  order: i,
+                })),
+              )
+            }
+            onMoveDown={(key) =>
+              set(
+                "drawerSections",
+                moveDown(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
+                  ...s,
+                  order: i,
+                })),
+              )
+            }
+            renderItem={(section) => (
+              <div className="flex flex-col" style={{ gap: 8 }}>
+                <Field label={H.drawer.sectionLabel}>
+                  <input
+                    type="text"
+                    value={section.label}
+                    onChange={(e) => updateDrawerSection(section.id, { label: e.target.value })}
+                    placeholder={H.drawer.sectionLabelPlaceholder}
+                    aria-label={H.drawer.sectionLabel}
+                    style={textInputStyle}
+                  />
+                </Field>
+                <Field label={H.drawer.sectionHref}>
+                  <input
+                    type="text"
+                    value={section.href}
+                    onChange={(e) => updateDrawerSection(section.id, { href: e.target.value })}
+                    placeholder="#seccion"
+                    aria-label={H.drawer.sectionHref}
+                    style={textInputStyle}
+                  />
+                </Field>
+                <div className="flex items-center" style={{ gap: 6 }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 500,
+                      color: "var(--text-secondary)",
+                      flex: 1,
+                    }}
+                  >
+                    {H.drawer.sectionVisible}
+                  </span>
+                  <SegBtn
+                    label={H.visible}
+                    active={section.visible}
+                    onClick={() => updateDrawerSection(section.id, { visible: true })}
+                  />
+                  <SegBtn
+                    label={H.hidden}
+                    active={!section.visible}
+                    onClick={() => updateDrawerSection(section.id, { visible: false })}
+                  />
+                </div>
+              </div>
+            )}
+          />
+
+          <Divider />
+
+          {/* ── UTILIDAD DEL DRAWER ─────────────────────────────────── */}
+          <SectionLabel>{H.sections.drawerUtility}</SectionLabel>
+
+          <ReorderableList
+            items={cfg.drawerUtility}
+            keyOf={(a) => a.id}
+            canAdd
+            canRemove={cfg.drawerUtility.length > 1}
+            addLabel={H.drawerUtility.add}
+            onAdd={addDrawerUtility}
+            onRemove={(key) =>
+              set("drawerUtility", removeById(cfg.drawerUtility, (a) => a.id, key))
+            }
+            onMoveUp={(key) =>
+              set("drawerUtility", moveUp(cfg.drawerUtility, (a) => a.id, key))
+            }
+            onMoveDown={(key) =>
+              set("drawerUtility", moveDown(cfg.drawerUtility, (a) => a.id, key))
+            }
+            renderItem={(action) => (
+              <UtilityActionEditor
+                action={action}
+                onChange={(next) => updateDrawerUtility(action.id, next)}
+              />
+            )}
+          />
+        </div>
+
+        {/* Panel Desktop */}
+        <div
+          role="tabpanel"
+          id="header-tabpanel-desktop"
+          aria-labelledby="header-tab-desktop"
+          hidden={activeDevice !== "desktop"}
+          className="flex flex-col"
+          style={{ gap: 14 }}
+        >
+          {/* ── DISPOSICIÓN ESCRITORIO ───────────────────────────────── */}
+          <SectionLabel>{H.sections.layout}</SectionLabel>
+
+          <Field label={H.layout.desktop}>
+            <div className="flex items-center" style={{ gap: 6 }}>
+              <SegBtn
+                label={H.layout.desktopSingle}
+                active={cfg.desktopLayout === "single-row"}
+                onClick={() => set("desktopLayout", "single-row")}
+              />
+              <SegBtn
+                label={H.layout.desktopTwo}
+                active={cfg.desktopLayout === "two-rows"}
+                onClick={() => set("desktopLayout", "two-rows")}
+              />
+            </div>
+          </Field>
+
+          <Divider />
+
+          {/* ── BARRA PRINCIPAL — sticky (desktop only) ──────────────── */}
+          <SectionLabel>{H.sections.mainBar}</SectionLabel>
+
+          <Field label={H.mainBar.sticky}>
+            <div className="flex items-center" style={{ gap: 6 }}>
+              <SegBtn
+                label={H.yes}
+                active={cfg.mainBar.sticky}
+                onClick={() => setMainBar("sticky", true)}
+              />
+              <SegBtn
+                label={H.no}
+                active={!cfg.mainBar.sticky}
+                onClick={() => setMainBar("sticky", false)}
+              />
+            </div>
+          </Field>
         </div>
 
         {/* Espacio al pie para que el último item no quede pegado al borde del scroll */}
