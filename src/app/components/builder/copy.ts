@@ -195,11 +195,30 @@ export const BUILDER_COPY = {
       layout: "Disposición",
       utilityBar: "Barra utilitaria",
       mainBar: "Barra principal",
+      /** Sección separada del bloque común para el botón de reserva. */
+      bookingButton: "Botón de reserva",
       bottomBar: "Barra inferior (mobile)",
       drawerSections: "Menú de navegación",
       drawerUtility: "Acciones del menú",
       languages: "Idiomas",
       currencies: "Monedas",
+    },
+
+    /**
+     * Contexto de device en el panel.
+     * `common` rotula el bloque de campos compartidos (siempre visible).
+     * `tabMobile` / `tabDesktop` son las etiquetas de los tabs.
+     * `tablistAria` es el aria-label del grupo de tabs.
+     */
+    deviceScope: {
+      /** Rótulo del bloque de campos que aplican a ambos dispositivos. */
+      common: "Aplica a mobile y escritorio",
+      /** Etiqueta del tab de mobile. */
+      tabMobile: "Mobile",
+      /** Etiqueta del tab de escritorio. */
+      tabDesktop: "Escritorio",
+      /** aria-label del grupo de tabs para lectores de pantalla. */
+      tablistAria: "Configuración por dispositivo",
     },
 
     /** Etiquetas genéricas reutilizadas en varios SegBtns. */
