@@ -21,7 +21,7 @@ import { sources, sourceRecommendations, type SourceRecommendation } from "../..
 
 const PRIORITY_COLOR: Record<SourceRecommendation["priority"], string> = {
   high:   "var(--brand)",
-  medium: "#5B8FBF",
+  medium: "var(--geo-cool)",
   low:    "var(--text-tertiary)",
 };
 

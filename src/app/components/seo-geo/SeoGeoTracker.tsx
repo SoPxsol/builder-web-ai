@@ -107,7 +107,7 @@ function QueryDetailModal({
         {query.mentioned ? (
           <>
             <div className="mb-4">
-              <Badge tone="positive">
+              <Badge tone="success">
                 <CheckCircle2 size={11} aria-hidden="true" /> Mencionado · posición #{query.position}
               </Badge>
             </div>
