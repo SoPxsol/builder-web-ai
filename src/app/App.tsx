@@ -6,7 +6,6 @@ import { DashboardView } from "./components/DashboardView";
 import { MisSitiosView } from "./components/MisSitiosView";
 import { TemplatesView } from "./components/TemplatesView";
 import { InfoSitioView } from "./components/InfoSitioView";
-import { SeoGeoView } from "./components/SeoGeoView";
 import { AiView } from "./components/AiView";
 import { DiscoveryView } from "./components/DiscoveryView";
 import { DatosBasicosView } from "./components/DatosBasicosView";
