@@ -22,7 +22,10 @@ export type View =
   | "multilenguaje"
   | "propiedades"
   | "integraciones"
-  | "redes";
+  | "redes"
+  | "google-business"
+  | "otas"
+  | "email";
 
 export interface Site {
   id: number;
