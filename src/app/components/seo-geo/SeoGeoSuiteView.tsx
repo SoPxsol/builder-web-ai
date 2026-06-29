@@ -122,7 +122,7 @@ function SeoGeoInner({ siteName = "" }: { siteName?: string }) {
   const activeIdx = SUB_VIEWS.findIndex((v) => v.id === active);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", flex: 1, minWidth: 0 }}>
       {/* Sub-nav */}
       <div
         style={{
