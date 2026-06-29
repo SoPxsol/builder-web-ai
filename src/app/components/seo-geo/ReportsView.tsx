@@ -82,8 +82,9 @@ export function ReportsView() {
         </p>
       </div>
 
-      {/* Antes: "320px 1fr" fijo — en Builder con nav laterales queda el preview muy comprimido. */}
-      <div className="grid gap-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))" }}>
+      {/* Config (sidebar fijo) + preview que llena el resto; colapsa a 1 col en angosto.
+          auto-fit dejaba tracks vacíos a la derecha al haber solo 2 hijos. */}
+      <div className="grid gap-6 items-start" style={{ gridTemplateColumns: "320px minmax(0, 1fr)" }}>
         {/* Panel izq.: configuración */}
         <div className="space-y-4">
           <div style={{ background: "var(--surface-card)", borderRadius: "var(--radius-card)", border: "0.5px solid var(--border-ui)", padding: "var(--space-4)" }}>
