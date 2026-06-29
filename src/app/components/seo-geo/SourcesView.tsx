@@ -75,7 +75,7 @@ export function SourcesView() {
       </div>
 
       {/* Resumen por nivel */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))" }}>
         {(["high", "medium", "low"] as const).map((level) => {
           const badge = { high: { label: "Alta autoridad", bg: "#dcfce7", color: "#15803d" }, medium: { label: "Autoridad media", bg: "#dbeafe", color: "#1d4ed8" }, low: { label: "Baja autoridad", bg: "var(--surface-page)", color: "var(--text-secondary)" } }[level];
           return (

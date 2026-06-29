@@ -238,18 +238,28 @@ export function GoogleBusinessView({ siteName, navigate }: Props) {
             }
           />
 
+          {/*
+           * Grid responsive: en anchos chicos (Builder con nav laterales, ~900px de contenido)
+           * las dos columnas necesitan un mínimo para no comprimir el mock card.
+           * auto-fit con minmax permite que pasen a una columna si no hay espacio.
+           * Sticky removido de la col izquierda: no funciona dentro de overflow-y-auto
+           * (el ancestor con overflow crea un stacking context que corta el sticky).
+           */}
           <div
             className="grid gap-6"
-            style={{ gridTemplateColumns: "1fr 1.1fr", alignItems: "start" }}
+            style={{
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 380px), 1fr))",
+              alignItems: "start",
+            }}
           >
             {/* ── Columna izquierda: mock Google Maps card ── */}
             <div
-              className="sticky top-4"
               style={{
                 background: "var(--surface-card)",
                 borderRadius: "var(--radius-card)",
                 border: "0.5px solid var(--border-ui)",
                 overflow: "hidden",
+                minWidth: 0,
               }}
             >
               {/* Topbar del mock */}
@@ -391,7 +401,7 @@ export function GoogleBusinessView({ siteName, navigate }: Props) {
             </div>
 
             {/* ── Columna derecha: editor ── */}
-            <div className="space-y-4">
+            <div className="space-y-4" style={{ minWidth: 0 }}>
 
               {/* Datos del negocio */}
               <section

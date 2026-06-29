@@ -168,10 +168,13 @@ export function SeoAssistant() {
   };
 
   return (
+    // Antes: height: calc(100vh - 160px) — asumía viewport completo.
+    // En el Builder el contenedor ya es flex-1 overflow-y-auto (SeoGeoSuiteView).
+    // Altura fija razonable para evitar overflow doble y scroll invisible.
     <div
       style={{
         display: "flex", flexDirection: "column",
-        height: "calc(100vh - 160px)", minHeight: 520,
+        height: 640, minHeight: 480,
         maxWidth: 800, margin: "0 auto",
         padding: "var(--space-5)",
       }}

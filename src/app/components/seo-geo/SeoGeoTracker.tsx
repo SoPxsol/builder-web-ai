@@ -457,7 +457,7 @@ export function SeoGeoTracker({ onSubNav: _onSubNav }: Props) {
         </div>
 
         {/* Score + breakdown por motor */}
-        <div className="grid gap-6 mb-6" style={{ gridTemplateColumns: "1fr 1.4fr" }}>
+        <div className="grid gap-6 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))" }}>
           <div style={{ background: "var(--surface-card)", borderRadius: "var(--radius-card)", border: "0.5px solid var(--border-ui)", padding: "var(--space-4)" }}>
             <p style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>
               AI Visibility Score

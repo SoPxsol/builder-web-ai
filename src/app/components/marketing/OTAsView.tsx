@@ -235,7 +235,16 @@ export function OTAsView({ siteName, navigate }: Props) {
             {name === activeOta && (
               <div
                 className="grid gap-6"
-                style={{ gridTemplateColumns: "1.4fr 1fr", alignItems: "start" }}
+                style={{
+                  /*
+                   * Antes: "1.4fr 1fr" fijo — colapsaba en el Builder.
+                   * Ahora: auto-fit para que pase a columna única en anchos chicos.
+                   * La columna de editor (izq.) necesita al menos 340px para no comprimir
+                   * la textarea de descripción y los campos de habitaciones.
+                   */
+                  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))",
+                  alignItems: "start",
+                }}
               >
                 {/* ── Columna izquierda ── */}
                 <div className="space-y-4">
@@ -393,7 +402,8 @@ export function OTAsView({ siteName, navigate }: Props) {
                 </div>
 
                 {/* ── Sidebar: completitud ── */}
-                <aside className="space-y-4 sticky top-4" aria-label="Estado de completitud del perfil">
+                {/* sticky top-4 removido: no funciona dentro de overflow-y-auto del main */}
+                <aside className="space-y-4" aria-label="Estado de completitud del perfil">
 
                   {/* Score */}
                   <div style={{ background: "var(--surface-card)", borderRadius: "var(--radius-card)", border: "0.5px solid var(--border-ui)", padding: "var(--space-4)" }}>

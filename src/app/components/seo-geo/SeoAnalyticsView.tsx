@@ -136,7 +136,7 @@ export function SeoAnalyticsView() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))" }}>
         <KpiCard
           label="Impresiones"
           value={fmt(gscSummary.impressions)}
@@ -382,7 +382,7 @@ export function SeoAnalyticsView() {
             Resumen de oportunidades
           </p>
         </div>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))" }}>
           {keywords.filter((k) => k.isOpportunity).slice(0, 3).map((kw) => (
             <div
               key={kw.term}

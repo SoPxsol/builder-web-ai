@@ -156,7 +156,10 @@ export function SeoDashboard({ onSubNav }: Props) {
       {/* ── Score global + chart ── */}
       <div
         className="grid gap-6 mb-6"
-        style={{ gridTemplateColumns: "1.4fr 1fr", alignItems: "start" }}
+        style={{
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
+          alignItems: "start",
+        }}
       >
         {/* Score global */}
         <div style={{ background: "var(--surface-card)", borderRadius: "var(--radius-card)", border: "0.5px solid var(--border-ui)", padding: "var(--space-4)" }}>
@@ -261,7 +264,7 @@ export function SeoDashboard({ onSubNav }: Props) {
       </div>
 
       {/* ── KPIs ── */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))" }}>
         <KpiCard
           label="Menciones en IA esta semana"
           value={visibilityOverview.kpis.aiMentionsThisWeek}
@@ -371,7 +374,7 @@ export function SeoDashboard({ onSubNav }: Props) {
       </div>
 
       {/* ── Quick links ── */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))" }}>
         <QuickLink
           title="GEO Tracker"
           desc="Dónde y cómo aparece tu hotel en motores de IA."

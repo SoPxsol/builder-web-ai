@@ -87,9 +87,17 @@ export function EmailMarketingView({ siteName, navigate }: Props) {
           }
         />
 
+        {/*
+         * Columna de lista: antes era "320px" fijo — en el Builder (~900px de contenido)
+         * dejaba el preview demasiado estrecho. Ahora usa minmax para que en pantallas
+         * angostas las columnas pasen a una sola fila.
+         */}
         <div
           className="grid gap-6"
-          style={{ gridTemplateColumns: "320px 1fr", alignItems: "start" }}
+          style={{
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+            alignItems: "start",
+          }}
         >
           {/* ── Lista de campañas ── */}
           <aside
@@ -206,8 +214,8 @@ export function EmailMarketingView({ siteName, navigate }: Props) {
                 {c.id === selected && (
                   <>
                     {/* Toolbar sobre el preview */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
+                    <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+                      <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: "var(--font-size-xl)", fontWeight: 600, color: "var(--text-primary)" }}>
                           {c.name}
                         </div>
@@ -217,7 +225,8 @@ export function EmailMarketingView({ siteName, navigate }: Props) {
                           Preheader: {c.preheader}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      {/* flex-wrap: los botones van a segunda línea si no hay espacio */}
+                      <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
                         <Button variant="secondary" leftIcon={<Pencil size={11} aria-hidden="true" />}>Editar</Button>
                         <Button variant="secondary" leftIcon={<Copy size={11} aria-hidden="true" />}>Duplicar</Button>
                         <Button variant="secondary" leftIcon={<Download size={11} aria-hidden="true" />}>Exportar HTML</Button>
