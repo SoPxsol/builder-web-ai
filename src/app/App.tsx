@@ -6,7 +6,6 @@ import { DashboardView } from "./components/DashboardView";
 import { MisSitiosView } from "./components/MisSitiosView";
 import { TemplatesView } from "./components/TemplatesView";
 import { InfoSitioView } from "./components/InfoSitioView";
-import { SeoGeoView } from "./components/SeoGeoView";
 import { AiView } from "./components/AiView";
 import { DiscoveryView } from "./components/DiscoveryView";
 import { DatosBasicosView } from "./components/DatosBasicosView";
@@ -20,6 +19,11 @@ import { MultilenguajeView } from "./components/MultilenguajeView";
 import { PropiedadesView } from "./components/PropiedadesView";
 import { IntegracionesView } from "./components/IntegracionesView";
 import { PaginasView } from "./components/PaginasView";
+import { RedesSocialesView } from "./components/social/RedesSocialesView";
+import { GoogleBusinessView } from "./components/marketing/GoogleBusinessView";
+import { OTAsView } from "./components/marketing/OTAsView";
+import { EmailMarketingView } from "./components/marketing/EmailMarketingView";
+import { SeoGeoSuiteView } from "./components/seo-geo/SeoGeoSuiteView";
 import { CreateArticleDialog } from "./components/blog/CreateArticleDialog";
 import { SiteSwitcher } from "./components/SiteSwitcher";
 import type { BlogArticle } from "./types/article";
@@ -72,8 +76,11 @@ const siteNavPrimary = [
   { id: "blog",        label: "Blog",           addon: false, disabled: false },
   { id: "popups",      label: "Pop-ups",        addon: false, disabled: false },
   { id: "promociones", label: "Promociones",    addon: false, disabled: false },
-  { id: "ai",          label: "AI",             addon: false, disabled: false },
-  { id: "redes",       label: "Redes Sociales", addon: true,  disabled: true  },
+  { id: "ai",             label: "AI",              addon: false, disabled: false },
+  { id: "redes",          label: "Redes Sociales",  addon: true,  disabled: false },
+  { id: "google-business",label: "Google Business", addon: true,  disabled: false },
+  { id: "otas",           label: "OTAs / Booking",  addon: true,  disabled: false },
+  { id: "email",          label: "Email Marketing", addon: true,  disabled: false },
 ] as const;
 
 /**
@@ -117,7 +124,7 @@ function getIconActive(view: View): string {
   return "dashboard";
 }
 
-const SITE_VIEWS: View[] = ["paginas", "editor", "info-sitio", "seo", "ai", "discovery", "datos-basicos", "versiones", "blog", "popups", "promociones", "idioma", "multilenguaje", "propiedades", "integraciones"];
+const SITE_VIEWS: View[] = ["paginas", "editor", "info-sitio", "seo", "ai", "discovery", "datos-basicos", "versiones", "blog", "popups", "promociones", "idioma", "multilenguaje", "propiedades", "integraciones", "redes", "google-business", "otas", "email"];
 
 function isSiteContext(view: View): boolean {
   return SITE_VIEWS.includes(view);
@@ -710,7 +717,7 @@ export default function App() {
         )}
         {/* view === "editor" → se abre como modal a nivel root (ver más abajo) */}
         {view === "info-sitio"    && <InfoSitioView siteName={activeSite?.name ?? ""} navigate={navigate} />}
-        {view === "seo"           && <SeoGeoView siteName={activeSite?.name ?? ""} navigate={navigate} />}
+        {view === "seo"           && <SeoGeoSuiteView siteName={activeSite?.name ?? ""} navigate={navigate} />}
         {view === "ai"            && <AiView siteName={activeSite?.name ?? ""} navigate={navigate} />}
         {view === "discovery"     && <DiscoveryView siteName={activeSite?.name ?? ""} navigate={navigate} />}
         {view === "datos-basicos" && <DatosBasicosView siteName={activeSite?.name ?? ""} navigate={navigate} />}
@@ -736,6 +743,10 @@ export default function App() {
         {view === "multilenguaje" && <MultilenguajeView siteName={activeSite?.name ?? ""} navigate={navigate} />}
         {view === "propiedades"   && <PropiedadesView siteName={activeSite?.name ?? ""} navigate={navigate} />}
         {view === "integraciones" && <IntegracionesView siteName={activeSite?.name ?? ""} navigate={navigate} />}
+        {view === "redes"          && <RedesSocialesView   siteName={activeSite?.name ?? ""} navigate={navigate} />}
+        {view === "google-business"&& <GoogleBusinessView  siteName={activeSite?.name ?? ""} navigate={navigate} />}
+        {view === "otas"           && <OTAsView            siteName={activeSite?.name ?? ""} navigate={navigate} />}
+        {view === "email"          && <EmailMarketingView  siteName={activeSite?.name ?? ""} navigate={navigate} />}
       </div>
     </div>
 
