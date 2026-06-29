@@ -101,11 +101,28 @@ function AmenityChip({ label, onRemove }: { label: string; onRemove: () => void 
       }}
     >
       {label}
+      {/*
+        Target táctil ≥44px (WCAG 2.2 §2.5.5).
+        padding negativo compensa visualmente: la zona clickable es 44×44
+        pero el ícono sigue luciendo compacto dentro del chip.
+      */}
       <button
         type="button"
         onClick={onRemove}
         className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 transition-opacity hover:opacity-70"
-        style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-secondary)", display: "flex", alignItems: "center", outlineColor: "var(--ring)" }}
+        style={{
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          color: "var(--text-secondary)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 44,
+          height: 44,
+          margin: "-12px -8px -12px -6px",
+          outlineColor: "var(--ring)",
+        }}
         aria-label={`Quitar ${label}`}
       >
         <X size={10} aria-hidden="true" />
@@ -163,7 +180,7 @@ export function OTAsView({ siteName, navigate }: Props) {
       style={{ background: "var(--surface-page)" }}
       aria-label="Gestor de OTAs"
     >
-      <div style={{ padding: "var(--space-5)", maxWidth: 1200, margin: "0 auto" }}>
+      <div style={{ padding: "var(--space-5)", maxWidth: 1000, margin: "0 auto" }}>
 
         {/* ── ViewHeader ── */}
         <ViewHeader
@@ -235,7 +252,16 @@ export function OTAsView({ siteName, navigate }: Props) {
             {name === activeOta && (
               <div
                 className="grid gap-6"
-                style={{ gridTemplateColumns: "1.4fr 1fr", alignItems: "start" }}
+                style={{
+                  /*
+                   * Antes: "1.4fr 1fr" fijo — colapsaba en el Builder.
+                   * Ahora: auto-fit para que pase a columna única en anchos chicos.
+                   * La columna de editor (izq.) necesita al menos 340px para no comprimir
+                   * la textarea de descripción y los campos de habitaciones.
+                   */
+                  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))",
+                  alignItems: "start",
+                }}
               >
                 {/* ── Columna izquierda ── */}
                 <div className="space-y-4">
@@ -245,11 +271,17 @@ export function OTAsView({ siteName, navigate }: Props) {
                     aria-label="Descripción generada"
                     style={{ background: "var(--surface-card)", borderRadius: "var(--radius-card)", border: "0.5px solid var(--border-ui)", padding: "var(--space-4)" }}
                   >
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
                       <p style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
                         Descripción generada
                       </p>
-                      <Badge tone="neutral">{ota.badge}</Badge>
+                      <div className="flex items-center gap-2">
+                        {/* Badge semántico de estado de publicación */}
+                        <Badge tone={ota.status === "active" ? "success" : "neutral"}>
+                          {ota.status === "active" ? "Publicada" : "Inactiva"}
+                        </Badge>
+                        <Badge tone="neutral">{ota.badge}</Badge>
+                      </div>
                     </div>
                     <textarea
                       value={ota.description}
@@ -393,7 +425,8 @@ export function OTAsView({ siteName, navigate }: Props) {
                 </div>
 
                 {/* ── Sidebar: completitud ── */}
-                <aside className="space-y-4 sticky top-4" aria-label="Estado de completitud del perfil">
+                {/* sticky top-4 removido: no funciona dentro de overflow-y-auto del main */}
+                <aside className="space-y-4" aria-label="Estado de completitud del perfil">
 
                   {/* Score */}
                   <div style={{ background: "var(--surface-card)", borderRadius: "var(--radius-card)", border: "0.5px solid var(--border-ui)", padding: "var(--space-4)" }}>

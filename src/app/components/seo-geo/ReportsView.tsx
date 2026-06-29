@@ -74,7 +74,7 @@ export function ReportsView() {
 
       {/* Header */}
       <div className="mb-5">
-        <p style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+        <p style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
           Reporte de visibilidad
         </p>
         <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", margin: "4px 0 0", lineHeight: 1.5 }}>
@@ -82,7 +82,9 @@ export function ReportsView() {
         </p>
       </div>
 
-      <div className="grid gap-6" style={{ gridTemplateColumns: "320px 1fr" }}>
+      {/* Config (sidebar fijo) + preview que llena el resto; colapsa a 1 col en angosto.
+          auto-fit dejaba tracks vacíos a la derecha al haber solo 2 hijos. */}
+      <div className="grid gap-6 items-start" style={{ gridTemplateColumns: "320px minmax(0, 1fr)" }}>
         {/* Panel izq.: configuración */}
         <div className="space-y-4">
           <div style={{ background: "var(--surface-card)", borderRadius: "var(--radius-card)", border: "0.5px solid var(--border-ui)", padding: "var(--space-4)" }}>
@@ -95,12 +97,18 @@ export function ReportsView() {
               <p style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 8 }}>
                 Logo del hotel (opcional)
               </p>
+              {/*
+                El input file está oculto visualmente (sr-only) y es
+                activado por el botón debajo. Se excluye del tab order
+                para evitar duplicar el control accesible (WCAG 4.1.1).
+              */}
               <input
                 ref={fileRef}
                 type="file"
                 accept="image/*"
                 className="sr-only"
-                aria-label="Subir logo del hotel"
+                tabIndex={-1}
+                aria-hidden="true"
                 onChange={() => { /* en demo no procesamos */ }}
               />
               <button
@@ -213,9 +221,9 @@ export function ReportsView() {
                 style={{
                   padding: "8px 10px",
                   borderRadius: "var(--radius-nav)",
-                  background: "#dcfce7",
+                  background: "var(--badge-green-bg)",
                   fontSize: "var(--font-size-sm)",
-                  color: "#15803d",
+                  color: "var(--badge-green-text)",
                 }}
               >
                 <Check size={13} aria-hidden="true" />
@@ -340,7 +348,7 @@ export function ReportsView() {
                   <span style={{ flex: 1, fontSize: "var(--font-size-sm)", color: "var(--text-primary)" }}>{c.title}</span>
                   <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-secondary)" }}>{c.date}</span>
                   <span style={{ fontFamily: "monospace", fontSize: "var(--font-size-sm)", color: "var(--text-primary)", fontWeight: 600 }}>
-                    {c.clicks.toLocaleString("es")}
+                    {c.clicks.toLocaleString("es-419")}
                   </span>
                 </div>
               ))}

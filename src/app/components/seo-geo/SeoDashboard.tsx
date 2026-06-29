@@ -50,10 +50,11 @@ function alertIcon(type: VisibilityAlert["type"]) {
 }
 
 const ALERT_TONE: Record<string, { bg: string; color: string }> = {
-  green:  { bg: "#dcfce7", color: "#15803d" },
-  cool:   { bg: "#dbeafe", color: "#1d4ed8" },
-  brand:  { bg: "var(--surface-page)", color: "var(--brand)" },
-  amber:  { bg: "#fef9c3", color: "#8B6F1F" },
+  // Tokens del DS en lugar de hex hardcodeados
+  green:  { bg: "var(--badge-green-bg)",    color: "var(--badge-green-text)"  },
+  cool:   { bg: "var(--badge-blue-bg)",     color: "var(--badge-blue-text)"   },
+  brand:  { bg: "var(--surface-page)",      color: "var(--brand)"             },
+  amber:  { bg: "var(--badge-orange-bg)",   color: "var(--badge-orange-text)" },
 };
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -156,7 +157,10 @@ export function SeoDashboard({ onSubNav }: Props) {
       {/* ── Score global + chart ── */}
       <div
         className="grid gap-6 mb-6"
-        style={{ gridTemplateColumns: "1.4fr 1fr", alignItems: "start" }}
+        style={{
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
+          alignItems: "start",
+        }}
       >
         {/* Score global */}
         <div style={{ background: "var(--surface-card)", borderRadius: "var(--radius-card)", border: "0.5px solid var(--border-ui)", padding: "var(--space-4)" }}>
@@ -173,7 +177,7 @@ export function SeoDashboard({ onSubNav }: Props) {
                 <Delta value={visibilityOverview.delta.global} />
               </div>
             </div>
-            <Badge tone="positive">en mejora</Badge>
+            <Badge tone="success">en mejora</Badge>
           </div>
 
           <div className="grid grid-cols-2 gap-5 pt-5" style={{ borderTop: "0.5px solid var(--border-ui)" }}>
@@ -254,22 +258,22 @@ export function SeoDashboard({ onSubNav }: Props) {
               <span style={{ width: 10, height: 2, background: "var(--brand)", borderRadius: 99, display: "inline-block" }} /> SEO
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span style={{ width: 10, height: 2, background: "#5B8FBF", borderRadius: 99, display: "inline-block" }} /> GEO
+              <span style={{ width: 10, height: 2, background: "var(--geo-cool)", borderRadius: 99, display: "inline-block" }} /> GEO
             </span>
           </div>
         </div>
       </div>
 
       {/* ── KPIs ── */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))" }}>
         <KpiCard
           label="Menciones en IA esta semana"
           value={visibilityOverview.kpis.aiMentionsThisWeek}
           deltaLabel="+4 vs. semana pasada"
           deltaTone="positive"
           icon={Bot}
-          accentBg="#dbeafe"
-          accentColor="#1d4ed8"
+          accentBg="var(--badge-blue-bg)"
+          accentColor="var(--badge-blue-text)"
           onClick={() => onSubNav("geo-tracker")}
         />
         <KpiCard
@@ -288,8 +292,8 @@ export function SeoDashboard({ onSubNav }: Props) {
           deltaLabel="+2 esta semana"
           deltaTone="positive"
           icon={FileText}
-          accentBg="#dcfce7"
-          accentColor="#15803d"
+          accentBg="var(--badge-green-bg)"
+          accentColor="var(--badge-green-text)"
           onClick={() => onSubNav("seo-analytics")}
         />
       </div>
@@ -313,7 +317,7 @@ export function SeoDashboard({ onSubNav }: Props) {
               Alertas automáticas
             </p>
             <p style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", margin: 0 }}>
-              Lo que cambió en tu visibilidad — clic para ver el detalle.
+              Lo que cambió en tu visibilidad — hacé clic para ver el detalle.
             </p>
           </div>
           <Badge tone="neutral">
@@ -371,7 +375,7 @@ export function SeoDashboard({ onSubNav }: Props) {
       </div>
 
       {/* ── Quick links ── */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))" }}>
         <QuickLink
           title="GEO Tracker"
           desc="Dónde y cómo aparece tu hotel en motores de IA."

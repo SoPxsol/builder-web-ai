@@ -14,6 +14,8 @@ import { hotelImages } from "./social-demo";
 export interface OtaProfile {
   /** Label del badge que identifica la OTA. */
   badge: string;
+  /** Estado de publicación del perfil en la plataforma. */
+  status: "active" | "inactive";
   description: string;
   completeness: number;
   missing: string[];
@@ -42,6 +44,7 @@ export interface OtaPolicies {
 export const otaProfiles: Record<string, OtaProfile> = {
   "Booking.com": {
     badge: "Optimizado para Booking.com",
+    status: "active",
     description:
       "Hotel Azul Marino es un boutique de 18 habitaciones ubicado dentro de la ciudad amurallada de Cartagena, frente al mar Caribe. Combina arquitectura colonial restaurada con diseño contemporáneo de autor. Cuenta con piscina en el patio interior, restaurante de gastronomía local, spa y terraza con bar. WiFi gratuito, recepción 24 horas y estacionamiento privado disponibles.",
     completeness: 87,
@@ -49,6 +52,7 @@ export const otaProfiles: Record<string, OtaProfile> = {
   },
   Expedia: {
     badge: "Optimizado para Expedia",
+    status: "active",
     description:
       "Boutique hotel of 18 rooms inside the walled old town of Cartagena, facing the Caribbean. Local-design rooms with restored balconies, an inner courtyard pool, a farm-to-table restaurant, spa services and a rooftop bar. Family-friendly, with 24-hour front desk and on-site parking.",
     completeness: 78,
@@ -56,6 +60,7 @@ export const otaProfiles: Record<string, OtaProfile> = {
   },
   Airbnb: {
     badge: "Optimizado para Airbnb",
+    status: "active",
     description:
       "Te hospedamos en una de nuestras 18 habitaciones — pensá en quedarte como en una casa, no como en un hotel. Cocinamos con lo que trae el pescador, conocemos al chef de la esquina y te armamos el itinerario de tu visita. Si venís en pareja, pedí la Suite Junior. Si venís con tu gente, hablamos.",
     completeness: 92,
@@ -63,6 +68,7 @@ export const otaProfiles: Record<string, OtaProfile> = {
   },
   TripAdvisor: {
     badge: "Optimizado para TripAdvisor",
+    status: "inactive",
     description:
       "Premiado entre los 10 mejores boutiques de Cartagena por viajeros en 2025. Servicio personalizado, gastronomía destacada, ubicación inmejorable dentro de la muralla. Ideal para parejas, viajes de aniversario y escapadas culturales.",
     completeness: 81,

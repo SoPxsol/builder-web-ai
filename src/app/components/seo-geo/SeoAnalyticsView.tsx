@@ -113,7 +113,7 @@ export function SeoAnalyticsView() {
       {/* Sección header */}
       <div className="flex items-start justify-between gap-4 mb-5">
         <div>
-          <p style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+          <p style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
             SEO Analytics
           </p>
           <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", margin: "4px 0 0", lineHeight: 1.5 }}>
@@ -125,8 +125,8 @@ export function SeoAnalyticsView() {
             className="flex items-center gap-1.5 flex-shrink-0"
             style={{
               padding: "4px 12px", borderRadius: "var(--radius-badge)",
-              background: "#dcfce7", fontSize: "var(--font-size-xs)",
-              fontWeight: 600, color: "#15803d",
+              background: "var(--badge-green-bg)", fontSize: "var(--font-size-xs)",
+              fontWeight: 600, color: "var(--badge-green-text)",
             }}
           >
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--status-active)", flexShrink: 0 }} aria-hidden="true" />
@@ -136,7 +136,7 @@ export function SeoAnalyticsView() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))" }}>
         <KpiCard
           label="Impresiones"
           value={fmt(gscSummary.impressions)}
@@ -179,7 +179,7 @@ export function SeoAnalyticsView() {
             <p style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
               Impresiones
             </p>
-            <MiniSpark data={[3200, 4100, 3800, 5200, 6100, 5800, 7200]} color="#5B8FBF" />
+            <MiniSpark data={[3200, 4100, 3800, 5200, 6100, 5800, 7200]} color="var(--geo-cool)" />
           </div>
           <div className="flex-1" />
           <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
@@ -237,6 +237,7 @@ export function SeoAnalyticsView() {
                     key={i}
                     scope="col"
                     aria-sort={col === h.key ? (dir === "asc" ? "ascending" : "descending") : undefined}
+                    tabIndex={h.key ? 0 : undefined}
                     style={{
                       padding: "10px 20px",
                       fontSize: "var(--font-size-xs)",
@@ -247,8 +248,10 @@ export function SeoAnalyticsView() {
                       textAlign: h.align as CanvasTextAlign,
                       whiteSpace: "nowrap",
                       cursor: h.key ? "pointer" : "default",
+                      outline: "none",
                     }}
                     onClick={() => h.key && toggleSort(h.key as SortCol)}
+                    onKeyDown={(e) => { if (h.key && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggleSort(h.key as SortCol); } }}
                   >
                     <span className="inline-flex items-center gap-1">
                       {h.label}
@@ -259,42 +262,56 @@ export function SeoAnalyticsView() {
               </tr>
             </thead>
             <tbody>
-              {list.map((kw) => (
-                <tr
-                  key={kw.term}
-                  style={{ borderBottom: "0.5px solid var(--border-ui)", transition: "background 0.1s" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-page)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                >
-                  <td style={{ padding: "12px 20px", fontSize: "var(--font-size-md)", color: "var(--text-primary)", maxWidth: 280 }}>
-                    <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {kw.term}
-                    </div>
-                  </td>
-                  <td style={{ padding: "12px 20px", fontFamily: "monospace", fontSize: "var(--font-size-md)", color: "var(--text-primary)", textAlign: "right" }}>
-                    {fmt(kw.impressions)}
-                  </td>
-                  <td style={{ padding: "12px 20px", fontFamily: "monospace", fontSize: "var(--font-size-md)", color: "var(--text-primary)", textAlign: "right" }}>
-                    {fmt(kw.clicks)}
-                  </td>
-                  <td style={{ padding: "12px 20px", fontFamily: "monospace", fontSize: "var(--font-size-md)", color: "var(--text-primary)", textAlign: "right" }}>
-                    {kw.ctr}%
-                  </td>
-                  <td style={{ padding: "12px 20px", fontFamily: "monospace", fontSize: "var(--font-size-md)", color: "var(--text-primary)", textAlign: "right" }}>
-                    #{kw.position}
-                  </td>
-                  <td style={{ padding: "12px 20px", textAlign: "center" }}>
-                    <TrendArrow trend={kw.trend} />
-                  </td>
-                  <td style={{ padding: "12px 20px", textAlign: "center" }}>
-                    {kw.isOpportunity && (
-                      <Badge tone="info">
-                        <Zap size={10} aria-hidden="true" /> Oportunidad
-                      </Badge>
-                    )}
+              {list.length === 0 ? (
+                /* Estado vacío — sin keywords en el filtro activo */
+                <tr>
+                  <td colSpan={7} style={{ padding: "var(--space-5)", textAlign: "center" }}>
+                    <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", margin: "0 0 4px" }}>
+                      No hay oportunidades detectadas todavía.
+                    </p>
+                    <p style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)", margin: 0 }}>
+                      Cuando Google Search Console identifique términos con potencial de mejora, aparecerán aquí.
+                    </p>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                list.map((kw) => (
+                  <tr
+                    key={kw.term}
+                    style={{ borderBottom: "0.5px solid var(--border-ui)", transition: "background 0.1s" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-page)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <td style={{ padding: "12px 20px", fontSize: "var(--font-size-md)", color: "var(--text-primary)", maxWidth: 280 }}>
+                      <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={kw.term}>
+                        {kw.term}
+                      </div>
+                    </td>
+                    <td style={{ padding: "12px 20px", fontFamily: "monospace", fontSize: "var(--font-size-md)", color: "var(--text-primary)", textAlign: "right" }}>
+                      {fmt(kw.impressions)}
+                    </td>
+                    <td style={{ padding: "12px 20px", fontFamily: "monospace", fontSize: "var(--font-size-md)", color: "var(--text-primary)", textAlign: "right" }}>
+                      {fmt(kw.clicks)}
+                    </td>
+                    <td style={{ padding: "12px 20px", fontFamily: "monospace", fontSize: "var(--font-size-md)", color: "var(--text-primary)", textAlign: "right" }}>
+                      {kw.ctr}%
+                    </td>
+                    <td style={{ padding: "12px 20px", fontFamily: "monospace", fontSize: "var(--font-size-md)", color: "var(--text-primary)", textAlign: "right" }}>
+                      #{kw.position}
+                    </td>
+                    <td style={{ padding: "12px 20px", textAlign: "center" }}>
+                      <TrendArrow trend={kw.trend} />
+                    </td>
+                    <td style={{ padding: "12px 20px", textAlign: "center" }}>
+                      {kw.isOpportunity && (
+                        <Badge tone="info">
+                          <Zap size={10} aria-hidden="true" /> Oportunidad
+                        </Badge>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -382,7 +399,7 @@ export function SeoAnalyticsView() {
             Resumen de oportunidades
           </p>
         </div>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))" }}>
           {keywords.filter((k) => k.isOpportunity).slice(0, 3).map((kw) => (
             <div
               key={kw.term}

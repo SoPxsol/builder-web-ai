@@ -81,8 +81,10 @@ function SeoGeoInner({ siteName = "" }: { siteName?: string }) {
   const [active, setActive] = useState<SubView>("dashboard");
   const [generatorTopic, setGeneratorTopic] = useState("");
   const tablistRef = useRef<HTMLDivElement>(null);
-  const panelId = useId();
+  // panelId único por tab para la relación aria-controls correcta (WCAG 1.3.1)
   const tabIds = useId();
+  // El panel tiene id dinámico basado en la vista activa
+  const panelBaseId = useId();
 
   const navigate = useCallback((id: string) => {
     if (SUB_VIEWS.some((v) => v.id === id)) setActive(id as SubView);
@@ -120,7 +122,7 @@ function SeoGeoInner({ siteName = "" }: { siteName?: string }) {
   const activeIdx = SUB_VIEWS.findIndex((v) => v.id === active);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", flex: 1, minWidth: 0 }}>
       {/* Sub-nav */}
       <div
         style={{
@@ -151,7 +153,7 @@ function SeoGeoInner({ siteName = "" }: { siteName?: string }) {
                 id={tabId}
                 role="tab"
                 aria-selected={isActive}
-                aria-controls={panelId}
+                aria-controls={`${panelBaseId}-${v.id}`}
                 tabIndex={isActive ? 0 : -1}
                 onClick={() => setActive(v.id)}
                 onKeyDown={(e) => onTabKeyDown(e, idx)}
@@ -160,7 +162,9 @@ function SeoGeoInner({ siteName = "" }: { siteName?: string }) {
                   padding: "11px 12px",
                   fontSize: "var(--font-size-sm)",
                   fontWeight: isActive ? 600 : 400,
-                  color: isActive ? "var(--brand)" : "var(--text-secondary)",
+                  // Regla del 10%: texto activo en --text-primary, no en --brand.
+                  // El brand se reserva solo para la línea inferior indicadora.
+                  color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
                   background: "transparent",
                   border: "none",
                   borderBottom: isActive ? "2px solid var(--brand)" : "2px solid transparent",
@@ -178,9 +182,9 @@ function SeoGeoInner({ siteName = "" }: { siteName?: string }) {
         </div>
       </div>
 
-      {/* Panel activo */}
+      {/* Panel activo — id único por tab (WCAG 1.3.1: relación controls↔panel) */}
       <div
-        id={panelId}
+        id={`${panelBaseId}-${active}`}
         role="tabpanel"
         aria-labelledby={`${tabIds}-${active}`}
         tabIndex={0}
@@ -193,7 +197,7 @@ function SeoGeoInner({ siteName = "" }: { siteName?: string }) {
         {active === "seo"         && <SeoAnalyticsView />}
         {active === "sources"     && <SourcesView />}
         {active === "generator"   && <GeneratorView initialTopic={generatorTopic} />}
-        {active === "suggestions" && <SuggestionsView onSubNav={onSubNav} />}
+        {active === "suggestions" && <SuggestionsView onSubNav={onSubNav} onGeneratorWithTopic={onGeneratorWithTopic} />}
         {active === "reports"     && <ReportsView />}
       </div>
     </div>

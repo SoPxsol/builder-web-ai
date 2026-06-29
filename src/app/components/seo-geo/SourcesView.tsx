@@ -21,7 +21,7 @@ import { sources, sourceRecommendations, type SourceRecommendation } from "../..
 
 const PRIORITY_COLOR: Record<SourceRecommendation["priority"], string> = {
   high:   "var(--brand)",
-  medium: "#5B8FBF",
+  medium: "var(--geo-cool)",
   low:    "var(--text-tertiary)",
 };
 
@@ -34,13 +34,13 @@ const PRIORITY_LABEL: Record<SourceRecommendation["priority"], string> = {
 function StatusCell({ status }: { status: SourceRecommendation["status"] }) {
   if (status === "present")
     return (
-      <span className="inline-flex items-center gap-1" style={{ fontSize: "var(--font-size-xs)", color: "#15803d", fontWeight: 600 }}>
+      <span className="inline-flex items-center gap-1" style={{ fontSize: "var(--font-size-xs)", color: "var(--badge-green-text)", fontWeight: 600 }}>
         <CheckCircle2 size={13} aria-hidden="true" /> Presente
       </span>
     );
   if (status === "pending")
     return (
-      <span className="inline-flex items-center gap-1" style={{ fontSize: "var(--font-size-xs)", color: "#d97706", fontWeight: 600 }}>
+      <span className="inline-flex items-center gap-1" style={{ fontSize: "var(--font-size-xs)", color: "var(--badge-orange-text)", fontWeight: 600 }}>
         <Clock size={13} aria-hidden="true" /> Pendiente
       </span>
     );
@@ -66,7 +66,7 @@ export function SourcesView() {
     <div style={{ padding: "var(--space-5)", maxWidth: 1200, margin: "0 auto" }}>
       {/* Header */}
       <div className="mb-5">
-        <p style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+        <p style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
           Citas y fuentes
         </p>
         <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", margin: "4px 0 0", lineHeight: 1.5 }}>
@@ -75,9 +75,9 @@ export function SourcesView() {
       </div>
 
       {/* Resumen por nivel */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))" }}>
         {(["high", "medium", "low"] as const).map((level) => {
-          const badge = { high: { label: "Alta autoridad", bg: "#dcfce7", color: "#15803d" }, medium: { label: "Autoridad media", bg: "#dbeafe", color: "#1d4ed8" }, low: { label: "Baja autoridad", bg: "var(--surface-page)", color: "var(--text-secondary)" } }[level];
+          const badge = { high: { label: "Alta autoridad", bg: "var(--badge-green-bg)", color: "var(--badge-green-text)" }, medium: { label: "Autoridad media", bg: "var(--badge-blue-bg)", color: "var(--badge-blue-text)" }, low: { label: "Baja autoridad", bg: "var(--surface-page)", color: "var(--text-secondary)" } }[level];
           return (
             <div
               key={level}

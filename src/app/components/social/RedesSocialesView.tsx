@@ -231,21 +231,30 @@ function PostCard({ post, onAction }: PostCardProps) {
         className="flex items-center justify-between gap-2 px-3 py-2"
         style={{ borderTop: "0.5px solid var(--border-ui)" }}
       >
-        <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-secondary)", fontFamily: "monospace" }}>
+        <span
+          style={{
+            fontSize: "var(--font-size-xs)",
+            color: "var(--text-secondary)",
+            fontFamily: "monospace",
+            flexShrink: 0,
+          }}
+        >
           {post.size}
         </span>
         {/*
           Acciones SIEMPRE visibles — bug crítico del QA original era
           opacity-0/group-hover que las hacía inaccesibles por teclado.
+          flex-shrink-0 en el wrapper impide que los botones se compriman;
+          el span de tamaño cede espacio si la card es angosta.
         */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-shrink-0">
           <button
             type="button"
             onClick={() => onAction("edit")}
             className="flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-opacity hover:opacity-70"
             style={{
               height: 28,
-              padding: "0 10px",
+              padding: "0 8px",
               fontSize: "var(--font-size-sm)",
               color: "var(--text-secondary)",
               background: "var(--surface-page)",
@@ -253,6 +262,7 @@ function PostCard({ post, onAction }: PostCardProps) {
               borderRadius: "var(--radius-nav)",
               cursor: "pointer",
               outlineColor: "var(--ring)",
+              whiteSpace: "nowrap",
             }}
             aria-label={`Editar ${post.type} — ${post.overlay}`}
           >
@@ -265,7 +275,7 @@ function PostCard({ post, onAction }: PostCardProps) {
             className="flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-opacity hover:opacity-70"
             style={{
               height: 28,
-              padding: "0 10px",
+              padding: "0 8px",
               fontSize: "var(--font-size-sm)",
               color: "var(--text-secondary)",
               background: "var(--surface-page)",
@@ -273,6 +283,7 @@ function PostCard({ post, onAction }: PostCardProps) {
               borderRadius: "var(--radius-nav)",
               cursor: "pointer",
               outlineColor: "var(--ring)",
+              whiteSpace: "nowrap",
             }}
             aria-label={`Descargar ${post.type} — ${post.overlay}`}
           >
@@ -358,13 +369,18 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
         style={{ background: "var(--surface-page)" }}
         aria-label="Gestor de redes sociales"
       >
-        <div style={{ padding: "var(--space-5)", maxWidth: 1200, margin: "0 auto" }}>
+        <div style={{ padding: "var(--space-5)", maxWidth: 1000, margin: "0 auto" }}>
 
           {/* ── ViewHeader ── */}
           <ViewHeader
             eyebrow={`${siteName} · Marketing`}
             title="Redes sociales"
-            description={`${Object.values(socialPosts).reduce((a, p) => a + p.length, 0)} piezas generadas en tu tono — feed, stories, reels y ads. Editá lo que necesites y descargá cuando quieras.`}
+            description={(() => {
+              const net = NETWORKS.find((n) => n.id === activeNetwork);
+              const count = (socialPosts[activeNetwork] ?? []).length;
+              const label = net?.label ?? activeNetwork;
+              return `${count} piezas generadas para ${label} — feed, stories y más. Editá lo que necesites y descargá cuando quieras.`;
+            })()}
             navigate={navigate}
             action={
               <Button
@@ -746,9 +762,15 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
                         <div
                           className="grid gap-4"
                           style={{
+                            /*
+                             * minmax aumentado a 240px (con phone) / 220px (sin phone)
+                             * para que ambos botones Editar+Descargar quepan sin clippearse.
+                             * El pie de card necesita al menos ~220px para dos botones con
+                             * icono+texto a padding: 0 10px c/u + gap-1 + espacio de tamaño.
+                             */
                             gridTemplateColumns: showPhone
-                              ? "repeat(auto-fill, minmax(180px, 1fr))"
-                              : "repeat(auto-fill, minmax(200px, 1fr))",
+                              ? "repeat(auto-fill, minmax(240px, 1fr))"
+                              : "repeat(auto-fill, minmax(220px, 1fr))",
                           }}
                         >
                           {tabPosts.map((post, i) => (

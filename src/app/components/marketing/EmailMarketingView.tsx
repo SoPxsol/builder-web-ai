@@ -46,8 +46,9 @@ interface Props {
  * ──────────────────────────────────────────────────────────────────────────── */
 
 function StatusBadge({ status }: { status: CampaignStatus }) {
+  // tone="positive" no existe en el DS — la variante correcta es "success"
   const tone =
-    status === "Listo"   ? "positive" as const :
+    status === "Listo"   ? "success" as const :
     status === "Enviado" ? "neutral"  as const :
     "warning" as const; // Borrador
   return <Badge tone={tone}>{status}</Badge>;
@@ -60,7 +61,16 @@ function StatusBadge({ status }: { status: CampaignStatus }) {
 export function EmailMarketingView({ siteName, navigate }: Props) {
   const [selected, setSelected] = useState<string>(emailCampaigns[0].id);
   const listRef = useRef<HTMLElement>(null);
+  const tablistRef = useRef<HTMLDivElement>(null);
   const campaign = emailCampaigns.find((c) => c.id === selected) as EmailCampaign;
+
+  // Navegación por flechas en el tablist (WCAG 2.2)
+  function handleTabKey(e: React.KeyboardEvent<HTMLButtonElement>, idx: number) {
+    const tabs = tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    if (!tabs) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") { e.preventDefault(); tabs[(idx + 1) % tabs.length].focus(); setSelected(emailCampaigns[(idx + 1) % tabs.length].id); }
+    else if (e.key === "ArrowUp" || e.key === "ArrowLeft") { e.preventDefault(); tabs[(idx - 1 + tabs.length) % tabs.length].focus(); setSelected(emailCampaigns[(idx - 1 + tabs.length) % tabs.length].id); }
+  }
 
   // Colores de marca del hotel para el preview de email (son de la marca del hotel, no del DS)
   const primary = hotelEmailBrand.primary;
@@ -72,7 +82,7 @@ export function EmailMarketingView({ siteName, navigate }: Props) {
       style={{ background: "var(--surface-page)" }}
       aria-label="Gestor de Email Marketing"
     >
-      <div style={{ padding: "var(--space-5)", maxWidth: 1200, margin: "0 auto" }}>
+      <div style={{ padding: "var(--space-5)", maxWidth: 1000, margin: "0 auto" }}>
 
         {/* ── ViewHeader ── */}
         <ViewHeader
@@ -87,11 +97,24 @@ export function EmailMarketingView({ siteName, navigate }: Props) {
           }
         />
 
+        {/*
+         * Columna de lista: antes era "320px" fijo — en el Builder (~900px de contenido)
+         * dejaba el preview demasiado estrecho. Ahora usa minmax para que en pantallas
+         * angostas las columnas pasen a una sola fila.
+         */}
         <div
           className="grid gap-6"
-          style={{ gridTemplateColumns: "320px 1fr", alignItems: "start" }}
+          style={{
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+            alignItems: "start", // columnas se alinean en el tope — no se estiran
+          }}
         >
           {/* ── Lista de campañas ── */}
+          {/*
+           * sticky top-4 removido: no funciona dentro de overflow-y-auto del shell
+           * (el ancestor con overflow crea un nuevo scroll container que corta el sticky).
+           * La columna queda fija de facto porque el grid usa alignItems:"start".
+           */}
           <aside
             ref={listRef}
             aria-label="Lista de campañas"
@@ -100,8 +123,7 @@ export function EmailMarketingView({ siteName, navigate }: Props) {
               borderRadius: "var(--radius-card)",
               border: "0.5px solid var(--border-ui)",
               padding: "var(--space-2)",
-              position: "sticky",
-              top: 16,
+              alignSelf: "start",
             }}
           >
             <p
@@ -118,29 +140,32 @@ export function EmailMarketingView({ siteName, navigate }: Props) {
               Campañas
             </p>
 
-            <ul style={{ listStyle: "none", padding: 0, margin: 0 }} role="tablist" aria-label="Campañas de email">
-              {emailCampaigns.map((c) => {
+            {/* ul/li no son válidos dentro de tablist — usar div como en OTAs/Redes */}
+            <div ref={tablistRef} role="tablist" aria-label="Campañas de email" style={{ padding: 0, margin: 0 }}>
+              {emailCampaigns.map((c, idx) => {
                 const active = c.id === selected;
                 return (
-                  <li key={c.id} role="presentation">
-                    <button
-                      type="button"
-                      role="tab"
-                      id={`email-tab-${c.id}`}
-                      aria-selected={active}
-                      aria-controls={`email-panel-${c.id}`}
-                      tabIndex={active ? 0 : -1}
-                      onClick={() => setSelected(c.id)}
-                      className="w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-colors"
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: "var(--radius-nav)",
-                        background: active ? "var(--surface-page)" : "transparent",
-                        border: active ? "0.5px solid var(--border-ui)" : "0.5px solid transparent",
-                        cursor: "pointer",
-                        outlineColor: "var(--ring)",
-                      }}
-                    >
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="tab"
+                    id={`email-tab-${c.id}`}
+                    aria-selected={active}
+                    aria-controls={`email-panel-${c.id}`}
+                    tabIndex={active ? 0 : -1}
+                    onClick={() => setSelected(c.id)}
+                    onKeyDown={(e) => handleTabKey(e, idx)}
+                    className="w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-colors"
+                    style={{
+                      display: "block",
+                      padding: "10px 12px",
+                      borderRadius: "var(--radius-nav)",
+                      background: active ? "var(--surface-page)" : "transparent",
+                      border: active ? "0.5px solid var(--border-ui)" : "0.5px solid transparent",
+                      cursor: "pointer",
+                      outlineColor: "var(--ring)",
+                    }}
+                  >
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <span style={{ fontSize: "var(--font-size-md)", fontWeight: 500, color: "var(--text-primary)" }}>
                           {c.name}
@@ -160,11 +185,10 @@ export function EmailMarketingView({ siteName, navigate }: Props) {
                         {c.detail}
                       </div>
                       <StatusBadge status={c.status} />
-                    </button>
-                  </li>
+                  </button>
                 );
               })}
-            </ul>
+            </div>
 
             {/* Métricas */}
             <div style={{ borderTop: "0.5px solid var(--border-ui)", marginTop: 8, padding: "10px 12px 6px" }}>
@@ -206,8 +230,8 @@ export function EmailMarketingView({ siteName, navigate }: Props) {
                 {c.id === selected && (
                   <>
                     {/* Toolbar sobre el preview */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
+                    <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+                      <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: "var(--font-size-xl)", fontWeight: 600, color: "var(--text-primary)" }}>
                           {c.name}
                         </div>
@@ -217,7 +241,8 @@ export function EmailMarketingView({ siteName, navigate }: Props) {
                           Preheader: {c.preheader}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      {/* flex-wrap: los botones van a segunda línea si no hay espacio */}
+                      <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
                         <Button variant="secondary" leftIcon={<Pencil size={11} aria-hidden="true" />}>Editar</Button>
                         <Button variant="secondary" leftIcon={<Copy size={11} aria-hidden="true" />}>Duplicar</Button>
                         <Button variant="secondary" leftIcon={<Download size={11} aria-hidden="true" />}>Exportar HTML</Button>

@@ -25,6 +25,8 @@ import type { Suggestion } from "../../data/seo-geo-demo";
 
 interface Props {
   onSubNav?: (id: string) => void;
+  /** Navega al generador con un tópico pre-completado desde el título de la sugerencia. */
+  onGeneratorWithTopic?: (topic: string) => void;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -134,14 +136,20 @@ function SuggestionCard({
  * Componente principal
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export function SuggestionsView({ onSubNav }: Props) {
+export function SuggestionsView({ onSubNav, onGeneratorWithTopic }: Props) {
   const { suggestions, rejectSuggestion, requestVariant } = useSeoGeo();
   const { loading, message, run } = useSimulatedAsync();
   const statusId = useId();
 
   const onGenerate = (s: Suggestion) => {
     run(`Generando "${s.title}"…`, () => {
-      if (onSubNav) onSubNav("generator");
+      // Si hay handler con tópico, lo usamos para pre-completar el generador.
+      // De lo contrario caemos al onSubNav simple (retrocompat).
+      if (onGeneratorWithTopic) {
+        onGeneratorWithTopic(s.title);
+      } else if (onSubNav) {
+        onSubNav("generator");
+      }
     });
   };
 
@@ -156,7 +164,7 @@ export function SuggestionsView({ onSubNav }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-5">
         <div>
-          <p style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+          <p style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
             Sugerencias proactivas
           </p>
           <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", margin: "4px 0 0", lineHeight: 1.5 }}>
@@ -219,7 +227,7 @@ export function SuggestionsView({ onSubNav }: Props) {
             Sin sugerencias pendientes
           </p>
           <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", margin: 0, maxWidth: 340, lineHeight: 1.55 }}>
-            Todas las sugerencias fueron gestionadas. La IA generará nuevas cuando detecte oportunidades en tus keywords o queries de GEO.
+            Ya atendiste todas las sugerencias. La IA generará nuevas cuando detecte oportunidades en tus keywords o queries de GEO.
           </p>
         </div>
       )}

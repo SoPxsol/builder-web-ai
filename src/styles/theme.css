@@ -231,6 +231,10 @@
   --ai-gradient:       linear-gradient(135deg, var(--ai-gradient-start) 0%, var(--ai-gradient-end) 100%);
   --ai-glow:           rgba(139, 92, 246, 0.3);
 
+  /* GEO — color del ecosistema de motores de IA (Perplexity azul geoestratégico).
+   * Usado para barras GEO, sparklines de GEO, EngineBadge Perplexity. */
+  --geo-cool: #5B8FBF;
+
   /* ──────────────────────────────────────────────────────────────────────
    * CONTRATO DE COLORES SEMÁNTICOS — leer antes de pintar nada
    * ──────────────────────────────────────────────────────────────────────

@@ -112,7 +112,7 @@ export function GeneratorView({ initialTopic = "" }: Props) {
 
       {/* Header */}
       <div className="mb-5">
-        <p style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+        <p style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
           Generador de contenido
         </p>
         <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", margin: "4px 0 0", lineHeight: 1.5 }}>
