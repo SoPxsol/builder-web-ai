@@ -21,7 +21,8 @@ export type View =
   | "idioma"
   | "multilenguaje"
   | "propiedades"
-  | "integraciones";
+  | "integraciones"
+  | "redes";
 
 export interface Site {
   id: number;

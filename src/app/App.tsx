@@ -20,6 +20,7 @@ import { MultilenguajeView } from "./components/MultilenguajeView";
 import { PropiedadesView } from "./components/PropiedadesView";
 import { IntegracionesView } from "./components/IntegracionesView";
 import { PaginasView } from "./components/PaginasView";
+import { RedesSocialesView } from "./components/social/RedesSocialesView";
 import { CreateArticleDialog } from "./components/blog/CreateArticleDialog";
 import { SiteSwitcher } from "./components/SiteSwitcher";
 import type { BlogArticle } from "./types/article";
@@ -73,7 +74,7 @@ const siteNavPrimary = [
   { id: "popups",      label: "Pop-ups",        addon: false, disabled: false },
   { id: "promociones", label: "Promociones",    addon: false, disabled: false },
   { id: "ai",          label: "AI",             addon: false, disabled: false },
-  { id: "redes",       label: "Redes Sociales", addon: true,  disabled: true  },
+  { id: "redes",       label: "Redes Sociales", addon: true,  disabled: false },
 ] as const;
 
 /**
@@ -117,7 +118,7 @@ function getIconActive(view: View): string {
   return "dashboard";
 }
 
-const SITE_VIEWS: View[] = ["paginas", "editor", "info-sitio", "seo", "ai", "discovery", "datos-basicos", "versiones", "blog", "popups", "promociones", "idioma", "multilenguaje", "propiedades", "integraciones"];
+const SITE_VIEWS: View[] = ["paginas", "editor", "info-sitio", "seo", "ai", "discovery", "datos-basicos", "versiones", "blog", "popups", "promociones", "idioma", "multilenguaje", "propiedades", "integraciones", "redes"];
 
 function isSiteContext(view: View): boolean {
   return SITE_VIEWS.includes(view);
@@ -736,6 +737,7 @@ export default function App() {
         {view === "multilenguaje" && <MultilenguajeView siteName={activeSite?.name ?? ""} navigate={navigate} />}
         {view === "propiedades"   && <PropiedadesView siteName={activeSite?.name ?? ""} navigate={navigate} />}
         {view === "integraciones" && <IntegracionesView siteName={activeSite?.name ?? ""} navigate={navigate} />}
+        {view === "redes"         && <RedesSocialesView siteName={activeSite?.name ?? ""} navigate={navigate} />}
       </div>
     </div>
 
