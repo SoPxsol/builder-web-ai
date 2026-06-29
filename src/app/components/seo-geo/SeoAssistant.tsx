@@ -75,11 +75,11 @@ function Bubble({ msg }: { msg: Message }) {
       className={`flex gap-3 ${isUser ? "flex-row-reverse" : "flex-row"}`}
       style={{ maxWidth: "100%" }}
     >
-      {/* Avatar */}
+      {/* Avatar — asistente usa --ai-gradient (distinción visual de CTAs --brand) */}
       <div
         style={{
           width: 32, height: 32, borderRadius: "50%",
-          background: isUser ? "var(--surface-page)" : "var(--brand)",
+          background: isUser ? "var(--surface-page)" : "var(--ai-gradient)",
           border: isUser ? "0.5px solid var(--border-ui)" : "none",
           display: "flex", alignItems: "center", justifyContent: "center",
           flexShrink: 0,
@@ -181,10 +181,11 @@ export function SeoAssistant() {
     >
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
+        {/* Avatar IA: usa --ai-gradient (violeta→rosa) para diferenciarlo de CTAs --brand */}
         <div
           style={{
             width: 36, height: 36, borderRadius: "50%",
-            background: "var(--brand)",
+            background: "var(--ai-gradient)",
             display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0,
           }}
@@ -197,7 +198,7 @@ export function SeoAssistant() {
             Asistente SEO/GEO
           </p>
           <p style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", margin: 0 }}>
-            {geoQueries.filter((q) => q.mentioned).length} queries con mención · {suggestions.length} sugerencias activas
+            {geoQueries.filter((q) => q.mentioned).length} queries con mención · {suggestions.length > 0 ? `${suggestions.length} sugerencias activas` : "Sin sugerencias activas"}
           </p>
         </div>
       </div>
@@ -251,7 +252,7 @@ export function SeoAssistant() {
             <div
               style={{
                 width: 32, height: 32, borderRadius: "50%",
-                background: "var(--brand)",
+                background: "var(--ai-gradient)",
                 display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
               }}
               aria-hidden="true"
@@ -297,6 +298,8 @@ export function SeoAssistant() {
           padding: "var(--space-2)",
         }}
       >
+        {/* outline: "none" removido — el foco visible es requerido (WCAG 2.4.7).
+         * El ring del DS aparece vía focus-visible en el wrapper del textarea. */}
         <textarea
           ref={inputRef}
           value={input}
@@ -306,6 +309,7 @@ export function SeoAssistant() {
           placeholder="Preguntá sobre keywords, GEO, fuentes, contenido…"
           aria-label="Escribir mensaje al asistente"
           disabled={typing}
+          className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
           style={{
             flex: 1,
             padding: "8px var(--space-3)",
@@ -313,11 +317,12 @@ export function SeoAssistant() {
             color: "var(--text-primary)",
             background: "transparent",
             border: "none",
-            outline: "none",
             resize: "none",
             lineHeight: 1.6,
             maxHeight: 120,
             overflowY: "auto",
+            outlineColor: "var(--ring)",
+            borderRadius: "var(--radius-nav)",
           }}
         />
         <Button
@@ -334,11 +339,18 @@ export function SeoAssistant() {
         Intro para enviar · Shift+Intro para nueva línea
       </p>
 
-      {/* Keyframes de bouncing para el indicador de typing */}
+      {/* Keyframes de bouncing para el indicador de typing.
+       * prefers-reduced-motion: desactiva la animación para usuarios que la prefieren así. */}
       <style>{`
         @keyframes bounce {
           0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
           30% { transform: translateY(-4px); opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          @keyframes bounce {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+          }
         }
       `}</style>
     </div>

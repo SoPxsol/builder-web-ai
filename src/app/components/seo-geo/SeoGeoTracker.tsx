@@ -318,6 +318,107 @@ function AddQueryModal({
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * Modal: Agregar competidor — focus-trap + Escape + foco inicial
+ * Mismo patrón que QueryDetailModal y AddQueryModal.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+function AddCompetitorModal({
+  titleId,
+  compDraft,
+  setCompDraft,
+  inputRef,
+  onClose,
+  onAdd,
+  inputStyle,
+}: {
+  titleId: string;
+  compDraft: string;
+  setCompDraft: (v: string) => void;
+  inputRef: React.RefObject<HTMLInputElement | null> | React.MutableRefObject<HTMLInputElement | null>;
+  onClose: () => void;
+  onAdd: () => void;
+  inputStyle: React.CSSProperties;
+}) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  // Foco inicial en el input al abrir
+  useEffect(() => { inputRef.current?.focus(); }, [inputRef]);
+
+  // Cerrar con Escape
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.45)" }}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        style={{
+          width: "100%", maxWidth: 400, margin: "0 16px",
+          background: "var(--surface-card)",
+          borderRadius: "var(--radius-card)",
+          border: "0.5px solid var(--border-ui)",
+          padding: "var(--space-5)",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+          position: "relative",
+        }}
+      >
+        <h2 id={titleId} style={{ fontSize: "var(--font-size-lg)", fontWeight: 600, color: "var(--text-primary)", margin: "0 0 8px" }}>
+          Agregar competidor
+        </h2>
+        <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", margin: "0 0 16px", lineHeight: 1.5 }}>
+          Vamos a calcular su AI Visibility Score con las mismas queries que tenés activas.
+        </p>
+        <label htmlFor="comp-name-modal" style={{ display: "block", fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 4 }}>
+          Nombre del competidor
+        </label>
+        <input
+          ref={inputRef}
+          id="comp-name-modal"
+          value={compDraft}
+          onChange={(e) => setCompDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && compDraft.trim()) { e.preventDefault(); onAdd(); } }}
+          placeholder="Sofitel Legend Santa Clara"
+          style={inputStyle}
+          className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        />
+        <div className="flex justify-end gap-2 mt-5">
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button variant="primary" onClick={onAdd} disabled={!compDraft.trim()}>Analizar</Button>
+        </div>
+
+        {/* Botón cerrar × */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Cerrar"
+          className="absolute focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-opacity hover:opacity-70"
+          style={{
+            top: 14, right: 14, width: 28, height: 28,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "var(--surface-page)",
+            border: "0.5px solid var(--border-ui)",
+            borderRadius: "var(--radius-nav)",
+            cursor: "pointer", outlineColor: "var(--ring)",
+          }}
+        >
+          <X size={13} aria-hidden="true" style={{ color: "var(--text-secondary)" }} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
  * CompetitorRow
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -373,6 +474,8 @@ export function SeoGeoTracker({ onSubNav: _onSubNav }: Props) {
   const [openAddQuery, setOpenAddQuery] = useState(false);
   const [openAddComp, setOpenAddComp] = useState(false);
   const [compDraft, setCompDraft] = useState("");
+  const compInputRef = useRef<HTMLInputElement>(null);
+  const addCompTitleId = useId();
 
   const detailTitleId = useId();
   const addQueryTitleId = useId();
@@ -439,7 +542,7 @@ export function SeoGeoTracker({ onSubNav: _onSubNav }: Props) {
         {/* Header de sección */}
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
-            <p style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", margin: 0, lineHeight: 1.2 }}>
+            <p style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, color: "var(--text-primary)", margin: 0, lineHeight: 1.2 }}>
               GEO Tracker
             </p>
             <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", marginTop: 4, lineHeight: 1.5, margin: "4px 0 0" }}>
@@ -584,12 +687,20 @@ export function SeoGeoTracker({ onSubNav: _onSubNav }: Props) {
                 </thead>
                 <tbody>
                   {filtered.map((q) => (
+                    /* WCAG 2.1.1: fila interactiva necesita tabIndex + role + onKeyDown.
+                     * Alternativa más limpia: el botón "Ver detalle" en la celda de query. */
                     <tr
                       key={q.id}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`Ver detalle de query: ${q.query}`}
                       onClick={() => setSelected(q)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(q); } }}
                       style={{ borderBottom: "0.5px solid var(--border-ui)", cursor: "pointer", transition: "background 0.1s" }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-page)")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                      onFocus={(e) => (e.currentTarget.style.background = "var(--surface-page)")}
+                      onBlur={(e) => (e.currentTarget.style.background = "transparent")}
                     >
                       <td style={{ padding: "12px 20px", textAlign: "center" }}>
                         {q.mentioned
@@ -598,7 +709,7 @@ export function SeoGeoTracker({ onSubNav: _onSubNav }: Props) {
                         }
                       </td>
                       <td style={{ padding: "12px 20px", fontSize: "var(--font-size-md)", color: "var(--text-primary)", maxWidth: 360 }}>
-                        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{q.query}</div>
+                        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={q.query}>{q.query}</div>
                       </td>
                       <td style={{ padding: "12px 20px" }}>
                         <EngineBadge engine={q.engine} />
@@ -650,54 +761,41 @@ export function SeoGeoTracker({ onSubNav: _onSubNav }: Props) {
               />
             ))}
             {competitors.length === 0 && (
-              <p style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", fontStyle: "italic", margin: "8px 0 0" }}>
-                Agregá hasta 3 competidores para comparar.
-              </p>
+              /* Estado vacío con CTA — guía al usuario a la acción de valor */
+              <div
+                className="flex flex-col items-center text-center"
+                style={{
+                  padding: "var(--space-4)",
+                  borderRadius: "var(--radius-nav)",
+                  border: "1.5px dashed var(--border-ui)",
+                  marginTop: 8,
+                }}
+              >
+                <p style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", margin: "0 0 10px" }}>
+                  Sin competidores todavía. Agregá hasta 3 para comparar tu visibilidad IA contra la de ellos.
+                </p>
+                <Button
+                  variant="secondary"
+                  onClick={() => setOpenAddComp(true)}
+                >
+                  Agregar primer competidor
+                </Button>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Modal: añadir competidor (inline simple) */}
+        {/* Modal: añadir competidor — con focus-trap, Escape y foco inicial (igual que otros modales) */}
         {openAddComp && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center"
-            style={{ background: "rgba(0,0,0,0.45)" }}
-            onClick={(e) => { if (e.currentTarget === e.target) setOpenAddComp(false); }}
-          >
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-label="Agregar competidor"
-              style={{
-                width: "100%", maxWidth: 400, margin: "0 16px",
-                background: "var(--surface-card)",
-                borderRadius: "var(--radius-card)",
-                border: "0.5px solid var(--border-ui)",
-                padding: "var(--space-5)",
-                boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
-              }}
-            >
-              <p style={{ fontSize: "var(--font-size-lg)", fontWeight: 600, color: "var(--text-primary)", margin: "0 0 8px" }}>Agregar competidor</p>
-              <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", margin: "0 0 16px", lineHeight: 1.5 }}>
-                Vamos a calcular su AI Visibility Score con las mismas queries que tenés activas.
-              </p>
-              <label htmlFor="comp-name" style={{ display: "block", fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 4 }}>
-                Nombre del competidor
-              </label>
-              <input
-                id="comp-name"
-                value={compDraft}
-                onChange={(e) => setCompDraft(e.target.value)}
-                placeholder="Sofitel Legend Santa Clara"
-                style={inputStyle}
-                className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-              />
-              <div className="flex justify-end gap-2 mt-5">
-                <Button variant="secondary" onClick={() => setOpenAddComp(false)}>Cancelar</Button>
-                <Button variant="primary" onClick={onAddCompetitor} disabled={!compDraft.trim()}>Analizar</Button>
-              </div>
-            </div>
-          </div>
+          <AddCompetitorModal
+            titleId={addCompTitleId}
+            compDraft={compDraft}
+            setCompDraft={setCompDraft}
+            inputRef={compInputRef}
+            onClose={() => { setOpenAddComp(false); setCompDraft(""); }}
+            onAdd={onAddCompetitor}
+            inputStyle={inputStyle}
+          />
         )}
       </div>
 

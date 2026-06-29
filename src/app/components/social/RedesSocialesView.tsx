@@ -369,13 +369,18 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
         style={{ background: "var(--surface-page)" }}
         aria-label="Gestor de redes sociales"
       >
-        <div style={{ padding: "var(--space-5)", maxWidth: 1200, margin: "0 auto" }}>
+        <div style={{ padding: "var(--space-5)", maxWidth: 1000, margin: "0 auto" }}>
 
           {/* ── ViewHeader ── */}
           <ViewHeader
             eyebrow={`${siteName} · Marketing`}
             title="Redes sociales"
-            description={`${Object.values(socialPosts).reduce((a, p) => a + p.length, 0)} piezas generadas en tu tono — feed, stories, reels y ads. Editá lo que necesites y descargá cuando quieras.`}
+            description={(() => {
+              const net = NETWORKS.find((n) => n.id === activeNetwork);
+              const count = (socialPosts[activeNetwork] ?? []).length;
+              const label = net?.label ?? activeNetwork;
+              return `${count} piezas generadas para ${label} — feed, stories y más. Editá lo que necesites y descargá cuando quieras.`;
+            })()}
             navigate={navigate}
             action={
               <Button

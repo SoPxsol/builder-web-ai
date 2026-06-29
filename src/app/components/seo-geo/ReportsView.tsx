@@ -74,7 +74,7 @@ export function ReportsView() {
 
       {/* Header */}
       <div className="mb-5">
-        <p style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+        <p style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
           Reporte de visibilidad
         </p>
         <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", margin: "4px 0 0", lineHeight: 1.5 }}>
@@ -96,12 +96,18 @@ export function ReportsView() {
               <p style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 8 }}>
                 Logo del hotel (opcional)
               </p>
+              {/*
+                El input file está oculto visualmente (sr-only) y es
+                activado por el botón debajo. Se excluye del tab order
+                para evitar duplicar el control accesible (WCAG 4.1.1).
+              */}
               <input
                 ref={fileRef}
                 type="file"
                 accept="image/*"
                 className="sr-only"
-                aria-label="Subir logo del hotel"
+                tabIndex={-1}
+                aria-hidden="true"
                 onChange={() => { /* en demo no procesamos */ }}
               />
               <button
@@ -214,9 +220,9 @@ export function ReportsView() {
                 style={{
                   padding: "8px 10px",
                   borderRadius: "var(--radius-nav)",
-                  background: "#dcfce7",
+                  background: "var(--badge-green-bg)",
                   fontSize: "var(--font-size-sm)",
-                  color: "#15803d",
+                  color: "var(--badge-green-text)",
                 }}
               >
                 <Check size={13} aria-hidden="true" />
@@ -341,7 +347,7 @@ export function ReportsView() {
                   <span style={{ flex: 1, fontSize: "var(--font-size-sm)", color: "var(--text-primary)" }}>{c.title}</span>
                   <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-secondary)" }}>{c.date}</span>
                   <span style={{ fontFamily: "monospace", fontSize: "var(--font-size-sm)", color: "var(--text-primary)", fontWeight: 600 }}>
-                    {c.clicks.toLocaleString("es")}
+                    {c.clicks.toLocaleString("es-419")}
                   </span>
                 </div>
               ))}

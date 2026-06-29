@@ -166,7 +166,12 @@ function StatusBar({ dark = false }: { dark?: boolean }) {
 
 function Phone({ statusDark = false, children }: { statusDark?: boolean; children: React.ReactNode }) {
   return (
-    <div className="relative w-[300px] mx-auto" aria-hidden="true">
+    /* aria-hidden="true": el phone es decorativo — no aporta info adicional al lector de pantalla.
+     * inert="": bloquea todo el tab order y el foco dentro del widget decorativo (WCAG 2.4.3).
+     * React 18 no tiene tipos para inert — usamos spread con cast para evitar el error de TS. */
+    <div className="relative w-[300px] mx-auto" aria-hidden="true"
+      {...({ inert: "" } as React.HTMLAttributes<HTMLDivElement>)}
+    >
       <div className="rounded-[2.6rem] p-[5px]" style={{ background: "#111111", boxShadow: "0 34px 70px rgba(0,0,0,0.32)" }}>
         <div
           className="relative rounded-[2.3rem] overflow-hidden bg-white h-[600px] flex flex-col ring-1 ring-black/10"

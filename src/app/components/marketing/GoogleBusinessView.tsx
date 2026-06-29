@@ -17,10 +17,10 @@
  * - Campos de edición con label explícito.
  */
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, cloneElement, isValidElement, Children } from "react";
 import {
   MapPin, Phone, Clock, Globe, MessageSquare,
-  Plus, Check, Star, Sparkles, X, CheckCircle2,
+  Plus, Check, Star, Sparkles, X, CheckCircle2, Loader2,
 } from "lucide-react";
 import type { View } from "../../types";
 import { ViewHeader } from "../ui/view-header";
@@ -67,7 +67,7 @@ function StarRow({ value }: { value: number }) {
       ))}
       <span
         className="ml-1"
-        style={{ fontFamily: "monospace", fontSize: "var(--font-size-xs)", color: "var(--text-primary)" }}
+        style={{ fontVariantNumeric: "tabular-nums", fontSize: "var(--font-size-xs)", color: "var(--text-primary)" }}
       >
         {value.toFixed(1)}
       </span>
@@ -200,6 +200,8 @@ function ReplyModal({
 export function GoogleBusinessView({ siteName, navigate }: Props) {
   const [data, setData] = useState<GoogleBusinessData>(googleBusinessData);
   const [openReply, setOpenReply] = useState<GbReview | null>(null);
+  // id del autor de la reseña que está generando respuesta IA (estado de carga)
+  const [replyingId, setReplyingId] = useState<string | null>(null);
   const modalTitleId = useId();
 
   const update = <K extends keyof GoogleBusinessData>(k: K, v: GoogleBusinessData[K]) =>
@@ -213,6 +215,16 @@ export function GoogleBusinessView({ siteName, navigate }: Props) {
 
   const closeModal = useCallback(() => setOpenReply(null), []);
 
+  // Simula generación IA con 900ms de delay antes de abrir el modal
+  function handleReplyWithAI(review: GbReview) {
+    if (replyingId) return;
+    setReplyingId(review.author);
+    setTimeout(() => {
+      setReplyingId(null);
+      setOpenReply(review);
+    }, 900);
+  }
+
   return (
     <>
       <main
@@ -220,7 +232,7 @@ export function GoogleBusinessView({ siteName, navigate }: Props) {
         style={{ background: "var(--surface-page)" }}
         aria-label="Gestor de Google Business Profile"
       >
-        <div style={{ padding: "var(--space-5)", maxWidth: 1200, margin: "0 auto" }}>
+        <div style={{ padding: "var(--space-5)", maxWidth: 1000, margin: "0 auto" }}>
 
           {/* ── ViewHeader ── */}
           <ViewHeader
@@ -277,7 +289,7 @@ export function GoogleBusinessView({ siteName, navigate }: Props) {
                 <span style={{ fontFamily: "monospace", fontSize: "var(--font-size-xs)", color: "var(--text-secondary)" }}>
                   google.com/maps
                 </span>
-                <Badge tone="positive" style={{ marginLeft: "auto" }}>vista previa</Badge>
+                <Badge tone="success" style={{ marginLeft: "auto" }}>vista previa</Badge>
               </div>
 
               {/* Mapa placeholder */}
@@ -555,7 +567,8 @@ export function GoogleBusinessView({ siteName, navigate }: Props) {
                     {data.photos.length} de 20
                   </span>
                 </div>
-                <div className="grid grid-cols-6 gap-2">
+                {/* grid-cols-6 fijo colapsaba en el Builder — auto-fill minmax responsive */}
+                <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 52px), 1fr))" }}>
                   {data.photos.map((p, i) => (
                     <div key={i} className="aspect-square overflow-hidden" style={{ borderRadius: "var(--radius-nav)" }}>
                       <img src={p} alt="" aria-hidden="true" className="w-full h-full object-cover" />
@@ -594,48 +607,80 @@ export function GoogleBusinessView({ siteName, navigate }: Props) {
                     <p style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>
                       Reseñas recientes
                     </p>
+                    {/* Contador derivado de los datos (no hardcodeado).
+                     * GbReview no tiene campo `replied` en el tipo demo — se usa el total de
+                     * reseñas como proxy. Para producción, agregar replied: boolean al tipo. */}
                     <p style={{ fontSize: "var(--font-size-xl)", fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
-                      3 esperando respuesta
+                      {data.reviews.length > 0
+                        ? `${data.reviews.length} esperando respuesta`
+                        : "Al día con las reseñas"}
                     </p>
                   </div>
                   <StarRow value={4.6} />
                 </div>
 
                 <div className="space-y-3">
-                  {data.reviews.map((r) => (
+                  {data.reviews.length === 0 ? (
+                    /* Estado vacío — sin reseñas pendientes */
                     <div
-                      key={r.author}
+                      className="flex flex-col items-center justify-center text-center"
                       style={{
-                        padding: "var(--space-3) var(--space-4)",
+                        padding: "var(--space-5)",
                         borderRadius: "var(--radius-nav)",
+                        background: "var(--surface-page)",
                         border: "0.5px solid var(--border-ui)",
                       }}
                     >
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <div style={{ fontSize: "var(--font-size-md)", fontWeight: 500, color: "var(--text-primary)" }}>
-                            {r.author}
-                          </div>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <StarRow value={r.stars} />
-                            <span style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)" }}>
-                              {r.date}
-                            </span>
-                          </div>
-                        </div>
-                        <Button
-                          variant="secondary"
-                          leftIcon={<MessageSquare size={11} aria-hidden="true" />}
-                          onClick={() => setOpenReply(r)}
-                        >
-                          Responder con IA
-                        </Button>
-                      </div>
-                      <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", lineHeight: 1.5, margin: 0 }}>
-                        {r.text}
+                      <CheckCircle2 size={28} aria-hidden="true" style={{ color: "var(--status-active)", marginBottom: 8 }} />
+                      <p style={{ fontSize: "var(--font-size-md)", fontWeight: 600, color: "var(--text-primary)", margin: "0 0 4px" }}>
+                        Ya respondiste todas las reseñas.
+                      </p>
+                      <p style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", margin: 0 }}>
+                        Cuando lleguen nuevas aparecerán aquí con respuesta IA lista para revisar.
                       </p>
                     </div>
-                  ))}
+                  ) : (
+                    data.reviews.map((r) => (
+                      <div
+                        key={r.author}
+                        style={{
+                          padding: "var(--space-3) var(--space-4)",
+                          borderRadius: "var(--radius-nav)",
+                          border: "0.5px solid var(--border-ui)",
+                        }}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <div style={{ fontSize: "var(--font-size-md)", fontWeight: 500, color: "var(--text-primary)" }}>
+                              {r.author}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <StarRow value={r.stars} />
+                              <span style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)" }}>
+                                {r.date}
+                              </span>
+                            </div>
+                          </div>
+                          <Button
+                            variant="secondary"
+                            disabled={replyingId !== null}
+                            aria-busy={replyingId === r.author}
+                            leftIcon={
+                              replyingId === r.author
+                                ? <Loader2 size={11} aria-hidden="true" className="animate-spin" />
+                                : <MessageSquare size={11} aria-hidden="true" />
+                            }
+                            onClick={() => handleReplyWithAI(r)}
+                          >
+                            {replyingId === r.author ? "Generando…" : "Responder con IA"}
+                          </Button>
+                        </div>
+                        <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", lineHeight: 1.5, margin: 0 }}>
+                          {r.text}
+                        </p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </section>
 
@@ -674,6 +719,10 @@ const inputStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
+/**
+ * Field — wrapper de label + input con htmlFor↔id automático (WCAG 1.3.1).
+ * Inyecta el id al primer child React via cloneElement.
+ */
 function Field({
   label,
   hint,
@@ -685,11 +734,26 @@ function Field({
   children: React.ReactNode;
   className?: string;
 }) {
+  const fieldId = useId();
+
+  // Inyecta id al primer child si es un elemento React de formulario (input/textarea/select).
+  // Si el child es un contenedor (div de chips), lo deja pasar sin modificar.
+  const childWithId = (() => {
+    const arr = Children.toArray(children);
+    if (arr.length === 1 && isValidElement(arr[0])) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const el = arr[0] as React.ReactElement<any>;
+      if (!el.props.id) return cloneElement(el, { id: fieldId });
+    }
+    return children;
+  })();
+
   return (
     <div className={className}>
-      <div
+      <label
+        htmlFor={fieldId}
         className="flex items-center gap-2 mb-1"
-        style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-secondary)" }}
+        style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-secondary)", display: "flex" }}
       >
         <span>{label}</span>
         {hint && (
@@ -697,8 +761,8 @@ function Field({
             ✦ {hint}
           </span>
         )}
-      </div>
-      {children}
+      </label>
+      {childWithId}
     </div>
   );
 }

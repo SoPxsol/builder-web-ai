@@ -17,7 +17,7 @@ import type { SeriesPoint } from "../../data/seo-geo-demo";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * LineChart — SVG nativo, sin dependencias de charting.
- * Colores: SEO usa var(--brand), GEO usa #5B8FBF (color del motor, se mantiene).
+ * Colores: SEO usa var(--brand), GEO usa var(--geo-cool) (color del motor, se mantiene).
  * ──────────────────────────────────────────────────────────────────────────── */
 
 export function LineChart({ series, height = 220 }: { series: SeriesPoint[]; height?: number }) {
@@ -61,6 +61,9 @@ export function LineChart({ series, height = 220 }: { series: SeriesPoint[]; hei
     };
   }, [series, height]);
 
+  // Early return si la serie está vacía (width=0 crashea el SVG viewBox)
+  if (!width) return null;
+
   return (
     <div className="relative">
       <svg
@@ -75,14 +78,14 @@ export function LineChart({ series, height = 220 }: { series: SeriesPoint[]; hei
             <stop offset="100%" stopColor="var(--brand)" stopOpacity="0"    />
           </linearGradient>
           <linearGradient id="seoGeo-coolFade" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%"   stopColor="#5B8FBF" stopOpacity="0.16" />
-            <stop offset="100%" stopColor="#5B8FBF" stopOpacity="0"    />
+            <stop offset="0%"   stopColor="var(--geo-cool)" stopOpacity="0.16" />
+            <stop offset="100%" stopColor="var(--geo-cool)" stopOpacity="0"    />
           </linearGradient>
         </defs>
         <path d={paths.seoArea} fill="url(#seoGeo-brandFade)" />
         <path d={paths.geoArea} fill="url(#seoGeo-coolFade)" />
         <path d={paths.seo} fill="none" style={{ stroke: "var(--brand)" }} strokeWidth="2" />
-        <path d={paths.geo} fill="none" stroke="#5B8FBF" strokeWidth="2" />
+        <path d={paths.geo} fill="none" style={{ stroke: "var(--geo-cool)" }} strokeWidth="2" />
         {ticks.map((t) => (
           <text
             key={t.label}
@@ -144,9 +147,10 @@ export function SimOverlay({ active, message }: { active: boolean; message: stri
 type AuthorityLevel = "high" | "medium" | "low";
 
 const AUTHORITY_MAP: Record<AuthorityLevel, { label: string; bg: string; color: string }> = {
-  high:   { label: "Alta",  bg: "#dcfce7", color: "#15803d" },
-  medium: { label: "Media", bg: "#dbeafe", color: "#1d4ed8" },
-  low:    { label: "Baja",  bg: "var(--surface-page)", color: "var(--text-secondary)" },
+  // Tokens del DS en lugar de hex hardcodeados
+  high:   { label: "Alta",  bg: "var(--badge-green-bg)",  color: "var(--badge-green-text)" },
+  medium: { label: "Media", bg: "var(--badge-blue-bg)",   color: "var(--badge-blue-text)"  },
+  low:    { label: "Baja",  bg: "var(--surface-page)",    color: "var(--text-secondary)"   },
 };
 
 export function AuthorityBadge({ level }: { level: AuthorityLevel }) {
@@ -181,7 +185,7 @@ type Engine = "chatgpt" | "perplexity" | "google_ai";
 
 const ENGINE_MAP: Record<Engine, { label: string; color: string }> = {
   chatgpt:    { label: "ChatGPT",   color: "#10A37F" },
-  perplexity: { label: "Perplexity", color: "#5B8FBF" },
+  perplexity: { label: "Perplexity", color: "var(--geo-cool)" },
   google_ai:  { label: "Google AI",  color: "#D4A853" },
 };
 
@@ -260,7 +264,7 @@ type BarTone = "brand" | "cool" | "positive" | "warning" | "neutral";
 
 const BAR_COLORS: Record<BarTone, string> = {
   brand:    "var(--brand)",
-  cool:     "#5B8FBF",
+  cool:     "var(--geo-cool)",
   positive: "var(--status-active)",
   warning:  "var(--status-warning)",
   neutral:  "var(--text-secondary)",
