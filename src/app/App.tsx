@@ -115,7 +115,7 @@ function renderNavItem(item: SiteNavItem, indent: boolean, view: View, navigate:
     return (
       <span
         key={item.label}
-        className="block px-6 mt-2 mb-0.5 uppercase tracking-wider"
+        className={`block ${indent ? "px-6" : "px-3"} mt-2 mb-0.5 uppercase tracking-wider`}
         style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--site-nav-add)", letterSpacing: "0.06em" }}
       >
         {item.label}
@@ -314,6 +314,7 @@ export default function App() {
   // Responsive: en pantallas <1024px el sidebar secundario se vuelve drawer abrible.
   const isCompact = useMediaQuery("(max-width: 1023px)");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sitioOpen, setSitioOpen] = useState(false); // drill-in puro del hub "Sitio" (2do nivel)
 
   // Cualquier modal abierto debe ocultar el shell del árbol de accesibilidad y de tab order.
   // Los modales se renderizan vía createPortal a document.body — quedan fuera de este ref.
@@ -606,30 +607,47 @@ export default function App() {
               onSeeAll={() => navigate("mis-sitios")}
             />
 
-            {/* Primer nivel = ítems top; las apps con hijos (Sitio) hacen drill-in:
-                colapsadas por defecto, se abren al entrar (view ∈ hijos). */}
-            {siteNav.map((item) => {
-              if (item.children) {
-                const firstChild = item.children.find((c) => c.id && !c.disabled && !c.subheader)?.id;
-                const isOpen = item.children.some((c) => c.id === view);
+            {/* Nav de 2 niveles (drill-in puro): primer nivel = ítems top; al entrar
+                a "Sitio" se reemplaza por su 2do nivel + "← Volver". */}
+            {sitioOpen ? (
+              (() => {
+                const sec = siteNav.find((i) => i.children);
                 return (
-                  <div key={item.id}>
+                  <>
                     <button
                       type="button"
-                      onClick={() => firstChild && navigate(firstChild as View)}
-                      aria-expanded={isOpen}
+                      onClick={() => setSitioOpen(false)}
+                      className="focus-ring-dark flex items-center gap-1.5 px-3 h-8 mb-1 w-full text-left transition-colors"
+                      style={{ background: "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: 500, color: "var(--shell-label-active)" }}
+                    >
+                      <ChevronRight size={14} aria-hidden="true" style={{ flexShrink: 0, transform: "rotate(180deg)" }} />
+                      <span>{sec?.label ?? "Volver"}</span>
+                    </button>
+                    <div className="mx-1 mb-1.5" style={{ height: 1, background: "var(--site-nav-separator)" }} />
+                    {sec?.children?.map((child) => renderNavItem(child, false, view, navigate))}
+                  </>
+                );
+              })()
+            ) : (
+              siteNav.map((item) => {
+                if (item.children) {
+                  const firstChild = item.children.find((c) => c.id && !c.disabled && !c.subheader)?.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => { setSitioOpen(true); if (firstChild) navigate(firstChild as View); }}
                       className="focus-ring-dark flex items-center justify-between px-3 h-8 mb-0.5 w-full text-left transition-colors"
-                      style={{ background: isOpen ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: 500, color: "var(--shell-label-active)" }}
+                      style={{ background: "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: 500, color: "var(--shell-label-active)" }}
                     >
                       <span>{item.label}</span>
-                      <ChevronRight size={13} aria-hidden="true" style={{ flexShrink: 0, transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
+                      <ChevronRight size={13} aria-hidden="true" style={{ flexShrink: 0 }} />
                     </button>
-                    {isOpen && item.children.map((child) => renderNavItem(child, true, view, navigate))}
-                  </div>
-                );
-              }
-              return renderNavItem(item, false, view, navigate);
-            })}
+                  );
+                }
+                return renderNavItem(item, false, view, navigate);
+              })
+            )}
           </aside>
         )}
 
