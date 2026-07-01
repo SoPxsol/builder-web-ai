@@ -276,12 +276,6 @@ export default function App() {
   // "grp-formatos" | "grp-contenido" | "grp-config" → hay nivel 3.
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
-  // suppressedGroupRef: cuando el usuario cierra manualmente el L3 (toggle o botón Volver)
-  // mientras la vista activa sigue perteneciendo a ese grupo, el useEffect de sincronización
-  // lo reabriría. Este ref guarda el id del grupo que debe suprimirse hasta que la view
-  // cambie a algo de OTRO grupo (o a un leaf/hub distinto), momento en que se limpia solo.
-  const suppressedGroupRef = useRef<string | null>(null);
-
   // Demo del Wizard 1: ?wizard=true abre el modal de onboarding sobre el shell.
   const [wizardOpen, setWizardOpen] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -455,45 +449,23 @@ export default function App() {
   // si se declarara más abajo, quedaría en la TDZ y el render tiraría ReferenceError.
   const iconActive = getIconActive(view);
 
-  // Sincroniza activeGroupId con la vista activa: si la vista pertenece a un grupo
-  // del hub Sitios, abre ese grupo. Si es un leaf directo (ai) o no pertenece a
-  // ningún grupo, cierra el nivel 3. Así el deep-link y el back funcionan solos.
-  // Respeta suppressedGroupRef: si el usuario cerró manualmente el L3 mientras
-  // sigue en una vista de ese grupo, no lo reabre hasta que cambie de contexto.
+  // El nivel 3 se abre SOLO por selección explícita de un grupo (click en el nivel 2).
+  // Este effect nunca abre un grupo por su cuenta: únicamente CIERRA el nivel 3 cuando
+  //   - cambiás a un hub que no es Sitios, o
+  //   - la vista activa deja de pertenecer al grupo abierto (ej. navegás a "Generador IA"
+  //     o a otra sección desde el contenido).
+  // Resultado: entrar a Sitios muestra solo el nivel 2; recién al elegir una sección
+  // aparece el nivel 3 (y el rail L1 colapsa).
   useEffect(() => {
     if (iconActive !== "sitios") {
-      // Cambio de hub: cerramos L3, limpiamos la supresión y el rail vuelve a 184px.
-      suppressedGroupRef.current = null;
       setActiveGroupId(null);
       return;
     }
-    const sitiosHub = hubs.find((h) => h.id === "sitios");
-    if (!sitiosHub?.children) return;
-    let found: string | null = null;
-    for (const item of sitiosHub.children) {
-      if (item.children) {
-        // Es un grupo — buscar si la vista activa es uno de sus hijos
-        const match = item.children.find((child) => {
-          const target = (child.nav ?? child.id) as string;
-          return target === view;
-        });
-        if (match && item.id) {
-          found = item.id;
-          break;
-        }
-      }
-    }
-    // Si la vista cambió a un grupo DISTINTO al suprimido (o a un leaf sin grupo),
-    // el cierre manual ya no aplica: limpiamos la supresión.
-    if (found !== suppressedGroupRef.current) {
-      suppressedGroupRef.current = null;
-    }
-    // Si el grupo derivado está suprimido por cierre manual, no reabrimos L3.
-    if (found !== null && found === suppressedGroupRef.current) return;
-    // Solo actualizamos si cambia (evita loops innecesarios).
-    setActiveGroupId((prev) => (prev !== found ? found : prev));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, iconActive]);
+    if (activeGroupId === null) return; // nada abierto → nada que sincronizar
+    const grp = hubs.find((h) => h.id === "sitios")?.children?.find((g) => g.id === activeGroupId);
+    const stillInside = grp?.children?.some((c) => ((c.nav ?? c.id) as string) === view);
+    if (!stillInside) setActiveGroupId(null);
+  }, [view, iconActive, activeGroupId]);
 
   // Datos del trial — TODO: cuando exista el endpoint de subscription, derivar
   // trialDay de (now - trialStartedAt) en días. Mientras, valor fijo de demo.
@@ -522,12 +494,9 @@ export default function App() {
   const activeHub = hubs.find((h) => h.id === iconActive);
   const showSideNav = !!(activeHub && activeHub.id !== "dashboard" && (activeHub.id !== "sitios" || hasSites));
 
-  // Cierra el nivel 3 manualmente y suprime la reapertura automática mientras
-  // la view siga dentro de ese grupo. El useEffect la limpia cuando cambia el contexto.
+  // Cierra el nivel 3 (toggle del grupo activo o botón Volver). Como el effect de
+  // sincronización nunca reabre un grupo por su cuenta, basta con limpiar el estado.
   function closeLevel3() {
-    if (activeGroupId !== null) {
-      suppressedGroupRef.current = activeGroupId;
-    }
     setActiveGroupId(null);
   }
 
@@ -964,8 +933,6 @@ export default function App() {
                           closeLevel3();
                         } else {
                           // Abrir: setear grupo y navegar al primer hijo no-disabled.
-                          // Limpiar la supresión del grupo anterior si existía.
-                          suppressedGroupRef.current = null;
                           const firstChild = item.children!.find((c) => c.id && !c.disabled);
                           setActiveGroupId(item.id);
                           if (firstChild) navigate((firstChild.nav ?? firstChild.id) as View);
