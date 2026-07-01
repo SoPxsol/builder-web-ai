@@ -140,7 +140,7 @@ const hubs: Hub[] = [
   },
   {
     id: "gmb",
-    label: "Google My Business",
+    label: "Google Business",
     Icon: MapPin,
     defaultView: "google-business",
     // Sin children → no abre 2da columna
@@ -787,12 +787,9 @@ export default function App() {
               </h2>
             )}
 
-            {/* Selector de sitio activo — solo para el hub Sitios */}
+            {/* Selector de sitio activo — solo para el hub Sitios (el h2 "Sitios" ya titula la sección) */}
             {activeHub?.showSiteSwitcher && (
               <>
-                <span className="uppercase tracking-wider px-1 mb-1.5" style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--site-nav-section)", letterSpacing: "0.06em" }}>
-                  Sitio activo
-                </span>
                 <SiteSwitcher
                   sites={sites}
                   activeSiteId={activeSiteId}
