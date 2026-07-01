@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
-import { LayoutGrid, Hotel, BarChart2, Bell, Building2, Rocket, Lock, Menu, Share2, MapPin, BedDouble, MessageSquare, Megaphone, ChevronRight } from "lucide-react";
+import { LayoutGrid, Hotel, BarChart2, Bell, Building2, Rocket, Lock, Menu, Share2, MapPin, BedDouble, MessageSquare, Megaphone, ChevronRight, ChevronLeft } from "lucide-react";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import type { View, Site } from "./types";
 import { DashboardView } from "./components/DashboardView";
@@ -276,6 +276,12 @@ export default function App() {
   // "grp-formatos" | "grp-contenido" | "grp-config" → hay nivel 3.
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
+  // suppressedGroupRef: cuando el usuario cierra manualmente el L3 (toggle o botón Volver)
+  // mientras la vista activa sigue perteneciendo a ese grupo, el useEffect de sincronización
+  // lo reabriría. Este ref guarda el id del grupo que debe suprimirse hasta que la view
+  // cambie a algo de OTRO grupo (o a un leaf/hub distinto), momento en que se limpia solo.
+  const suppressedGroupRef = useRef<string | null>(null);
+
   // Demo del Wizard 1: ?wizard=true abre el modal de onboarding sobre el shell.
   const [wizardOpen, setWizardOpen] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -447,9 +453,12 @@ export default function App() {
   // Sincroniza activeGroupId con la vista activa: si la vista pertenece a un grupo
   // del hub Sitios, abre ese grupo. Si es un leaf directo (ai) o no pertenece a
   // ningún grupo, cierra el nivel 3. Así el deep-link y el back funcionan solos.
+  // Respeta suppressedGroupRef: si el usuario cerró manualmente el L3 mientras
+  // sigue en una vista de ese grupo, no lo reabre hasta que cambie de contexto.
   useEffect(() => {
     if (iconActive !== "sitios") {
-      // Al cambiar de hub, cerramos el nivel 3 para que el rail vuelva a 184px.
+      // Cambio de hub: cerramos L3, limpiamos la supresión y el rail vuelve a 184px.
+      suppressedGroupRef.current = null;
       setActiveGroupId(null);
       return;
     }
@@ -469,7 +478,14 @@ export default function App() {
         }
       }
     }
-    // Solo actualizamos si cambia (evita loops con el setActiveGroupId del click)
+    // Si la vista cambió a un grupo DISTINTO al suprimido (o a un leaf sin grupo),
+    // el cierre manual ya no aplica: limpiamos la supresión.
+    if (found !== suppressedGroupRef.current) {
+      suppressedGroupRef.current = null;
+    }
+    // Si el grupo derivado está suprimido por cierre manual, no reabrimos L3.
+    if (found !== null && found === suppressedGroupRef.current) return;
+    // Solo actualizamos si cambia (evita loops innecesarios).
     setActiveGroupId((prev) => (prev !== found ? found : prev));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, iconActive]);
@@ -501,6 +517,15 @@ export default function App() {
   // Dashboard queda sin 2da columna (es una vista global, no de sitio).
   const activeHub = hubs.find((h) => h.id === iconActive);
   const showSideNav = !!(activeHub && activeHub.id !== "dashboard" && (activeHub.id !== "sitios" || hasSites));
+
+  // Cierra el nivel 3 manualmente y suprime la reapertura automática mientras
+  // la view siga dentro de ese grupo. El useEffect la limpia cuando cambia el contexto.
+  function closeLevel3() {
+    if (activeGroupId !== null) {
+      suppressedGroupRef.current = activeGroupId;
+    }
+    setActiveGroupId(null);
+  }
 
   function navigate(v: View, siteId?: number) {
     // El editor de página se abre como modal full-screen, no como vista del shell.
@@ -916,8 +941,9 @@ export default function App() {
 
             {/* Items del nivel 2.
                 Si el item tiene children → es un GRUPO: renderizar como fila de grupo.
-                  Desktop: click abre el Nivel 3.
-                  Mobile: click expande el acordeón inline mostrando los hijos.
+                  Desktop: click en grupo cerrado → abre L3 + navega al primer hijo.
+                           click en grupo ya abierto → toggle cierre (closeLevel3).
+                  Mobile:  click siempre → toggle del acordeón inline.
                 Si no tiene children → leaf: renderNavItem como siempre. */}
             {activeHub?.children?.map((item) => {
               if (item.children) {
@@ -929,13 +955,14 @@ export default function App() {
                       type="button"
                       onClick={() => {
                         if (!item.id) return;
-                        // Al abrir un grupo: seteamos activeGroupId y navegamos al
-                        // primer hijo no-disabled para que el contenido sea coherente.
-                        const firstChild = item.children!.find((c) => c.id && !c.disabled);
-                        if (isOpen && !isCompact) {
-                          // En desktop, click en grupo ya abierto no lo cierra (L3 queda visible).
-                          // En mobile, actúa como toggle de acordeón.
+                        if (isOpen) {
+                          // Toggle cierre: aplica en desktop Y en mobile (acordeón).
+                          closeLevel3();
                         } else {
+                          // Abrir: setear grupo y navegar al primer hijo no-disabled.
+                          // Limpiar la supresión del grupo anterior si existía.
+                          suppressedGroupRef.current = null;
+                          const firstChild = item.children!.find((c) => c.id && !c.disabled);
                           setActiveGroupId(item.id);
                           if (firstChild) navigate((firstChild.nav ?? firstChild.id) as View);
                         }
@@ -958,7 +985,8 @@ export default function App() {
                         style={{
                           color: isOpen ? "var(--shell-label-active)" : "var(--shell-label-inactive)",
                           flexShrink: 0,
-                          // En mobile rota el chevron para indicar acordeón.
+                          // Rota el chevron: en mobile 90° cuando abierto (acordeón);
+                          // en desktop siempre apunta a la derecha (indica L3 lateral).
                           transform: isCompact && isOpen ? "rotate(90deg)" : "rotate(0deg)",
                           transition: "transform 0.15s ease",
                         }}
@@ -981,7 +1009,7 @@ export default function App() {
 
         {/* ── Nivel 3 — detalle del grupo activo (solo desktop, solo hub Sitios) ──
             Se muestra cuando activeGroupId != null y el hub activo es Sitios.
-            En mobile el acordeón del Nivel 2 ya muestra los ítems. */}
+            En mobile el acordeón del Nivel 2 ya muestra los ítems inline. */}
         {!isCompact && activeGroupId !== null && activeHub?.id === "sitios" && (() => {
           const activeGroup = activeHub.children?.find((g) => g.id === activeGroupId);
           if (!activeGroup?.children) return null;
@@ -995,6 +1023,25 @@ export default function App() {
                 borderLeft: "1px solid var(--shell-separator)",
               }}
             >
+              {/* Botón Volver — cierra el L3 con supresión de reapertura automática */}
+              <button
+                type="button"
+                onClick={closeLevel3}
+                aria-label="Volver al nivel anterior"
+                className="focus-ring-dark flex items-center gap-1 mb-2 px-3 h-7 w-full text-left transition-colors hover:opacity-80"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  borderRadius: "var(--radius-nav)",
+                  fontSize: "var(--font-size-xs)",
+                  color: "var(--shell-label-inactive)",
+                  cursor: "pointer",
+                }}
+              >
+                <ChevronLeft size={12} aria-hidden="true" style={{ flexShrink: 0 }} />
+                <span>Volver</span>
+              </button>
+
               {/* Header del grupo — mismo estilo que el header del Nivel 2 */}
               <h2
                 style={{
