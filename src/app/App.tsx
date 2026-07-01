@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
-import { LayoutGrid, Hotel, BarChart2, Bell, Building2, Rocket, Lock, Menu } from "lucide-react";
+import { LayoutGrid, Hotel, BarChart2, Bell, Building2, Rocket, Lock, Menu, ChevronRight } from "lucide-react";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import type { View, Site } from "./types";
 import { DashboardView } from "./components/DashboardView";
@@ -82,6 +82,7 @@ type SiteNavItem = { id?: string; label: string; addon?: boolean; disabled?: boo
 // (abre el EDITOR compartido). Gris = para después. Fuera del nav pero accesibles vía navigate():
 // "info-sitio", "idioma", "versiones", "promociones", "propiedades", "discovery" (viven en el Editor/config).
 const siteNav: SiteNavItem[] = [
+  { id: "dashboard", label: "Dashboard" },
   {
     id: "sitio", label: "Sitio", app: true,
     children: [
@@ -605,23 +606,30 @@ export default function App() {
               onSeeAll={() => navigate("mis-sitios")}
             />
 
-            {/* Menú flat centrado en Sitio (iteración diagrama 01-jul) */}
-            {siteNav.map((item) =>
-              item.children ? (
-                <div key={item.id}>
-                  {/* App con sub-navegación (ej. Sitio): header + herramientas anidadas */}
-                  <span
-                    className="block px-3 mt-1.5 mb-0.5"
-                    style={{ fontSize: "var(--font-size-md)", fontWeight: 500, color: "var(--shell-label-active)" }}
-                  >
-                    {item.label}
-                  </span>
-                  {item.children.map((child) => renderNavItem(child, true, view, navigate))}
-                </div>
-              ) : (
-                renderNavItem(item, false, view, navigate)
-              )
-            )}
+            {/* Primer nivel = ítems top; las apps con hijos (Sitio) hacen drill-in:
+                colapsadas por defecto, se abren al entrar (view ∈ hijos). */}
+            {siteNav.map((item) => {
+              if (item.children) {
+                const firstChild = item.children.find((c) => c.id && !c.disabled && !c.subheader)?.id;
+                const isOpen = item.children.some((c) => c.id === view);
+                return (
+                  <div key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => firstChild && navigate(firstChild as View)}
+                      aria-expanded={isOpen}
+                      className="focus-ring-dark flex items-center justify-between px-3 h-8 mb-0.5 w-full text-left transition-colors"
+                      style={{ background: isOpen ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: 500, color: "var(--shell-label-active)" }}
+                    >
+                      <span>{item.label}</span>
+                      <ChevronRight size={13} aria-hidden="true" style={{ flexShrink: 0, transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
+                    </button>
+                    {isOpen && item.children.map((child) => renderNavItem(child, true, view, navigate))}
+                  </div>
+                );
+              }
+              return renderNavItem(item, false, view, navigate);
+            })}
           </aside>
         )}
 
