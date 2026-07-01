@@ -81,8 +81,9 @@ type SiteNavItem = { id?: string; label: string; addon?: boolean; disabled?: boo
 // Flat, centrado en Sitio (iteración diagrama 01-jul). Naranja del diagrama = "app con edición"
 // (abre el EDITOR compartido). Gris = para después. Fuera del nav pero accesibles vía navigate():
 // "info-sitio", "idioma", "versiones", "promociones", "propiedades", "discovery" (viven en el Editor/config).
+// Nivel 1 (rail de íconos: Dashboard, Mis Sitios, Interno, Métricas) vive aparte (iconNavItems).
+// Esto es el NIVEL 2 (columna del sitio). "Sitio" hace drill-in al nivel 3.
 const siteNav: SiteNavItem[] = [
-  { id: "dashboard", label: "Dashboard" },
   {
     id: "sitio", label: "Sitio", app: true,
     children: [
