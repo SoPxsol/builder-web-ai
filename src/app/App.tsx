@@ -81,7 +81,7 @@ type SiteNavItem = { id?: string; label: string; nav?: string; addon?: boolean; 
 
 /** Hub del rail (nivel 1). `defaultView` = vista a la que navega el clic en el hub.
  *  `children` = sub-nav que aparece en la 2da columna cuando el hub está activo.
- *  Sin children → no se muestra 2da columna (solo selector de sitio si aplica). */
+ *  Sin children → la 2da columna muestra solo el header del hub (sin saltar el layout). */
 type Hub = {
   id: string;
   label: string;
@@ -108,7 +108,7 @@ const hubs: Hub[] = [
     id: "sitios",
     label: "Sitios",
     Icon: Hotel,
-    defaultView: "ai",
+    defaultView: "paginas",
     showSiteSwitcher: true,
     children: [
       { id: "ai",          label: "Generador sitios IA" },
@@ -147,7 +147,7 @@ const hubs: Hub[] = [
   },
   {
     id: "perfiles",
-    label: "Perfiles",
+    label: "Perfiles OTAs",
     Icon: BedDouble,
     defaultView: "otas",
     disabled: true,
@@ -203,7 +203,10 @@ function renderNavItem(item: SiteNavItem, indent: boolean, view: View, navigate:
     );
   }
   const target = (item.nav ?? item.id) as View;
-  const active = view === target;
+  // M2: si el item es un "lanzador" (nav apunta a otra vista, no a su propio id),
+  // no lo marcamos activo — así IG/TikTok/Facebook no se resaltan los 3 a la vez.
+  const isLauncher = item.nav != null && item.nav !== item.id;
+  const active = !isLauncher && view === target;
   return (
     <button
       key={item.id}
@@ -259,7 +262,7 @@ export default function App() {
     return params.get("empty") === "true" ? [] : initialSites;
   });
   const [activeSiteId, setActiveSiteId] = useState<number>(initialSites[0]?.id ?? 0);
-  const [navHovered, setNavHovered] = useState(false);
+  // navHovered eliminado en WEB-737 QA: el rail es expandido por defecto (A1), ya no colapsa.
   // Demo del Wizard 1: ?wizard=true abre el modal de onboarding sobre el shell.
   const [wizardOpen, setWizardOpen] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -451,9 +454,11 @@ export default function App() {
   const iconActive = getIconActive(view);
 
   // Hub activo y visibilidad de la 2da columna.
-  // Se recalcula cada render junto con iconActive.
+  // A3: cualquier hub primario no-Dashboard muestra la 2da columna (con header del hub),
+  // así el layout no salta cuando el hub activo no tiene children.
+  // Dashboard queda sin 2da columna (es una vista global, no de sitio).
   const activeHub = hubs.find((h) => h.id === iconActive);
-  const showSideNav = !!(activeHub && (activeHub.children || activeHub.showSiteSwitcher) && (activeHub.id !== "sitios" || hasSites));
+  const showSideNav = !!(activeHub && activeHub.id !== "dashboard" && (activeHub.id !== "sitios" || hasSites));
 
   function navigate(v: View, siteId?: number) {
     // El editor de página se abre como modal full-screen, no como vista del shell.
@@ -527,9 +532,19 @@ export default function App() {
             </button>
           )}
           <div className="w-5 h-5 flex-shrink-0" style={{ background: "var(--brand)", borderRadius: "var(--radius-dot)" }} />
+          {/* A2: nombre del sitio activo en la topbar — da orientación en cualquier hub */}
           <span className="whitespace-nowrap" style={{ fontSize: "var(--font-size-md)", fontWeight: 600, color: "var(--text-primary)" }}>
             PXSOL Web
           </span>
+          {activeSite && (
+            <span
+              className="whitespace-nowrap truncate"
+              style={{ fontSize: "var(--font-size-md)", fontWeight: 400, color: "var(--text-secondary)" }}
+              aria-label={`Sitio activo: ${activeSite.name}`}
+            >
+              · {activeSite.name}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 flex items-center justify-center" style={{ background: "var(--surface-page)", borderRadius: "var(--radius-icon)" }}>
@@ -542,15 +557,13 @@ export default function App() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* ── Icon sidebar (expands on hover to reveal labels) ── */}
+        {/* ── Rail de hubs — expandido por defecto (A1: labels siempre visibles) ── */}
+        {/* A1: ancho fijo 184px, sin colapsar. El hotelero no-tech ve los labels sin hover. */}
         <aside
-          onMouseEnter={() => setNavHovered(true)}
-          onMouseLeave={() => setNavHovered(false)}
           className="flex flex-col pt-[10px] flex-shrink-0 overflow-hidden"
           style={{
             background: "var(--shell-icon-bg)",
-            width: navHovered ? 152 : 48,
-            transition: "width 0.2s ease",
+            width: 184,
             zIndex: 10,
           }}
         >
@@ -559,26 +572,29 @@ export default function App() {
             const active = iconActive === id;
             if (disabled) {
               return (
+                // M4: hubs disabled muestran ícono Lock + "· próx." legible con rail expandido.
+                // aria-disabled correcto para lectores de pantalla.
                 <button
                   key={id}
                   type="button"
                   disabled
                   aria-disabled="true"
                   title="Próximamente"
-                  className="focus-ring-dark flex items-center mb-1 mx-1.5 cursor-not-allowed"
-                  style={{ height: 36, paddingLeft: 10, gap: 10, background: "transparent", borderRadius: "var(--radius-icon)", border: "1.5px solid transparent" }}
+                  className="focus-ring-dark flex items-center justify-between mb-1 mx-1.5 cursor-not-allowed"
+                  style={{ height: 36, paddingLeft: 10, paddingRight: 10, gap: 10, background: "transparent", borderRadius: "var(--radius-icon)", border: "1.5px solid transparent" }}
                 >
-                  <Icon size={15} style={{ color: "var(--shell-label-muted)", flexShrink: 0 }} />
-                  <span
-                    className="whitespace-nowrap"
-                    style={{
-                      fontSize: "var(--font-size-md)",
-                      color: "var(--shell-label-muted)",
-                      opacity: navHovered ? 1 : 0,
-                      transition: navHovered ? "opacity 0.15s ease 0.08s" : "opacity 0.08s ease",
-                    }}
-                  >
-                    {label} <span style={{ fontSize: "var(--font-size-xs)" }}>· próx.</span>
+                  <span className="flex items-center gap-[10px] min-w-0">
+                    <Icon size={15} style={{ color: "var(--shell-label-muted)", flexShrink: 0 }} />
+                    <span
+                      className="whitespace-nowrap truncate"
+                      style={{ fontSize: "var(--font-size-md)", color: "var(--shell-label-muted)" }}
+                    >
+                      {label}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-1 flex-shrink-0" aria-hidden="true">
+                    <span style={{ fontSize: "var(--font-size-xs)", color: "var(--shell-label-muted)" }}>· próx.</span>
+                    <Lock size={11} style={{ color: "var(--shell-label-muted)" }} />
                   </span>
                 </button>
               );
@@ -587,12 +603,12 @@ export default function App() {
               <button
                 key={id}
                 onClick={() => handleIconNav(id)}
-                aria-label={label}
                 aria-current={active ? "page" : undefined}
                 className="focus-ring-dark flex items-center mb-1 mx-1.5 transition-colors"
                 style={{
                   height: 36,
                   paddingLeft: 10,
+                  paddingRight: 10,
                   gap: 10,
                   background: active ? "var(--shell-item-active-bg)" : "transparent",
                   border: active ? "1.5px solid var(--shell-item-active-border)" : "1.5px solid transparent",
@@ -602,13 +618,11 @@ export default function App() {
               >
                 <Icon size={15} style={{ color: active ? "var(--shell-icon-active)" : "var(--shell-icon-inactive)", flexShrink: 0 }} />
                 <span
-                  className="whitespace-nowrap"
+                  className="whitespace-nowrap truncate"
                   style={{
                     fontSize: "var(--font-size-md)",
                     fontWeight: active ? 500 : 400,
                     color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)",
-                    opacity: navHovered ? 1 : 0,
-                    transition: navHovered ? "opacity 0.15s ease 0.08s" : "opacity 0.08s ease",
                   }}
                 >
                   {label}
@@ -626,12 +640,12 @@ export default function App() {
               <button
                 key={id}
                 onClick={() => handleIconNav(id)}
-                aria-label={label}
                 aria-current={active ? "page" : undefined}
                 className="focus-ring-dark flex items-center mb-1 mx-1.5 transition-colors"
                 style={{
                   height: 36,
                   paddingLeft: 10,
+                  paddingRight: 10,
                   gap: 10,
                   background: active ? "var(--shell-item-active-bg)" : "transparent",
                   border: active ? "1.5px solid var(--shell-item-active-border)" : "1.5px solid transparent",
@@ -641,13 +655,11 @@ export default function App() {
               >
                 <Icon size={15} style={{ color: active ? "var(--shell-icon-active)" : "var(--shell-icon-inactive)", flexShrink: 0 }} />
                 <span
-                  className="whitespace-nowrap"
+                  className="whitespace-nowrap truncate"
                   style={{
                     fontSize: "var(--font-size-md)",
                     fontWeight: active ? 500 : 400,
                     color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)",
-                    opacity: navHovered ? 1 : 0,
-                    transition: navHovered ? "opacity 0.15s ease 0.08s" : "opacity 0.08s ease",
                   }}
                 >
                   {label}
@@ -661,20 +673,21 @@ export default function App() {
             disabled
             aria-disabled="true"
             title="Próximamente"
-            className="focus-ring-dark flex items-center mx-1.5 cursor-not-allowed"
-            style={{ height: 36, paddingLeft: 10, gap: 10, background: "transparent", borderRadius: "var(--radius-icon)", border: "1.5px solid transparent" }}
+            className="focus-ring-dark flex items-center justify-between mx-1.5 cursor-not-allowed"
+            style={{ height: 36, paddingLeft: 10, paddingRight: 10, gap: 10, background: "transparent", borderRadius: "var(--radius-icon)", border: "1.5px solid transparent" }}
           >
-            <BarChart2 size={15} style={{ color: "var(--shell-label-muted)", flexShrink: 0 }} />
-            <span
-              className="whitespace-nowrap"
-              style={{
-                fontSize: "var(--font-size-md)",
-                color: "var(--shell-label-muted)",
-                opacity: navHovered ? 1 : 0,
-                transition: navHovered ? "opacity 0.15s ease 0.08s" : "opacity 0.08s ease",
-              }}
-            >
-              Métricas <span style={{ fontSize: "var(--font-size-xs)" }}>· próx.</span>
+            <span className="flex items-center gap-[10px] min-w-0">
+              <BarChart2 size={15} style={{ color: "var(--shell-label-muted)", flexShrink: 0 }} />
+              <span
+                className="whitespace-nowrap truncate"
+                style={{ fontSize: "var(--font-size-md)", color: "var(--shell-label-muted)" }}
+              >
+                Métricas
+              </span>
+            </span>
+            <span className="flex items-center gap-1 flex-shrink-0" aria-hidden="true">
+              <span style={{ fontSize: "var(--font-size-xs)", color: "var(--shell-label-muted)" }}>· próx.</span>
+              <Lock size={11} style={{ color: "var(--shell-label-muted)" }} />
             </span>
           </button>
 
@@ -699,13 +712,11 @@ export default function App() {
             >
               <Rocket size={14} style={{ color: "var(--shell-label-active)", flexShrink: 0 }} />
               <span
-                className="whitespace-nowrap"
+                className="whitespace-nowrap truncate"
                 style={{
                   fontSize: "var(--font-size-md)",
                   fontWeight: 500,
                   color: "var(--shell-label-active)",
-                  opacity: navHovered ? 1 : 0,
-                  transition: navHovered ? "opacity 0.15s ease 0.08s" : "opacity 0.08s ease",
                 }}
               >
                 Actualizar plan
@@ -731,46 +742,69 @@ export default function App() {
           />
         )}
 
-        {/* ── Secondary sidebar — sub-nav del hub activo ── */}
+        {/* ── 2da columna — sub-nav del hub activo ── */}
+        {/* A3: visible para cualquier hub primario no-Dashboard.
+            Si el hub no tiene children muestra solo el header del hub
+            para que el layout no salte y el hotelero siempre tenga orientación. */}
         {showSideNav && (
           <aside
-              className="flex flex-col flex-shrink-0 overflow-y-auto"
-              style={{
-                background: "var(--shell-nav-bg)",
-                width: isCompact ? 240 : 192,
-                padding: "12px 8px 0",
-                ...(isCompact
-                  ? {
-                      position: "fixed",
-                      top: 40,
-                      left: 0,
-                      bottom: 0,
-                      zIndex: 40,
-                      boxShadow: "4px 0 12px rgba(0,0,0,0.24)",
-                      transform: mobileNavOpen ? "translateX(0)" : "translateX(-100%)",
-                      transition: "transform 0.2s ease",
-                    }
-                  : {}),
-              }}
-            >
-              {/* Selector de sitio activo — solo para el hub Sitios */}
-              {activeHub?.showSiteSwitcher && (
-                <>
-                  <span className="uppercase tracking-wider px-1 mb-1.5" style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--site-nav-section)", letterSpacing: "0.06em" }}>
-                    Sitio activo
-                  </span>
-                  <SiteSwitcher
-                    sites={sites}
-                    activeSiteId={activeSiteId}
-                    onSelect={(id) => setActiveSiteId(id)}
-                    onSeeAll={() => navigate("mis-sitios")}
-                  />
-                </>
-              )}
+            className="flex flex-col flex-shrink-0 overflow-y-auto"
+            style={{
+              background: "var(--shell-nav-bg)",
+              width: isCompact ? 240 : 192,
+              padding: "12px 8px 0",
+              ...(isCompact
+                ? {
+                    position: "fixed",
+                    top: 40,
+                    left: 0,
+                    bottom: 0,
+                    zIndex: 40,
+                    boxShadow: "4px 0 12px rgba(0,0,0,0.24)",
+                    transform: mobileNavOpen ? "translateX(0)" : "translateX(-100%)",
+                    transition: "transform 0.2s ease",
+                  }
+                : {}),
+            }}
+          >
+            {/* A3: header del hub activo — jerarquía semántica con <h2> */}
+            {activeHub && (
+              <h2
+                className="px-3 mb-2"
+                style={{
+                  fontSize: "var(--font-size-xs)",
+                  fontWeight: 700,
+                  color: "var(--text-secondary)",
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  margin: 0,
+                  marginBottom: 8,
+                  paddingLeft: 12,
+                  paddingRight: 12,
+                }}
+              >
+                {activeHub.label}
+              </h2>
+            )}
 
-              {/* Sub-nav del hub activo: plano (sin drill-in), con subheaders */}
-              {activeHub?.children?.map((item) => renderNavItem(item, false, view, navigate))}
-            </aside>
+            {/* Selector de sitio activo — solo para el hub Sitios */}
+            {activeHub?.showSiteSwitcher && (
+              <>
+                <span className="uppercase tracking-wider px-1 mb-1.5" style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--site-nav-section)", letterSpacing: "0.06em" }}>
+                  Sitio activo
+                </span>
+                <SiteSwitcher
+                  sites={sites}
+                  activeSiteId={activeSiteId}
+                  onSelect={(id) => setActiveSiteId(id)}
+                  onSeeAll={() => navigate("mis-sitios")}
+                />
+              </>
+            )}
+
+            {/* Sub-nav del hub activo: plano (sin drill-in), con subheaders */}
+            {activeHub?.children?.map((item) => renderNavItem(item, false, view, navigate))}
+          </aside>
         )}
 
         {/* ── Main content ── */}
