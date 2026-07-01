@@ -68,49 +68,60 @@ const initialSites: Site[] = [
 ];
 
 
-// Group 1: contenido y creación (más usado).
-// AI vive acá porque es una herramienta de creación de contenido (genera copy
-// para páginas, posts y respuestas a reseñas), no una opción de configuración.
-const siteNavPrimary = [
-  { id: "paginas",     label: "Páginas",        addon: false, disabled: false },
-  { id: "blog",        label: "Blog",           addon: false, disabled: false },
-  { id: "popups",      label: "Pop-ups",        addon: false, disabled: false },
-  { id: "promociones", label: "Promociones",    addon: false, disabled: false },
-  { id: "ai",             label: "AI",              addon: false, disabled: false },
-  { id: "redes",          label: "Redes Sociales",  addon: true,  disabled: false },
-  { id: "google-business",label: "Google Business", addon: true,  disabled: false },
-  { id: "otas",           label: "OTAs / Booking",  addon: true,  disabled: false },
-  { id: "email",          label: "Email Marketing", addon: true,  disabled: false },
-] as const;
-
 /**
- * Configuración del sitio — dividida en 3 sub-grupos con dividers internos.
- * El orden refleja el flujo natural: identifico el hotel → me hago visible
- * en buscadores → conecto sistemas externos.
- *
- * Items removidos del nav (siguen accesibles vía navigate()):
- * - "discovery": redundante con "seo" (SEO & GEO ya cubre LLMs).
- * - "multilenguaje": ahora vive como sección dentro de "Idiomas" (id "idioma").
+ * Menú interno del sitio — estructura por grupos (WEB-737, propuesta de Fernanda).
+ * Grises = deshabilitados por ahora (addon o "Próximamente").
+ * Items fuera del nav pero accesibles vía navigate(): "ai", "propiedades" (Habitaciones), "discovery".
+ * DUDAS a confirmar con Fernanda:
+ *   - "Landing Pages" mapeado a la vista existente "promociones" (¿es rename o vista nueva?).
+ *   - "Reseñas" y "DNS": ítems nuevos sin vista → placeholder deshabilitado.
+ *   - Renombres: Google My Business, Perfiles OTAs, Integración PX, Datos, Multilenguaje.
  */
-const siteNavIdentity = [
-  { id: "info-sitio",    label: "Información del sitio",    disabled: false },
-  { id: "datos-basicos", label: "Datos del hotel",          disabled: false },
-  { id: "propiedades",   label: "Habitaciones y servicios", disabled: false },
-  { id: "idioma",        label: "Idiomas",                  disabled: false },
-] as const;
-
-const siteNavVisibility = [
-  { id: "seo",           label: "SEO & GEO",                disabled: false },
-] as const;
-
-const siteNavConnections = [
-  { id: "integraciones", label: "Integraciones",            disabled: false },
-] as const;
-
-// Group 3: histórico
-const siteNavBottom = [
-  { id: "versiones", label: "Versiones", badge: null, disabled: false },
-] as const;
+type SiteNavItem = { id: string; label: string; addon?: boolean; disabled?: boolean };
+const siteNavGroups: { label: string; items: SiteNavItem[] }[] = [
+  {
+    label: "Sitio",
+    items: [
+      { id: "templates",   label: "Plantillas" },
+      { id: "paginas",     label: "Páginas" },
+      { id: "blog",        label: "Blog" },
+      { id: "popups",      label: "Pop-ups" },
+      { id: "promociones", label: "Landing Pages" },
+      { id: "versiones",   label: "Versiones" },
+    ],
+  },
+  {
+    label: "Presencia Online",
+    items: [
+      { id: "redes",           label: "Redes Sociales",     addon: true },
+      { id: "google-business", label: "Google My Business", addon: true },
+      { id: "otas",            label: "Perfiles OTAs",      addon: true, disabled: true },
+    ],
+  },
+  {
+    label: "Posicionamiento",
+    items: [
+      { id: "seo", label: "SEO & GEO" },
+    ],
+  },
+  {
+    label: "CRM",
+    items: [
+      { id: "email",   label: "Email Marketing", addon: true, disabled: true },
+      { id: "resenas", label: "Reseñas",         disabled: true },
+    ],
+  },
+  {
+    label: "Configuración",
+    items: [
+      { id: "integraciones", label: "Integración PX" },
+      { id: "datos-basicos", label: "Datos" },
+      { id: "dns",           label: "DNS",                  disabled: true },
+      { id: "info-sitio",    label: "Información del sitio" },
+      { id: "idioma",        label: "Multilenguaje" },
+    ],
+  },
+];
 
 const iconNavItems = [
   { id: "dashboard", Icon: LayoutGrid, label: "Dashboard", views: ["dashboard", "onboarding"] as View[] },
@@ -124,7 +135,7 @@ function getIconActive(view: View): string {
   return "dashboard";
 }
 
-const SITE_VIEWS: View[] = ["paginas", "editor", "info-sitio", "seo", "ai", "discovery", "datos-basicos", "versiones", "blog", "popups", "promociones", "idioma", "multilenguaje", "propiedades", "integraciones", "redes", "google-business", "otas", "email"];
+const SITE_VIEWS: View[] = ["paginas", "editor", "info-sitio", "seo", "ai", "discovery", "datos-basicos", "versiones", "blog", "popups", "promociones", "idioma", "multilenguaje", "propiedades", "integraciones", "redes", "google-business", "otas", "email", "templates"];
 
 function isSiteContext(view: View): boolean {
   return SITE_VIEWS.includes(view);
@@ -565,122 +576,53 @@ export default function App() {
               onSeeAll={() => navigate("mis-sitios")}
             />
 
-            {/* Group 1: content tools */}
-            {siteNavPrimary.map((item) => {
-              if (item.disabled) {
-                const tooltip = item.addon
-                  ? "Disponible como módulo adicional"
-                  : "No disponible";
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    disabled
-                    aria-disabled="true"
-                    title={tooltip}
-                    className="focus-ring-dark flex items-center justify-between px-3 h-8 mb-0.5 w-full text-left cursor-not-allowed"
-                    style={{ background: "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", color: "var(--shell-label-inactive)" }}
-                  >
-                    <span>{item.label}</span>
-                    {item.addon && (
-                      <Lock
-                        size={11}
-                        aria-hidden="true"
-                        style={{ color: "var(--site-nav-add)", flexShrink: 0 }}
-                      />
-                    )}
-                  </button>
-                );
-              }
-              const active = view === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => navigate(item.id as View)}
-                  aria-current={active ? "page" : undefined}
-                  className="focus-ring-dark flex items-center justify-between px-3 h-8 mb-0.5 w-full text-left transition-colors"
-                  style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
+            {/* Menú por grupos (estructura WEB-737 / Fernanda) */}
+            {siteNavGroups.map((group, gi) => (
+              <div key={group.label}>
+                {gi > 0 && (
+                  <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
+                )}
+                <span
+                  className="block uppercase tracking-wider px-1 mt-1 mb-1"
+                  style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--site-nav-section)", letterSpacing: "0.06em" }}
                 >
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-
-            {/* Divider — fin del grupo contenido */}
-            <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
-
-            {/* Group 2A: Identidad del hotel */}
-            {siteNavIdentity.map((item) => {
-              const active = view === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => navigate(item.id as View)}
-                  aria-current={active ? "page" : undefined}
-                  className="focus-ring-dark w-full text-left px-3 h-8 mb-0.5 transition-colors"
-                  style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-
-            {/* Divider — entre Identidad y Visibilidad */}
-            <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
-
-            {/* Group 2B: Visibilidad */}
-            {siteNavVisibility.map((item) => {
-              const active = view === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => navigate(item.id as View)}
-                  aria-current={active ? "page" : undefined}
-                  className="focus-ring-dark w-full text-left px-3 h-8 mb-0.5 transition-colors"
-                  style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-
-            {/* Divider — entre Visibilidad y Conexiones */}
-            <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
-
-            {/* Group 2C: Conexiones */}
-            {siteNavConnections.map((item) => {
-              const active = view === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => navigate(item.id as View)}
-                  aria-current={active ? "page" : undefined}
-                  className="focus-ring-dark w-full text-left px-3 h-8 mb-0.5 transition-colors"
-                  style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-
-            {/* Divider — fin de configuración, antes de histórico */}
-            <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
-
-            {/* Group 3: versiones */}
-            {siteNavBottom.map((item) => {
-              const active = view === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => navigate(item.id as View)}
-                  aria-current={active ? "page" : undefined}
-                  className="focus-ring-dark w-full text-left px-3 h-8 mb-0.5 transition-colors"
-                  style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
+                  {group.label}
+                </span>
+                {group.items.map((item) => {
+                  if (item.disabled) {
+                    const tooltip = item.addon ? "Disponible como módulo adicional" : "Próximamente";
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        disabled
+                        aria-disabled="true"
+                        title={tooltip}
+                        className="focus-ring-dark flex items-center justify-between px-3 h-8 mb-0.5 w-full text-left cursor-not-allowed"
+                        style={{ background: "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", color: "var(--shell-label-inactive)" }}
+                      >
+                        <span>{item.label}</span>
+                        {item.addon && (
+                          <Lock size={11} aria-hidden="true" style={{ color: "var(--site-nav-add)", flexShrink: 0 }} />
+                        )}
+                      </button>
+                    );
+                  }
+                  const active = view === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => navigate(item.id as View)}
+                      aria-current={active ? "page" : undefined}
+                      className="focus-ring-dark flex items-center justify-between px-3 h-8 mb-0.5 w-full text-left transition-colors"
+                      style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
+                    >
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
           </aside>
         )}
 
