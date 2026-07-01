@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
-import { LayoutGrid, Hotel, BarChart2, Bell, Building2, Rocket, Lock, Menu, Globe } from "lucide-react";
+import { LayoutGrid, Hotel, BarChart2, Bell, Building2, Rocket, Lock, Menu } from "lucide-react";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import type { View, Site } from "./types";
 import { DashboardView } from "./components/DashboardView";
@@ -79,7 +79,7 @@ const initialSites: Site[] = [
  * ⚠ PROTOTIPO para la discusión de IA con Fernanda/Santi — pendiente card-sort de validación
  *   con hoteleros y naming final de categorías (content-designer).
  */
-type SiteNavItem = { id: string; label: string; addon?: boolean; disabled?: boolean; app?: boolean; children?: SiteNavItem[] };
+type SiteNavItem = { id?: string; label: string; addon?: boolean; disabled?: boolean; app?: boolean; subheader?: boolean; children?: SiteNavItem[] };
 const siteNavGroups: { label: string; items: SiteNavItem[] }[] = [
   {
     label: "Presencia",
@@ -87,12 +87,16 @@ const siteNavGroups: { label: string; items: SiteNavItem[] }[] = [
       {
         id: "sitio-web", label: "Sitio Web", app: true,
         children: [
+          { subheader: true, label: "Formatos" },
+          { id: "fmt-onepage", label: "One-page",  disabled: true },
+          { id: "fmt-www",     label: "Sitio www", disabled: true },
+          { id: "linktree",    label: "Linktree",  disabled: true },
+          { subheader: true, label: "Contenido" },
           { id: "paginas",     label: "Páginas" },
           { id: "templates",   label: "Plantillas" },
           { id: "blog",        label: "Blog" },
           { id: "popups",      label: "Pop-ups" },
           { id: "promociones", label: "Landing Pages" },
-          { id: "linktree",    label: "Linktree", disabled: true },
           { id: "versiones",   label: "Versiones" },
         ],
       },
@@ -104,9 +108,15 @@ const siteNavGroups: { label: string; items: SiteNavItem[] }[] = [
   {
     label: "Crecimiento",
     items: [
-      { id: "seo",     label: "Posicionamiento (SEO & GEO)" },
-      { id: "email",   label: "Email Marketing", addon: true, disabled: true },
-      { id: "resenas", label: "Reseñas",         disabled: true },
+      { id: "seo", label: "Posicionamiento (SEO & GEO)" },
+      { id: "ai",  label: "Asistente IA" },
+      {
+        id: "crm", label: "CRM", app: true,
+        children: [
+          { id: "resenas", label: "Reseñas",         disabled: true },
+          { id: "email",   label: "Email Marketing", addon: true, disabled: true },
+        ],
+      },
     ],
   },
   {
@@ -124,6 +134,17 @@ const siteNavGroups: { label: string; items: SiteNavItem[] }[] = [
 /** Render de un item hoja del nav. `indent` para las herramientas anidadas dentro de una app. */
 function renderNavItem(item: SiteNavItem, indent: boolean, view: View, navigate: (v: View) => void) {
   const padClass = indent ? "pl-6 pr-3" : "px-3";
+  if (item.subheader) {
+    return (
+      <span
+        key={item.label}
+        className="block px-6 mt-2 mb-0.5 uppercase tracking-wider"
+        style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--site-nav-add)", letterSpacing: "0.06em" }}
+      >
+        {item.label}
+      </span>
+    );
+  }
   if (item.disabled) {
     const tooltip = item.addon ? "Disponible como módulo adicional" : "Próximamente";
     return (
@@ -625,10 +646,9 @@ export default function App() {
                     <div key={item.id}>
                       {/* App (ej. Sitio Web): header no navegable + herramientas anidadas */}
                       <span
-                        className="flex items-center gap-1.5 px-3 mt-1.5 mb-0.5"
+                        className="block px-3 mt-1.5 mb-0.5"
                         style={{ fontSize: "var(--font-size-md)", fontWeight: 500, color: "var(--shell-label-active)" }}
                       >
-                        <Globe size={12} aria-hidden="true" style={{ flexShrink: 0 }} />
                         {item.label}
                       </span>
                       {item.children.map((child) => renderNavItem(child, true, view, navigate))}
