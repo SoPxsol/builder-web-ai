@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
-import { LayoutGrid, Hotel, BarChart2, Bell, Building2, Rocket, Lock, Menu, Share2, MapPin, BedDouble, MessageSquare, Megaphone, ChevronRight, ChevronLeft } from "lucide-react";
+import { LayoutGrid, Hotel, BarChart2, Bell, Building2, Rocket, Lock, Menu, Share2, MapPin, BedDouble, MessageSquare, Megaphone } from "lucide-react";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import type { View, Site } from "./types";
 import { DashboardView } from "./components/DashboardView";
@@ -136,12 +136,8 @@ const hubs: Hub[] = [
     label: "Redes Sociales",
     Icon: Share2,
     defaultView: "redes",
-    children: [
-      { id: "linktree",  label: "Linktree",  disabled: true },
-      { id: "instagram", label: "Instagram", nav: "redes" },
-      { id: "tiktok",    label: "TikTok",    nav: "redes" },
-      { id: "facebook",  label: "Facebook",  nav: "redes" },
-    ],
+    // Instagram/TikTok/Facebook son tabs internas de RedesSocialesView (no 2da columna).
+    // Sin children → vista única, como Google Business.
   },
   {
     id: "gmb",
@@ -225,6 +221,128 @@ function renderNavItem(item: SiteNavItem, indent: boolean, view: View, navigate:
   );
 }
 
+// ── Secciones con tabs ───────────────────────────────────────────────────────
+// Los grupos del hub Sitios (Formatos, Contenido, Configuración) exponen sus ítems
+// como TABS en el contenido (no como un 3er nivel de columna), para unificar el
+// patrón con Redes Sociales y la Suite SEO/GEO.
+const SITIOS_SECTIONS: SiteNavItem[] =
+  (hubs.find((h) => h.id === "sitios")?.children ?? []).filter((c) => c.children);
+
+/** Devuelve los ítems (tabs) de la sección del hub Sitios que contiene la vista, o null. */
+function findSectionItems(view: View): SiteNavItem[] | null {
+  const sec = SITIOS_SECTIONS.find((s) => s.children!.some((c) => ((c.nav ?? c.id) as string) === view));
+  return sec?.children ?? null;
+}
+
+/**
+ * Barra de tabs del nivel más profundo, renderizada arriba del contenido.
+ * role="tablist" accesible con navegación por flechas (mismo patrón que la Suite SEO/GEO).
+ */
+function SectionTabs({
+  items,
+  view,
+  navigate,
+}: {
+  items: SiteNavItem[];
+  view: View;
+  navigate: (v: View) => void;
+}) {
+  const tablistRef = useRef<HTMLDivElement>(null);
+
+  function onKeyDown(e: React.KeyboardEvent, idx: number) {
+    const tabs = tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]:not([disabled])');
+    if (!tabs || tabs.length === 0) return;
+    const enabled = Array.from(tabs);
+    const currentPos = enabled.findIndex((t) => t === e.currentTarget);
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      enabled[(currentPos + 1) % enabled.length].focus();
+      enabled[(currentPos + 1) % enabled.length].click();
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      const prev = (currentPos - 1 + enabled.length) % enabled.length;
+      enabled[prev].focus();
+      enabled[prev].click();
+    }
+  }
+
+  return (
+    <div
+      style={{
+        background: "var(--surface-card)",
+        borderBottom: "0.5px solid var(--border-ui)",
+        padding: "0 var(--space-5)",
+        flexShrink: 0,
+      }}
+    >
+      <div
+        ref={tablistRef}
+        role="tablist"
+        aria-label="Secciones"
+        className="flex items-center gap-1 overflow-x-auto"
+        style={{ scrollbarWidth: "none" }}
+      >
+        {items.map((item, idx) => {
+          const target = (item.nav ?? item.id) as View;
+          const isActive = ((item.nav ?? item.id) as string) === view;
+          if (item.disabled) {
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                disabled
+                aria-disabled="true"
+                title="Próximamente"
+                className="flex items-center gap-2 whitespace-nowrap cursor-not-allowed"
+                style={{
+                  padding: "11px 12px",
+                  fontSize: "var(--font-size-sm)",
+                  fontWeight: 400,
+                  color: "var(--text-tertiary)",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: "2px solid transparent",
+                  flexShrink: 0,
+                }}
+              >
+                {item.label}
+                <Lock size={11} aria-hidden="true" style={{ flexShrink: 0 }} />
+              </button>
+            );
+          }
+          return (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
+              onClick={() => navigate(target)}
+              onKeyDown={(e) => onKeyDown(e, idx)}
+              className="flex items-center gap-2 whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-all"
+              style={{
+                padding: "11px 12px",
+                fontSize: "var(--font-size-sm)",
+                fontWeight: isActive ? 600 : 400,
+                color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
+                background: "transparent",
+                border: "none",
+                borderBottom: isActive ? "2px solid var(--brand)" : "2px solid transparent",
+                cursor: "pointer",
+                outlineColor: "var(--ring)",
+                flexShrink: 0,
+              }}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Ítems secundarios del rail (abajo del divider, fuera de los 7 hubs) ──────
 const railSecondary = [
   { id: "interno",  Icon: Building2, label: "Interno" },
@@ -267,14 +385,6 @@ export default function App() {
     return params.get("empty") === "true" ? [] : initialSites;
   });
   const [activeSiteId, setActiveSiteId] = useState<number>(initialSites[0]?.id ?? 0);
-  // navHovered eliminado en WEB-737 QA. Reintroducido como railHovered para el peek del L1
-  // cuando hay un nivel 3 abierto (el rail colapsa a 48px y se expande al hover/focus).
-  const [railHovered, setRailHovered] = useState(false);
-
-  // activeGroupId: grupo activo en el nivel 2 del hub Sitios.
-  // null → no hay nivel 3 abierto (rail expandido 184px).
-  // "grp-formatos" | "grp-contenido" | "grp-config" → hay nivel 3.
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
   // Demo del Wizard 1: ?wizard=true abre el modal de onboarding sobre el shell.
   const [wizardOpen, setWizardOpen] = useState<boolean>(() => {
@@ -449,24 +559,6 @@ export default function App() {
   // si se declarara más abajo, quedaría en la TDZ y el render tiraría ReferenceError.
   const iconActive = getIconActive(view);
 
-  // El nivel 3 se abre SOLO por selección explícita de un grupo (click en el nivel 2).
-  // Este effect nunca abre un grupo por su cuenta: únicamente CIERRA el nivel 3 cuando
-  //   - cambiás a un hub que no es Sitios, o
-  //   - la vista activa deja de pertenecer al grupo abierto (ej. navegás a "Generador IA"
-  //     o a otra sección desde el contenido).
-  // Resultado: entrar a Sitios muestra solo el nivel 2; recién al elegir una sección
-  // aparece el nivel 3 (y el rail L1 colapsa).
-  useEffect(() => {
-    if (iconActive !== "sitios") {
-      setActiveGroupId(null);
-      return;
-    }
-    if (activeGroupId === null) return; // nada abierto → nada que sincronizar
-    const grp = hubs.find((h) => h.id === "sitios")?.children?.find((g) => g.id === activeGroupId);
-    const stillInside = grp?.children?.some((c) => ((c.nav ?? c.id) as string) === view);
-    if (!stillInside) setActiveGroupId(null);
-  }, [view, iconActive, activeGroupId]);
-
   // Datos del trial — TODO: cuando exista el endpoint de subscription, derivar
   // trialDay de (now - trialStartedAt) en días. Mientras, valor fijo de demo.
   const trialDay = 1;
@@ -498,11 +590,9 @@ export default function App() {
     (activeHub.id !== "sitios" || hasSites)
   );
 
-  // Cierra el nivel 3 (toggle del grupo activo o botón Volver). Como el effect de
-  // sincronización nunca reabre un grupo por su cuenta, basta con limpiar el estado.
-  function closeLevel3() {
-    setActiveGroupId(null);
-  }
+  // Sección activa (grupo del hub Sitios que contiene la vista) → sus ítems se muestran
+  // como tabs arriba del contenido. null si la vista no pertenece a ninguna sección.
+  const sectionItems = findSectionItems(view);
 
   function navigate(v: View, siteId?: number) {
     // El editor de página se abre como modal full-screen, no como vista del shell.
@@ -524,15 +614,12 @@ export default function App() {
   function handleIconNav(navId: string) {
     // Ítems secundarios del rail
     if (navId === "interno") {
-      setActiveGroupId(null);
       navigate("interno");
       return;
     }
     // Hubs primarios
     const hub = hubs.find((h) => h.id === navId);
     if (!hub || hub.disabled) return;
-    // Cambiar a un hub distinto de Sitios cierra el nivel 3 y expande el rail.
-    if (navId !== "sitios") setActiveGroupId(null);
     if (hub.defaultView) {
       navigate(hub.defaultView as View);
     } else if (hub.children) {
@@ -615,22 +702,13 @@ export default function App() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* ── Rail de hubs (Nivel 1) ────────────────────────────────────────────────
-            Desktop: expandido a 184px cuando NO hay nivel 3 abierto.
-            Con nivel 3 abierto: colapsa a 48px (solo íconos); al hover/focus-within
-            hace "peek" expandiendo a 184px temporalmente.
-            Mobile: el rail siempre está visible y expandido (el drawer cubre L2+L3). */}
+            Siempre expandido (184px) con los labels visibles. El nivel profundo se
+            resuelve con tabs en el contenido, así que el rail ya no colapsa. */}
         <aside
           className="flex flex-col pt-[10px] flex-shrink-0 overflow-hidden"
-          onMouseEnter={() => setRailHovered(true)}
-          onMouseLeave={() => setRailHovered(false)}
-          onFocus={() => setRailHovered(true)}
-          onBlur={() => setRailHovered(false)}
           style={{
             background: "var(--shell-icon-bg)",
-            // Colapsado a 48px (solo íconos) cuando hay L3 activo en desktop y no hay hover/foco.
-            // En mobile siempre expandido: el drawer ya overlay-ea el nav.
-            width: (!isCompact && activeGroupId !== null && !railHovered) ? 48 : 184,
-            transition: "width 0.18s ease",
+            width: 184,
             zIndex: 10,
           }}
         >
@@ -638,7 +716,7 @@ export default function App() {
           {hubs.map(({ id, Icon, label, disabled }) => {
             const active = iconActive === id;
             // Rail colapsado: ocultamos labels visualmente pero los conservamos para SR.
-            const labelsVisible = isCompact || activeGroupId === null || railHovered;
+            const labelsVisible = true;
             if (disabled) {
               return (
                 // M4: hubs disabled muestran ícono Lock + "· próx." cuando el rail está expandido.
@@ -721,7 +799,7 @@ export default function App() {
 
           {railSecondary.map(({ id, Icon, label }) => {
             const active = iconActive === id;
-            const labelsVisible = isCompact || activeGroupId === null || railHovered;
+            const labelsVisible = true;
             return (
               <button
                 key={id}
@@ -761,7 +839,7 @@ export default function App() {
           })}
 
           {(() => {
-            const labelsVisible = isCompact || activeGroupId === null || railHovered;
+            const labelsVisible = true;
             return (
               <button
                 type="button"
@@ -806,7 +884,7 @@ export default function App() {
           <div className="mx-1.5 mb-3">
             <div className="mx-2 mb-2" style={{ height: 1, background: "var(--shell-separator)" }} />
             {(() => {
-              const labelsVisible = isCompact || activeGroupId === null || railHovered;
+              const labelsVisible = true;
               return (
                 <button
                   aria-label="Actualizar plan"
@@ -917,63 +995,31 @@ export default function App() {
             )}
 
             {/* Items del nivel 2.
-                Si el item tiene children → es un GRUPO: renderizar como fila de grupo.
-                  Desktop: click en grupo cerrado → abre L3 + navega al primer hijo.
-                           click en grupo ya abierto → toggle cierre (closeLevel3).
-                  Mobile:  click siempre → toggle del acordeón inline.
-                Si no tiene children → leaf: renderNavItem como siempre. */}
+                Grupo (item.children) → fila de navegación; activa cuando la vista
+                pertenece al grupo. Sus ítems se muestran como TABS en el contenido
+                (unificado con Redes/SEO), no como 3er nivel de columna.
+                Leaf directo → renderNavItem como siempre. */}
             {activeHub?.children?.map((item) => {
               if (item.children) {
-                // Ítem de grupo
-                const isOpen = activeGroupId === item.id;
+                const groupActive = item.children.some((c) => ((c.nav ?? c.id) as string) === view);
+                const firstChild = item.children.find((c) => c.id && !c.disabled);
                 return (
-                  <div key={item.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!item.id) return;
-                        if (isOpen) {
-                          // Toggle cierre: aplica en desktop Y en mobile (acordeón).
-                          closeLevel3();
-                        } else {
-                          // Abrir: setear grupo y navegar al primer hijo no-disabled.
-                          const firstChild = item.children!.find((c) => c.id && !c.disabled);
-                          setActiveGroupId(item.id);
-                          if (firstChild) navigate((firstChild.nav ?? firstChild.id) as View);
-                        }
-                      }}
-                      aria-expanded={isOpen}
-                      aria-label={item.label}
-                      className="focus-ring-dark flex items-center justify-between px-3 h-8 mb-0.5 w-full text-left transition-colors"
-                      style={{
-                        background: isOpen ? "var(--shell-item-active-bg)" : "transparent",
-                        borderRadius: "var(--radius-nav)",
-                        fontSize: "var(--font-size-md)",
-                        fontWeight: isOpen ? 500 : 400,
-                        color: isOpen ? "var(--shell-label-active)" : "var(--shell-label-inactive)",
-                      }}
-                    >
-                      <span>{item.label}</span>
-                      <ChevronRight
-                        size={13}
-                        aria-hidden="true"
-                        style={{
-                          color: isOpen ? "var(--shell-label-active)" : "var(--shell-label-inactive)",
-                          flexShrink: 0,
-                          // Rota el chevron: en mobile 90° cuando abierto (acordeón);
-                          // en desktop siempre apunta a la derecha (indica L3 lateral).
-                          transform: isCompact && isOpen ? "rotate(90deg)" : "rotate(0deg)",
-                          transition: "transform 0.15s ease",
-                        }}
-                      />
-                    </button>
-                    {/* Mobile: acordeón — ítems del grupo visibles cuando está abierto */}
-                    {isCompact && isOpen && (
-                      <div style={{ paddingLeft: 8 }}>
-                        {item.children.map((child) => renderNavItem(child, true, view, navigate))}
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => { if (firstChild) navigate((firstChild.nav ?? firstChild.id) as View); }}
+                    aria-current={groupActive ? "page" : undefined}
+                    className="focus-ring-dark flex items-center px-3 h-8 mb-0.5 w-full text-left transition-colors"
+                    style={{
+                      background: groupActive ? "var(--shell-item-active-bg)" : "transparent",
+                      borderRadius: "var(--radius-nav)",
+                      fontSize: "var(--font-size-md)",
+                      fontWeight: groupActive ? 500 : 400,
+                      color: groupActive ? "var(--shell-label-active)" : "var(--shell-label-inactive)",
+                    }}
+                  >
+                    <span>{item.label}</span>
+                  </button>
                 );
               }
               // Leaf directo
@@ -982,64 +1028,13 @@ export default function App() {
           </aside>
         )}
 
-        {/* ── Nivel 3 — detalle del grupo activo (solo desktop, solo hub Sitios) ──
-            Se muestra cuando activeGroupId != null y el hub activo es Sitios.
-            En mobile el acordeón del Nivel 2 ya muestra los ítems inline. */}
-        {!isCompact && activeGroupId !== null && activeHub?.id === "sitios" && (() => {
-          const activeGroup = activeHub.children?.find((g) => g.id === activeGroupId);
-          if (!activeGroup?.children) return null;
-          return (
-            <aside
-              className="flex flex-col flex-shrink-0 overflow-y-auto"
-              style={{
-                background: "var(--shell-nav-bg)",
-                width: 192,
-                padding: "12px 8px 0",
-                borderLeft: "1px solid var(--shell-separator)",
-              }}
-            >
-              {/* Botón Volver — cierra el L3 con supresión de reapertura automática */}
-              <button
-                type="button"
-                onClick={closeLevel3}
-                aria-label="Volver al nivel anterior"
-                className="focus-ring-dark flex items-center gap-1 mb-2 px-3 h-7 w-full text-left transition-colors hover:opacity-80"
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  borderRadius: "var(--radius-nav)",
-                  fontSize: "var(--font-size-xs)",
-                  color: "var(--shell-label-inactive)",
-                  cursor: "pointer",
-                }}
-              >
-                <ChevronLeft size={12} aria-hidden="true" style={{ flexShrink: 0 }} />
-                <span>Volver</span>
-              </button>
-
-              {/* Header del grupo — mismo estilo que el header del Nivel 2 */}
-              <h2
-                style={{
-                  fontSize: "var(--font-size-xs)",
-                  fontWeight: 700,
-                  color: "var(--text-secondary)",
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  margin: 0,
-                  marginBottom: 8,
-                  paddingLeft: 12,
-                  paddingRight: 12,
-                }}
-              >
-                {activeGroup.label}
-              </h2>
-              {/* Ítems hoja del grupo */}
-              {activeGroup.children.map((child) => renderNavItem(child, false, view, navigate))}
-            </aside>
-          );
-        })()}
-
-        {/* ── Main content ── */}
+        {/* ── Contenido ── Envuelto en columna para poder anteponer la barra de tabs
+            del nivel profundo (SectionTabs) cuando la vista pertenece a una sección. */}
+        <div className="flex flex-col" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+          {sectionItems && sectionItems.length > 1 && (
+            <SectionTabs items={sectionItems} view={view} navigate={navigate} />
+          )}
+          <div className="flex" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
         {view === "interno"       && <InternoView navigate={navigate} />}
         {view === "dashboard"     && (
           <DashboardView
@@ -1102,6 +1097,8 @@ export default function App() {
         {view === "google-business"&& <GoogleBusinessView  siteName={activeSite?.name ?? ""} navigate={navigate} />}
         {view === "otas"           && <OTAsView            siteName={activeSite?.name ?? ""} navigate={navigate} />}
         {view === "email"          && <EmailMarketingView  siteName={activeSite?.name ?? ""} navigate={navigate} />}
+          </div>
+        </div>
       </div>
     </div>
 
