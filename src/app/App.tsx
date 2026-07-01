@@ -77,7 +77,7 @@ const initialSites: Site[] = [
  *   - Gris = para después (Perfiles OTAs, CRM, ADS) → deshabilitado en el nav.
  * ⚠ PROTOTIPO para la discusión de IA con Fernanda/Santi — pendiente card-sort de validación.
  */
-type SiteNavItem = { id?: string; label: string; addon?: boolean; disabled?: boolean; app?: boolean; subheader?: boolean; children?: SiteNavItem[] };
+type SiteNavItem = { id?: string; label: string; nav?: string; addon?: boolean; disabled?: boolean; app?: boolean; subheader?: boolean; children?: SiteNavItem[] };
 // Flat, centrado en Sitio (iteración diagrama 01-jul). Naranja del diagrama = "app con edición"
 // (abre el EDITOR compartido). Gris = para después. Fuera del nav pero accesibles vía navigate():
 // "info-sitio", "idioma", "versiones", "promociones", "propiedades", "discovery" (viven en el Editor/config).
@@ -87,22 +87,30 @@ const siteNav: SiteNavItem[] = [
   {
     id: "sitio", label: "Sitio", app: true,
     children: [
-      { id: "ai",        label: "Generador sitios IA" },
-      { id: "templates", label: "Plantillas" },
-      { id: "seo",       label: "SEO / GEO" },
-      { id: "blog",      label: "Blog" },
-      { id: "popups",    label: "Pop-ups" },
+      { id: "ai",          label: "Generador sitios IA" },
       { subheader: true, label: "Formatos (abren el Editor)" },
       { id: "fmt-onepage", label: "Sitio one-page", disabled: true },
       { id: "paginas",     label: "Sitio www" },
+      { subheader: true, label: "Contenido" },
+      { id: "templates",   label: "Plantillas" },
+      { id: "seo",         label: "SEO / GEO" },
+      { id: "blog",        label: "Blog" },
+      { id: "popups",      label: "Pop-ups" },
       { subheader: true, label: "Configuración" },
       { id: "integraciones", label: "Integración PX" },
       { id: "datos-basicos", label: "Datos del hotel" },
       { id: "dns",           label: "DNS", disabled: true },
     ],
   },
-  { id: "redes",           label: "Redes Sociales" },
-  { id: "linktree",        label: "Linktree", disabled: true },
+  {
+    id: "redes", label: "Redes Sociales", app: true,
+    children: [
+      { id: "linktree",  label: "Linktree", disabled: true },
+      { id: "instagram", label: "Instagram", nav: "redes" },
+      { id: "tiktok",    label: "TikTok",    nav: "redes" },
+      { id: "facebook",  label: "Facebook",  nav: "redes" },
+    ],
+  },
   { id: "google-business", label: "Google My Business" },
   { id: "otas",            label: "Perfiles OTAs", disabled: true },
   { id: "crm",             label: "CRM", disabled: true },
@@ -140,11 +148,12 @@ function renderNavItem(item: SiteNavItem, indent: boolean, view: View, navigate:
       </button>
     );
   }
-  const active = view === item.id;
+  const target = (item.nav ?? item.id) as View;
+  const active = view === target;
   return (
     <button
       key={item.id}
-      onClick={() => navigate(item.id as View)}
+      onClick={() => navigate(target)}
       aria-current={active ? "page" : undefined}
       className={`focus-ring-dark flex items-center justify-between ${padClass} h-8 mb-0.5 w-full text-left transition-colors`}
       style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
@@ -315,7 +324,7 @@ export default function App() {
   // Responsive: en pantallas <1024px el sidebar secundario se vuelve drawer abrible.
   const isCompact = useMediaQuery("(max-width: 1023px)");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [sitioOpen, setSitioOpen] = useState(false); // drill-in puro del hub "Sitio" (2do nivel)
+  const [openSection, setOpenSection] = useState<string | null>(null); // drill-in: id de la sección abierta (Sitio/Redes)
 
   // Cualquier modal abierto debe ocultar el shell del árbol de accesibilidad y de tab order.
   // Los modales se renderizan vía createPortal a document.body — quedan fuera de este ref.
@@ -610,34 +619,35 @@ export default function App() {
 
             {/* Nav de 2 niveles (drill-in puro): primer nivel = ítems top; al entrar
                 a "Sitio" se reemplaza por su 2do nivel + "← Volver". */}
-            {sitioOpen ? (
+            {openSection ? (
               (() => {
-                const sec = siteNav.find((i) => i.children);
+                const sec = siteNav.find((i) => i.id === openSection && i.children);
+                if (!sec) return null;
                 return (
                   <>
                     <button
                       type="button"
-                      onClick={() => setSitioOpen(false)}
+                      onClick={() => setOpenSection(null)}
                       className="focus-ring-dark flex items-center gap-1.5 px-3 h-8 mb-1 w-full text-left transition-colors"
                       style={{ background: "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: 500, color: "var(--shell-label-active)" }}
                     >
                       <ChevronRight size={14} aria-hidden="true" style={{ flexShrink: 0, transform: "rotate(180deg)" }} />
-                      <span>{sec?.label ?? "Volver"}</span>
+                      <span>{sec.label}</span>
                     </button>
                     <div className="mx-1 mb-1.5" style={{ height: 1, background: "var(--site-nav-separator)" }} />
-                    {sec?.children?.map((child) => renderNavItem(child, false, view, navigate))}
+                    {sec.children?.map((child) => renderNavItem(child, false, view, navigate))}
                   </>
                 );
               })()
             ) : (
               siteNav.map((item) => {
                 if (item.children) {
-                  const firstChild = item.children.find((c) => c.id && !c.disabled && !c.subheader)?.id;
+                  const first = item.children.find((c) => c.id && !c.disabled && !c.subheader);
                   return (
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => { setSitioOpen(true); if (firstChild) navigate(firstChild as View); }}
+                      onClick={() => { setOpenSection(item.id ?? null); if (first) navigate((first.nav ?? first.id) as View); }}
                       className="focus-ring-dark flex items-center justify-between px-3 h-8 mb-0.5 w-full text-left transition-colors"
                       style={{ background: "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: 500, color: "var(--shell-label-active)" }}
                     >
