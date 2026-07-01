@@ -488,11 +488,15 @@ export default function App() {
   // que ya tiene su empty state propio.
 
   // Hub activo y visibilidad de la 2da columna.
-  // A3: cualquier hub primario no-Dashboard muestra la 2da columna (con header del hub),
-  // así el layout no salta cuando el hub activo no tiene children.
-  // Dashboard queda sin 2da columna (es una vista global, no de sitio).
+  // Solo se muestra si el hub tiene sub-secciones (children) o el selector de sitios.
+  // Los hubs de vista única (Google Business, etc.) NO abren 2da columna: mostrarían
+  // una columna vacía con solo el header, que se lee como un nivel de más. Van full-width.
   const activeHub = hubs.find((h) => h.id === iconActive);
-  const showSideNav = !!(activeHub && activeHub.id !== "dashboard" && (activeHub.id !== "sitios" || hasSites));
+  const showSideNav = !!(
+    activeHub &&
+    (activeHub.children || activeHub.showSiteSwitcher) &&
+    (activeHub.id !== "sitios" || hasSites)
+  );
 
   // Cierra el nivel 3 (toggle del grupo activo o botón Volver). Como el effect de
   // sincronización nunca reabre un grupo por su cuenta, basta con limpiar el estado.
