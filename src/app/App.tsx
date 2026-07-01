@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
-import { LayoutGrid, Hotel, BarChart2, Bell, Building2, Rocket, Lock, Menu, Share2, MapPin, BedDouble, MessageSquare, Megaphone } from "lucide-react";
+import { LayoutGrid, Hotel, BarChart2, Bell, Building2, Rocket, Lock, Menu, Share2, MapPin, BedDouble, MessageSquare, Megaphone, ChevronRight } from "lucide-react";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import type { View, Site } from "./types";
 import { DashboardView } from "./components/DashboardView";
@@ -111,19 +111,24 @@ const hubs: Hub[] = [
     defaultView: "paginas",
     showSiteSwitcher: true,
     children: [
-      { id: "ai",          label: "Generador sitios IA" },
-      { subheader: true,   label: "Formatos (abren el Editor)" },
-      { id: "fmt-onepage", label: "Sitio one-page", disabled: true },
-      { id: "paginas",     label: "Sitio www" },
-      { subheader: true,   label: "Contenido" },
-      { id: "templates",   label: "Plantillas" },
-      { id: "seo",         label: "SEO / GEO" },
-      { id: "blog",        label: "Blog" },
-      { id: "popups",      label: "Pop-ups" },
-      { subheader: true,   label: "Configuración" },
-      { id: "integraciones", label: "Integración PX" },
-      { id: "datos-basicos", label: "Datos del hotel" },
-      { id: "dns",           label: "DNS", disabled: true },
+      // Leaf directo (sin grupo)
+      { id: "ai", label: "Generador sitios IA" },
+      // Grupos con children — actúan como agrupadores que abren el nivel 3
+      { id: "grp-formatos", label: "Formatos", children: [
+          { id: "fmt-onepage", label: "Sitio one-page", disabled: true },
+          { id: "paginas",     label: "Sitio www" },
+      ]},
+      { id: "grp-contenido", label: "Contenido", children: [
+          { id: "templates", label: "Plantillas" },
+          { id: "seo",       label: "SEO / GEO" },
+          { id: "blog",      label: "Blog" },
+          { id: "popups",    label: "Pop-ups" },
+      ]},
+      { id: "grp-config", label: "Configuración", children: [
+          { id: "integraciones", label: "Integración PX" },
+          { id: "datos-basicos", label: "Datos del hotel" },
+          { id: "dns",           label: "DNS", disabled: true },
+      ]},
     ],
   },
   {
@@ -262,7 +267,15 @@ export default function App() {
     return params.get("empty") === "true" ? [] : initialSites;
   });
   const [activeSiteId, setActiveSiteId] = useState<number>(initialSites[0]?.id ?? 0);
-  // navHovered eliminado en WEB-737 QA: el rail es expandido por defecto (A1), ya no colapsa.
+  // navHovered eliminado en WEB-737 QA. Reintroducido como railHovered para el peek del L1
+  // cuando hay un nivel 3 abierto (el rail colapsa a 48px y se expande al hover/focus).
+  const [railHovered, setRailHovered] = useState(false);
+
+  // activeGroupId: grupo activo en el nivel 2 del hub Sitios.
+  // null → no hay nivel 3 abierto (rail expandido 184px).
+  // "grp-formatos" | "grp-contenido" | "grp-config" → hay nivel 3.
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+
   // Demo del Wizard 1: ?wizard=true abre el modal de onboarding sobre el shell.
   const [wizardOpen, setWizardOpen] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -431,6 +444,36 @@ export default function App() {
     return () => { document.documentElement.lang = prev; };
   }, [activeLang]);
 
+  // Sincroniza activeGroupId con la vista activa: si la vista pertenece a un grupo
+  // del hub Sitios, abre ese grupo. Si es un leaf directo (ai) o no pertenece a
+  // ningún grupo, cierra el nivel 3. Así el deep-link y el back funcionan solos.
+  useEffect(() => {
+    if (iconActive !== "sitios") {
+      // Al cambiar de hub, cerramos el nivel 3 para que el rail vuelva a 184px.
+      setActiveGroupId(null);
+      return;
+    }
+    const sitiosHub = hubs.find((h) => h.id === "sitios");
+    if (!sitiosHub?.children) return;
+    let found: string | null = null;
+    for (const item of sitiosHub.children) {
+      if (item.children) {
+        // Es un grupo — buscar si la vista activa es uno de sus hijos
+        const match = item.children.find((child) => {
+          const target = (child.nav ?? child.id) as string;
+          return target === view;
+        });
+        if (match && item.id) {
+          found = item.id;
+          break;
+        }
+      }
+    }
+    // Solo actualizamos si cambia (evita loops con el setActiveGroupId del click)
+    setActiveGroupId((prev) => (prev !== found ? found : prev));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, iconActive]);
+
   // Datos del trial — TODO: cuando exista el endpoint de subscription, derivar
   // trialDay de (now - trialStartedAt) en días. Mientras, valor fijo de demo.
   const trialDay = 1;
@@ -450,7 +493,6 @@ export default function App() {
   const activeSite: Site | undefined = sites.find((s) => s.id === activeSiteId) ?? sites[0];
   // En site-context sin sitios no hay nada que mostrar — caemos al dashboard,
   // que ya tiene su empty state propio.
-  const siteContext = isSiteContext(view) && hasSites;
   const iconActive = getIconActive(view);
 
   // Hub activo y visibilidad de la 2da columna.
@@ -479,16 +521,29 @@ export default function App() {
 
   function handleIconNav(navId: string) {
     // Ítems secundarios del rail
-    if (navId === "interno") { navigate("interno"); return; }
+    if (navId === "interno") {
+      setActiveGroupId(null);
+      navigate("interno");
+      return;
+    }
     // Hubs primarios
     const hub = hubs.find((h) => h.id === navId);
     if (!hub || hub.disabled) return;
+    // Cambiar a un hub distinto de Sitios cierra el nivel 3 y expande el rail.
+    if (navId !== "sitios") setActiveGroupId(null);
     if (hub.defaultView) {
       navigate(hub.defaultView as View);
     } else if (hub.children) {
-      // Navegar al primer child navegable si no hay defaultView
-      const first = hub.children.find((c) => c.id && !c.disabled && !c.subheader);
-      if (first) navigate((first.nav ?? first.id) as View);
+      // Para hubs con grupos (Sitios), buscar el primer leaf navegable dentro del
+      // primer grupo, o el primer leaf directo.
+      const firstLeaf = hub.children.reduce<SiteNavItem | null>((acc, item) => {
+        if (acc) return acc;
+        if (item.children) {
+          return item.children.find((c) => c.id && !c.disabled) ?? null;
+        }
+        return (item.id && !item.disabled) ? item : null;
+      }, null);
+      if (firstLeaf) navigate((firstLeaf.nav ?? firstLeaf.id) as View);
     }
   }
 
@@ -557,28 +612,40 @@ export default function App() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* ── Rail de hubs — expandido por defecto (A1: labels siempre visibles) ── */}
-        {/* A1: ancho fijo 184px, sin colapsar. El hotelero no-tech ve los labels sin hover. */}
+        {/* ── Rail de hubs (Nivel 1) ────────────────────────────────────────────────
+            Desktop: expandido a 184px cuando NO hay nivel 3 abierto.
+            Con nivel 3 abierto: colapsa a 48px (solo íconos); al hover/focus-within
+            hace "peek" expandiendo a 184px temporalmente.
+            Mobile: el rail siempre está visible y expandido (el drawer cubre L2+L3). */}
         <aside
           className="flex flex-col pt-[10px] flex-shrink-0 overflow-hidden"
+          onMouseEnter={() => setRailHovered(true)}
+          onMouseLeave={() => setRailHovered(false)}
+          onFocus={() => setRailHovered(true)}
+          onBlur={() => setRailHovered(false)}
           style={{
             background: "var(--shell-icon-bg)",
-            width: 184,
+            // Colapsado a 48px (solo íconos) cuando hay L3 activo en desktop y no hay hover/foco.
+            // En mobile siempre expandido: el drawer ya overlay-ea el nav.
+            width: (!isCompact && activeGroupId !== null && !railHovered) ? 48 : 184,
+            transition: "width 0.18s ease",
             zIndex: 10,
           }}
         >
           {/* ── Hubs primarios (nivel 1) ── */}
           {hubs.map(({ id, Icon, label, disabled }) => {
             const active = iconActive === id;
+            // Rail colapsado: ocultamos labels visualmente pero los conservamos para SR.
+            const labelsVisible = isCompact || activeGroupId === null || railHovered;
             if (disabled) {
               return (
-                // M4: hubs disabled muestran ícono Lock + "· próx." legible con rail expandido.
-                // aria-disabled correcto para lectores de pantalla.
+                // M4: hubs disabled muestran ícono Lock + "· próx." cuando el rail está expandido.
                 <button
                   key={id}
                   type="button"
                   disabled
                   aria-disabled="true"
+                  aria-label={label}
                   title="Próximamente"
                   className="focus-ring-dark flex items-center justify-between mb-1 mx-1.5 cursor-not-allowed"
                   style={{ height: 36, paddingLeft: 10, paddingRight: 10, gap: 10, background: "transparent", borderRadius: "var(--radius-icon)", border: "1.5px solid transparent" }}
@@ -586,16 +653,26 @@ export default function App() {
                   <span className="flex items-center gap-[10px] min-w-0">
                     <Icon size={15} style={{ color: "var(--shell-label-muted)", flexShrink: 0 }} />
                     <span
+                      aria-hidden="true"
                       className="whitespace-nowrap truncate"
-                      style={{ fontSize: "var(--font-size-md)", color: "var(--shell-label-muted)" }}
+                      style={{
+                        fontSize: "var(--font-size-md)",
+                        color: "var(--shell-label-muted)",
+                        opacity: labelsVisible ? 1 : 0,
+                        transition: "opacity 0.15s ease",
+                        overflow: "hidden",
+                        whiteSpace: "nowrap",
+                      }}
                     >
                       {label}
                     </span>
                   </span>
-                  <span className="flex items-center gap-1 flex-shrink-0" aria-hidden="true">
-                    <span style={{ fontSize: "var(--font-size-xs)", color: "var(--shell-label-muted)" }}>· próx.</span>
-                    <Lock size={11} style={{ color: "var(--shell-label-muted)" }} />
-                  </span>
+                  {labelsVisible && (
+                    <span className="flex items-center gap-1 flex-shrink-0" aria-hidden="true">
+                      <span style={{ fontSize: "var(--font-size-xs)", color: "var(--shell-label-muted)" }}>· próx.</span>
+                      <Lock size={11} style={{ color: "var(--shell-label-muted)" }} />
+                    </span>
+                  )}
                 </button>
               );
             }
@@ -604,6 +681,7 @@ export default function App() {
                 key={id}
                 onClick={() => handleIconNav(id)}
                 aria-current={active ? "page" : undefined}
+                aria-label={label}
                 className="focus-ring-dark flex items-center mb-1 mx-1.5 transition-colors"
                 style={{
                   height: 36,
@@ -618,11 +696,16 @@ export default function App() {
               >
                 <Icon size={15} style={{ color: active ? "var(--shell-icon-active)" : "var(--shell-icon-inactive)", flexShrink: 0 }} />
                 <span
+                  aria-hidden="true"
                   className="whitespace-nowrap truncate"
                   style={{
                     fontSize: "var(--font-size-md)",
                     fontWeight: active ? 500 : 400,
                     color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)",
+                    opacity: labelsVisible ? 1 : 0,
+                    transition: "opacity 0.15s ease",
+                    overflow: "hidden",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {label}
@@ -636,11 +719,13 @@ export default function App() {
 
           {railSecondary.map(({ id, Icon, label }) => {
             const active = iconActive === id;
+            const labelsVisible = isCompact || activeGroupId === null || railHovered;
             return (
               <button
                 key={id}
                 onClick={() => handleIconNav(id)}
                 aria-current={active ? "page" : undefined}
+                aria-label={label}
                 className="focus-ring-dark flex items-center mb-1 mx-1.5 transition-colors"
                 style={{
                   height: 36,
@@ -655,11 +740,16 @@ export default function App() {
               >
                 <Icon size={15} style={{ color: active ? "var(--shell-icon-active)" : "var(--shell-icon-inactive)", flexShrink: 0 }} />
                 <span
+                  aria-hidden="true"
                   className="whitespace-nowrap truncate"
                   style={{
                     fontSize: "var(--font-size-md)",
                     fontWeight: active ? 500 : 400,
                     color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)",
+                    opacity: labelsVisible ? 1 : 0,
+                    transition: "opacity 0.15s ease",
+                    overflow: "hidden",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {label}
@@ -668,28 +758,44 @@ export default function App() {
             );
           })}
 
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            title="Próximamente"
-            className="focus-ring-dark flex items-center justify-between mx-1.5 cursor-not-allowed"
-            style={{ height: 36, paddingLeft: 10, paddingRight: 10, gap: 10, background: "transparent", borderRadius: "var(--radius-icon)", border: "1.5px solid transparent" }}
-          >
-            <span className="flex items-center gap-[10px] min-w-0">
-              <BarChart2 size={15} style={{ color: "var(--shell-label-muted)", flexShrink: 0 }} />
-              <span
-                className="whitespace-nowrap truncate"
-                style={{ fontSize: "var(--font-size-md)", color: "var(--shell-label-muted)" }}
+          {(() => {
+            const labelsVisible = isCompact || activeGroupId === null || railHovered;
+            return (
+              <button
+                type="button"
+                disabled
+                aria-disabled="true"
+                aria-label="Métricas"
+                title="Próximamente"
+                className="focus-ring-dark flex items-center justify-between mx-1.5 cursor-not-allowed"
+                style={{ height: 36, paddingLeft: 10, paddingRight: 10, gap: 10, background: "transparent", borderRadius: "var(--radius-icon)", border: "1.5px solid transparent" }}
               >
-                Métricas
-              </span>
-            </span>
-            <span className="flex items-center gap-1 flex-shrink-0" aria-hidden="true">
-              <span style={{ fontSize: "var(--font-size-xs)", color: "var(--shell-label-muted)" }}>· próx.</span>
-              <Lock size={11} style={{ color: "var(--shell-label-muted)" }} />
-            </span>
-          </button>
+                <span className="flex items-center gap-[10px] min-w-0">
+                  <BarChart2 size={15} style={{ color: "var(--shell-label-muted)", flexShrink: 0 }} />
+                  <span
+                    aria-hidden="true"
+                    className="whitespace-nowrap truncate"
+                    style={{
+                      fontSize: "var(--font-size-md)",
+                      color: "var(--shell-label-muted)",
+                      opacity: labelsVisible ? 1 : 0,
+                      transition: "opacity 0.15s ease",
+                      overflow: "hidden",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Métricas
+                  </span>
+                </span>
+                {labelsVisible && (
+                  <span className="flex items-center gap-1 flex-shrink-0" aria-hidden="true">
+                    <span style={{ fontSize: "var(--font-size-xs)", color: "var(--shell-label-muted)" }}>· próx.</span>
+                    <Lock size={11} style={{ color: "var(--shell-label-muted)" }} />
+                  </span>
+                )}
+              </button>
+            );
+          })()}
 
           {/* Spacer */}
           <div className="flex-1" />
@@ -697,31 +803,41 @@ export default function App() {
           {/* Actualizar plan */}
           <div className="mx-1.5 mb-3">
             <div className="mx-2 mb-2" style={{ height: 1, background: "var(--shell-separator)" }} />
-            <button
-              aria-label="Actualizar plan"
-              className="focus-ring-dark flex items-center w-full overflow-hidden transition-opacity hover:opacity-85"
-              style={{
-                height: 36,
-                paddingLeft: 10,
-                gap: 10,
-                background: "var(--brand)",
-                borderRadius: "var(--radius-icon)",
-                border: "none",
-                minWidth: 0,
-              }}
-            >
-              <Rocket size={14} style={{ color: "var(--shell-label-active)", flexShrink: 0 }} />
-              <span
-                className="whitespace-nowrap truncate"
-                style={{
-                  fontSize: "var(--font-size-md)",
-                  fontWeight: 500,
-                  color: "var(--shell-label-active)",
-                }}
-              >
-                Actualizar plan
-              </span>
-            </button>
+            {(() => {
+              const labelsVisible = isCompact || activeGroupId === null || railHovered;
+              return (
+                <button
+                  aria-label="Actualizar plan"
+                  className="focus-ring-dark flex items-center w-full overflow-hidden transition-opacity hover:opacity-85"
+                  style={{
+                    height: 36,
+                    paddingLeft: 10,
+                    gap: 10,
+                    background: "var(--brand)",
+                    borderRadius: "var(--radius-icon)",
+                    border: "none",
+                    minWidth: 0,
+                  }}
+                >
+                  <Rocket size={14} style={{ color: "var(--shell-label-active)", flexShrink: 0 }} />
+                  <span
+                    aria-hidden="true"
+                    className="whitespace-nowrap truncate"
+                    style={{
+                      fontSize: "var(--font-size-md)",
+                      fontWeight: 500,
+                      color: "var(--shell-label-active)",
+                      opacity: labelsVisible ? 1 : 0,
+                      transition: "opacity 0.15s ease",
+                      overflow: "hidden",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Actualizar plan
+                  </span>
+                </button>
+              );
+            })()}
           </div>
         </aside>
 
@@ -742,10 +858,12 @@ export default function App() {
           />
         )}
 
-        {/* ── 2da columna — sub-nav del hub activo ── */}
-        {/* A3: visible para cualquier hub primario no-Dashboard.
-            Si el hub no tiene children muestra solo el header del hub
-            para que el layout no salte y el hotelero siempre tenga orientación. */}
+        {/* ── Nivel 2 — sub-nav del hub activo ────────────────────────────────────
+            Desktop: columna fija a la derecha del rail.
+            Mobile: drawer deslizable (position fixed, overlay del rail).
+            Si el hub activo tiene grupos (Sitios), cada grupo se renderiza como
+            fila de grupo con chevron. Al hacer click abre el Nivel 3.
+            En mobile, los grupos se expanden como acordeón inline. */}
         {showSideNav && (
           <aside
             className="flex flex-col flex-shrink-0 overflow-y-auto"
@@ -767,10 +885,9 @@ export default function App() {
                 : {}),
             }}
           >
-            {/* A3: header del hub activo — jerarquía semántica con <h2> */}
+            {/* Header del hub activo — <h2> para jerarquía semántica */}
             {activeHub && (
               <h2
-                className="px-3 mb-2"
                 style={{
                   fontSize: "var(--font-size-xs)",
                   fontWeight: 700,
@@ -787,22 +904,118 @@ export default function App() {
               </h2>
             )}
 
-            {/* Selector de sitio activo — solo para el hub Sitios (el h2 "Sitios" ya titula la sección) */}
+            {/* Selector de sitio activo — solo hub Sitios */}
             {activeHub?.showSiteSwitcher && (
-              <>
-                <SiteSwitcher
-                  sites={sites}
-                  activeSiteId={activeSiteId}
-                  onSelect={(id) => setActiveSiteId(id)}
-                  onSeeAll={() => navigate("mis-sitios")}
-                />
-              </>
+              <SiteSwitcher
+                sites={sites}
+                activeSiteId={activeSiteId}
+                onSelect={(id) => setActiveSiteId(id)}
+                onSeeAll={() => navigate("mis-sitios")}
+              />
             )}
 
-            {/* Sub-nav del hub activo: plano (sin drill-in), con subheaders */}
-            {activeHub?.children?.map((item) => renderNavItem(item, false, view, navigate))}
+            {/* Items del nivel 2.
+                Si el item tiene children → es un GRUPO: renderizar como fila de grupo.
+                  Desktop: click abre el Nivel 3.
+                  Mobile: click expande el acordeón inline mostrando los hijos.
+                Si no tiene children → leaf: renderNavItem como siempre. */}
+            {activeHub?.children?.map((item) => {
+              if (item.children) {
+                // Ítem de grupo
+                const isOpen = activeGroupId === item.id;
+                return (
+                  <div key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!item.id) return;
+                        // Al abrir un grupo: seteamos activeGroupId y navegamos al
+                        // primer hijo no-disabled para que el contenido sea coherente.
+                        const firstChild = item.children!.find((c) => c.id && !c.disabled);
+                        if (isOpen && !isCompact) {
+                          // En desktop, click en grupo ya abierto no lo cierra (L3 queda visible).
+                          // En mobile, actúa como toggle de acordeón.
+                        } else {
+                          setActiveGroupId(item.id);
+                          if (firstChild) navigate((firstChild.nav ?? firstChild.id) as View);
+                        }
+                      }}
+                      aria-expanded={isOpen}
+                      aria-label={item.label}
+                      className="focus-ring-dark flex items-center justify-between px-3 h-8 mb-0.5 w-full text-left transition-colors"
+                      style={{
+                        background: isOpen ? "var(--shell-item-active-bg)" : "transparent",
+                        borderRadius: "var(--radius-nav)",
+                        fontSize: "var(--font-size-md)",
+                        fontWeight: isOpen ? 500 : 400,
+                        color: isOpen ? "var(--shell-label-active)" : "var(--shell-label-inactive)",
+                      }}
+                    >
+                      <span>{item.label}</span>
+                      <ChevronRight
+                        size={13}
+                        aria-hidden="true"
+                        style={{
+                          color: isOpen ? "var(--shell-label-active)" : "var(--shell-label-inactive)",
+                          flexShrink: 0,
+                          // En mobile rota el chevron para indicar acordeón.
+                          transform: isCompact && isOpen ? "rotate(90deg)" : "rotate(0deg)",
+                          transition: "transform 0.15s ease",
+                        }}
+                      />
+                    </button>
+                    {/* Mobile: acordeón — ítems del grupo visibles cuando está abierto */}
+                    {isCompact && isOpen && (
+                      <div style={{ paddingLeft: 8 }}>
+                        {item.children.map((child) => renderNavItem(child, true, view, navigate))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              // Leaf directo
+              return renderNavItem(item, false, view, navigate);
+            })}
           </aside>
         )}
+
+        {/* ── Nivel 3 — detalle del grupo activo (solo desktop, solo hub Sitios) ──
+            Se muestra cuando activeGroupId != null y el hub activo es Sitios.
+            En mobile el acordeón del Nivel 2 ya muestra los ítems. */}
+        {!isCompact && activeGroupId !== null && activeHub?.id === "sitios" && (() => {
+          const activeGroup = activeHub.children?.find((g) => g.id === activeGroupId);
+          if (!activeGroup?.children) return null;
+          return (
+            <aside
+              className="flex flex-col flex-shrink-0 overflow-y-auto"
+              style={{
+                background: "var(--shell-nav-bg)",
+                width: 192,
+                padding: "12px 8px 0",
+                borderLeft: "1px solid var(--shell-separator)",
+              }}
+            >
+              {/* Header del grupo — mismo estilo que el header del Nivel 2 */}
+              <h2
+                style={{
+                  fontSize: "var(--font-size-xs)",
+                  fontWeight: 700,
+                  color: "var(--text-secondary)",
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  margin: 0,
+                  marginBottom: 8,
+                  paddingLeft: 12,
+                  paddingRight: 12,
+                }}
+              >
+                {activeGroup.label}
+              </h2>
+              {/* Ítems hoja del grupo */}
+              {activeGroup.children.map((child) => renderNavItem(child, false, view, navigate))}
+            </aside>
+          );
+        })()}
 
         {/* ── Main content ── */}
         {view === "interno"       && <InternoView navigate={navigate} />}
