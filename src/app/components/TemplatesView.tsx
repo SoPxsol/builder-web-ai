@@ -182,7 +182,6 @@ export function TemplatesView({ navigate, openWizard }: Props) {
               <img
                 src={HERO_IMG}
                 alt="Plantilla Premium Hotel"
-                fetchPriority="high"
                 decoding="async"
                 style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
               />
