@@ -25,7 +25,9 @@ export type View =
   | "redes"
   | "google-business"
   | "otas"
-  | "email";
+  | "email"
+  | "resenas"
+  | "ads";
 
 export interface Site {
   id: number;

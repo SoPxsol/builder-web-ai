@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
-import { LayoutGrid, Hotel, BarChart2, Bell, Building2, Rocket, Lock, Menu } from "lucide-react";
+import { LayoutGrid, Hotel, BarChart2, Bell, Building2, Rocket, Lock, Menu, Share2, MapPin, BedDouble, MessageSquare, Megaphone } from "lucide-react";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import type { View, Site } from "./types";
 import { DashboardView } from "./components/DashboardView";
@@ -68,63 +68,309 @@ const initialSites: Site[] = [
 ];
 
 
-// Group 1: contenido y creación (más usado).
-// AI vive acá porque es una herramienta de creación de contenido (genera copy
-// para páginas, posts y respuestas a reseñas), no una opción de configuración.
-const siteNavPrimary = [
-  { id: "paginas",     label: "Páginas",        addon: false, disabled: false },
-  { id: "blog",        label: "Blog",           addon: false, disabled: false },
-  { id: "popups",      label: "Pop-ups",        addon: false, disabled: false },
-  { id: "promociones", label: "Promociones",    addon: false, disabled: false },
-  { id: "ai",             label: "AI",              addon: false, disabled: false },
-  { id: "redes",          label: "Redes Sociales",  addon: true,  disabled: false },
-  { id: "google-business",label: "Google Business", addon: true,  disabled: false },
-  { id: "otas",           label: "OTAs / Booking",  addon: true,  disabled: false },
-  { id: "email",          label: "Email Marketing", addon: true,  disabled: false },
-] as const;
-
 /**
- * Configuración del sitio — dividida en 3 sub-grupos con dividers internos.
- * El orden refleja el flujo natural: identifico el hotel → me hago visible
- * en buscadores → conecto sistemas externos.
- *
- * Items removidos del nav (siguen accesibles vía navigate()):
- * - "discovery": redundante con "seo" (SEO & GEO ya cubre LLMs).
- * - "multilenguaje": ahora vive como sección dentro de "Idiomas" (id "idioma").
+ * Menú interno — ARQUITECTURA CONCEPTUAL del producto (WEB-737, iteración 01-jul).
+ * Modelo flat centrado en Sitio: la app "Sitio" contiene su edición (Generador IA,
+ * Plantillas, SEO/GEO, Blog, Popups, Formatos que abren el Editor, Configuración);
+ * el resto son canales hermanos (Redes+Linktree, Google My Business, Perfiles OTAs, CRM, ADS).
+ *   - Naranja del diagrama = "app con edición" (abre el Editor compartido).
+ *   - Gris = para después (Perfiles OTAs, CRM, ADS) → deshabilitado en el nav.
+ * ⚠ PROTOTIPO para la discusión de IA con Fernanda/Santi — pendiente card-sort de validación.
  */
-const siteNavIdentity = [
-  { id: "info-sitio",    label: "Información del sitio",    disabled: false },
-  { id: "datos-basicos", label: "Datos del hotel",          disabled: false },
-  { id: "propiedades",   label: "Habitaciones y servicios", disabled: false },
-  { id: "idioma",        label: "Idiomas",                  disabled: false },
-] as const;
+type SiteNavItem = { id?: string; label: string; nav?: string; addon?: boolean; disabled?: boolean; app?: boolean; subheader?: boolean; children?: SiteNavItem[] };
 
-const siteNavVisibility = [
-  { id: "seo",           label: "SEO & GEO",                disabled: false },
-] as const;
+/** Hub del rail (nivel 1). `defaultView` = vista a la que navega el clic en el hub.
+ *  `children` = sub-nav que aparece en la 2da columna cuando el hub está activo.
+ *  Sin children → la 2da columna muestra solo el header del hub (sin saltar el layout). */
+type Hub = {
+  id: string;
+  label: string;
+  Icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  defaultView?: View;
+  children?: SiteNavItem[];
+  disabled?: boolean;
+  /** Si true, muestra el selector de sitio activo en la 2da columna */
+  showSiteSwitcher?: boolean;
+};
 
-const siteNavConnections = [
-  { id: "integraciones", label: "Integraciones",            disabled: false },
-] as const;
-
-// Group 3: histórico
-const siteNavBottom = [
-  { id: "versiones", label: "Versiones", badge: null, disabled: false },
-] as const;
-
-const iconNavItems = [
-  { id: "dashboard", Icon: LayoutGrid, label: "Dashboard", views: ["dashboard", "onboarding"] as View[] },
-  { id: "hotel",     Icon: Hotel,      label: "Mis Sitios", views: ["mis-sitios", "paginas", "editor", "seo", "blog"] as View[] },
-  { id: "interno",   Icon: Building2,  label: "Interno",    views: ["interno"] as View[] },
+// ── Hubs primarios del rail (nivel 1) ────────────────────────────────────────
+// Iteración 01-jul (WEB-737): cada hub expone su sub-nav en la 2da columna.
+// Hubs grises = "Próximamente" (disabled).
+const hubs: Hub[] = [
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    Icon: LayoutGrid,
+    defaultView: "dashboard",
+    // Sin children → no abre 2da columna
+  },
+  {
+    id: "sitios",
+    label: "Sitios",
+    Icon: Hotel,
+    defaultView: "paginas",
+    showSiteSwitcher: true,
+    children: [
+      // Leaf directo (sin grupo)
+      { id: "ai", label: "Generador sitios IA" },
+      // Grupos con children — actúan como agrupadores que abren el nivel 3
+      { id: "grp-formatos", label: "Formatos", children: [
+          { id: "fmt-onepage", label: "Sitio one-page", disabled: true },
+          { id: "paginas",     label: "Sitio www" },
+      ]},
+      { id: "grp-contenido", label: "Contenido", children: [
+          { id: "templates", label: "Plantillas" },
+          { id: "seo",       label: "SEO / GEO" },
+          { id: "blog",      label: "Blog" },
+          { id: "popups",    label: "Pop-ups" },
+      ]},
+      { id: "grp-config", label: "Configuración", children: [
+          { id: "integraciones", label: "Integración PX" },
+          { id: "datos-basicos", label: "Datos del hotel" },
+          { id: "dns",           label: "DNS", disabled: true },
+      ]},
+    ],
+  },
+  {
+    id: "redes",
+    label: "Redes Sociales",
+    Icon: Share2,
+    defaultView: "redes",
+    // Instagram/TikTok/Facebook son tabs internas de RedesSocialesView (no 2da columna).
+    // Sin children → vista única, como Google Business.
+  },
+  {
+    id: "gmb",
+    label: "Google Business",
+    Icon: MapPin,
+    defaultView: "google-business",
+    // Sin children → no abre 2da columna
+  },
+  {
+    id: "perfiles",
+    label: "Perfiles OTAs",
+    Icon: BedDouble,
+    defaultView: "otas",
+    disabled: true,
+  },
+  {
+    id: "crm",
+    label: "CRM",
+    Icon: MessageSquare,
+    disabled: true,
+    children: [
+      { id: "resenas",  label: "Reseñas",          nav: "resenas",  disabled: true },
+      { id: "email",    label: "Email Marketing",   nav: "email",    disabled: true },
+    ],
+  },
+  {
+    id: "ads",
+    label: "ADS",
+    Icon: Megaphone,
+    defaultView: "ads",
+    disabled: true,
+  },
 ];
 
+/** Render de un item hoja del nav. `indent` para las herramientas anidadas dentro de una app. */
+function renderNavItem(item: SiteNavItem, indent: boolean, view: View, navigate: (v: View) => void) {
+  const padClass = indent ? "pl-6 pr-3" : "px-3";
+  if (item.subheader) {
+    return (
+      <span
+        key={item.label}
+        className={`block ${indent ? "px-6" : "px-3"} mt-2 mb-0.5 uppercase tracking-wider`}
+        style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--site-nav-add)", letterSpacing: "0.06em" }}
+      >
+        {item.label}
+      </span>
+    );
+  }
+  if (item.disabled) {
+    const tooltip = item.addon ? "Disponible como módulo adicional" : "Próximamente";
+    return (
+      <button
+        key={item.id}
+        type="button"
+        disabled
+        aria-disabled="true"
+        title={tooltip}
+        className={`focus-ring-dark flex items-center justify-between ${padClass} h-8 mb-0.5 w-full text-left cursor-not-allowed`}
+        style={{ background: "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", color: "var(--shell-label-inactive)" }}
+      >
+        <span>{item.label}</span>
+        {item.addon && <Lock size={11} aria-hidden="true" style={{ color: "var(--site-nav-add)", flexShrink: 0 }} />}
+      </button>
+    );
+  }
+  const target = (item.nav ?? item.id) as View;
+  // M2: si el item es un "lanzador" (nav apunta a otra vista, no a su propio id),
+  // no lo marcamos activo — así IG/TikTok/Facebook no se resaltan los 3 a la vez.
+  const isLauncher = item.nav != null && item.nav !== item.id;
+  const active = !isLauncher && view === target;
+  return (
+    <button
+      key={item.id}
+      onClick={() => navigate(target)}
+      aria-current={active ? "page" : undefined}
+      className={`focus-ring-dark flex items-center justify-between ${padClass} h-8 mb-0.5 w-full text-left transition-colors`}
+      style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
+    >
+      <span>{item.label}</span>
+    </button>
+  );
+}
+
+// ── Secciones con tabs ───────────────────────────────────────────────────────
+// Los grupos del hub Sitios (Formatos, Contenido, Configuración) exponen sus ítems
+// como TABS en el contenido (no como un 3er nivel de columna), para unificar el
+// patrón con Redes Sociales y la Suite SEO/GEO.
+const SITIOS_SECTIONS: SiteNavItem[] =
+  (hubs.find((h) => h.id === "sitios")?.children ?? []).filter((c) => c.children);
+
+/** Devuelve los ítems (tabs) de la sección del hub Sitios que contiene la vista, o null. */
+function findSectionItems(view: View): SiteNavItem[] | null {
+  const sec = SITIOS_SECTIONS.find((s) => s.children!.some((c) => ((c.nav ?? c.id) as string) === view));
+  return sec?.children ?? null;
+}
+
+/**
+ * Barra de tabs del nivel más profundo, renderizada arriba del contenido.
+ * role="tablist" accesible con navegación por flechas (mismo patrón que la Suite SEO/GEO).
+ */
+function SectionTabs({
+  items,
+  view,
+  navigate,
+}: {
+  items: SiteNavItem[];
+  view: View;
+  navigate: (v: View) => void;
+}) {
+  const tablistRef = useRef<HTMLDivElement>(null);
+
+  function onKeyDown(e: React.KeyboardEvent, idx: number) {
+    const tabs = tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]:not([disabled])');
+    if (!tabs || tabs.length === 0) return;
+    const enabled = Array.from(tabs);
+    const currentPos = enabled.findIndex((t) => t === e.currentTarget);
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      enabled[(currentPos + 1) % enabled.length].focus();
+      enabled[(currentPos + 1) % enabled.length].click();
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      const prev = (currentPos - 1 + enabled.length) % enabled.length;
+      enabled[prev].focus();
+      enabled[prev].click();
+    }
+  }
+
+  return (
+    <div
+      style={{
+        background: "var(--surface-card)",
+        borderBottom: "0.5px solid var(--border-ui)",
+        padding: "0 var(--space-5)",
+        flexShrink: 0,
+      }}
+    >
+      <div
+        ref={tablistRef}
+        role="tablist"
+        aria-label="Secciones"
+        className="flex items-center gap-1 overflow-x-auto"
+        style={{ scrollbarWidth: "none" }}
+      >
+        {items.map((item, idx) => {
+          const target = (item.nav ?? item.id) as View;
+          const isActive = ((item.nav ?? item.id) as string) === view;
+          if (item.disabled) {
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                disabled
+                aria-disabled="true"
+                title="Próximamente"
+                className="flex items-center gap-2 whitespace-nowrap cursor-not-allowed"
+                style={{
+                  padding: "11px 12px",
+                  fontSize: "var(--font-size-sm)",
+                  fontWeight: 400,
+                  color: "var(--text-tertiary)",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: "2px solid transparent",
+                  flexShrink: 0,
+                }}
+              >
+                {item.label}
+                <Lock size={11} aria-hidden="true" style={{ flexShrink: 0 }} />
+              </button>
+            );
+          }
+          return (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
+              onClick={() => navigate(target)}
+              onKeyDown={(e) => onKeyDown(e, idx)}
+              className="flex items-center gap-2 whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-all"
+              style={{
+                padding: "11px 12px",
+                fontSize: "var(--font-size-sm)",
+                fontWeight: isActive ? 600 : 400,
+                color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
+                background: "transparent",
+                border: "none",
+                borderBottom: isActive ? "2px solid var(--brand)" : "2px solid transparent",
+                cursor: "pointer",
+                outlineColor: "var(--ring)",
+                flexShrink: 0,
+              }}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Ítems secundarios del rail (abajo del divider, fuera de los 7 hubs) ──────
+const railSecondary = [
+  { id: "interno",  Icon: Building2, label: "Interno" },
+];
+
+/** Mapea la vista activa al id del hub del rail que debe mostrarse activo. */
 function getIconActive(view: View): string {
-  if (SITE_VIEWS.includes(view) || view === "mis-sitios") return "hotel";
+  // Hub Sitios
+  if (["ai", "paginas", "editor", "info-sitio", "seo", "discovery", "datos-basicos",
+       "versiones", "blog", "popups", "promociones", "idioma", "multilenguaje",
+       "propiedades", "integraciones", "templates", "mis-sitios"].includes(view)) return "sitios";
+  // Hub Redes Sociales
+  if (view === "redes") return "redes";
+  // Hub Google My Business
+  if (view === "google-business") return "gmb";
+  // Hub Perfiles
+  if (view === "otas") return "perfiles";
+  // Hub CRM
+  if (["email", "resenas"].includes(view)) return "crm";
+  // Hub ADS
+  if (view === "ads") return "ads";
+  // Interno (secundario)
   if (view === "interno") return "interno";
+  // Default: Dashboard
   return "dashboard";
 }
 
-const SITE_VIEWS: View[] = ["paginas", "editor", "info-sitio", "seo", "ai", "discovery", "datos-basicos", "versiones", "blog", "popups", "promociones", "idioma", "multilenguaje", "propiedades", "integraciones", "redes", "google-business", "otas", "email"];
+const SITE_VIEWS: View[] = ["paginas", "editor", "info-sitio", "seo", "ai", "discovery", "datos-basicos", "versiones", "blog", "popups", "promociones", "idioma", "multilenguaje", "propiedades", "integraciones", "redes", "google-business", "otas", "email", "resenas", "ads", "templates"];
 
 function isSiteContext(view: View): boolean {
   return SITE_VIEWS.includes(view);
@@ -139,7 +385,7 @@ export default function App() {
     return params.get("empty") === "true" ? [] : initialSites;
   });
   const [activeSiteId, setActiveSiteId] = useState<number>(initialSites[0]?.id ?? 0);
-  const [navHovered, setNavHovered] = useState(false);
+
   // Demo del Wizard 1: ?wizard=true abre el modal de onboarding sobre el shell.
   const [wizardOpen, setWizardOpen] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -273,6 +519,7 @@ export default function App() {
   // Responsive: en pantallas <1024px el sidebar secundario se vuelve drawer abrible.
   const isCompact = useMediaQuery("(max-width: 1023px)");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // openSection eliminado en WEB-737: el rail es nivel 1, la 2da col muestra los children del hub activo directo.
 
   // Cualquier modal abierto debe ocultar el shell del árbol de accesibilidad y de tab order.
   // Los modales se renderizan vía createPortal a document.body — quedan fuera de este ref.
@@ -307,6 +554,11 @@ export default function App() {
     return () => { document.documentElement.lang = prev; };
   }, [activeLang]);
 
+  // Mapea la vista activa al hub del rail. Se declara ACÁ (antes del useEffect de
+  // sincronización de grupos) porque ese effect lo usa en su array de dependencias:
+  // si se declarara más abajo, quedaría en la TDZ y el render tiraría ReferenceError.
+  const iconActive = getIconActive(view);
+
   // Datos del trial — TODO: cuando exista el endpoint de subscription, derivar
   // trialDay de (now - trialStartedAt) en días. Mientras, valor fijo de demo.
   const trialDay = 1;
@@ -326,8 +578,21 @@ export default function App() {
   const activeSite: Site | undefined = sites.find((s) => s.id === activeSiteId) ?? sites[0];
   // En site-context sin sitios no hay nada que mostrar — caemos al dashboard,
   // que ya tiene su empty state propio.
-  const siteContext = isSiteContext(view) && hasSites;
-  const iconActive = getIconActive(view);
+
+  // Hub activo y visibilidad de la 2da columna.
+  // Solo se muestra si el hub tiene sub-secciones (children) o el selector de sitios.
+  // Los hubs de vista única (Google Business, etc.) NO abren 2da columna: mostrarían
+  // una columna vacía con solo el header, que se lee como un nivel de más. Van full-width.
+  const activeHub = hubs.find((h) => h.id === iconActive);
+  const showSideNav = !!(
+    activeHub &&
+    (activeHub.children || activeHub.showSiteSwitcher) &&
+    (activeHub.id !== "sitios" || hasSites)
+  );
+
+  // Sección activa (grupo del hub Sitios que contiene la vista) → sus ítems se muestran
+  // como tabs arriba del contenido. null si la vista no pertenece a ninguna sección.
+  const sectionItems = findSectionItems(view);
 
   function navigate(v: View, siteId?: number) {
     // El editor de página se abre como modal full-screen, no como vista del shell.
@@ -347,9 +612,28 @@ export default function App() {
   }
 
   function handleIconNav(navId: string) {
-    if (navId === "dashboard") navigate("dashboard");
-    else if (navId === "hotel") navigate("mis-sitios");
-    else if (navId === "interno") navigate("interno");
+    // Ítems secundarios del rail
+    if (navId === "interno") {
+      navigate("interno");
+      return;
+    }
+    // Hubs primarios
+    const hub = hubs.find((h) => h.id === navId);
+    if (!hub || hub.disabled) return;
+    if (hub.defaultView) {
+      navigate(hub.defaultView as View);
+    } else if (hub.children) {
+      // Para hubs con grupos (Sitios), buscar el primer leaf navegable dentro del
+      // primer grupo, o el primer leaf directo.
+      const firstLeaf = hub.children.reduce<SiteNavItem | null>((acc, item) => {
+        if (acc) return acc;
+        if (item.children) {
+          return item.children.find((c) => c.id && !c.disabled) ?? null;
+        }
+        return (item.id && !item.disabled) ? item : null;
+      }, null);
+      if (firstLeaf) navigate((firstLeaf.nav ?? firstLeaf.id) as View);
+    }
   }
 
   return (
@@ -358,7 +642,7 @@ export default function App() {
       {/* ── Top bar ── */}
       <header className="flex items-center justify-between h-10 flex-shrink-0 px-3 border-b" style={{ background: "var(--surface-topbar)", borderColor: "var(--border-ui)" }}>
         <div className="flex items-center gap-2">
-          {isCompact && siteContext && (
+          {isCompact && showSideNav && (
             <button
               type="button"
               onClick={() => setMobileNavOpen((v) => !v)}
@@ -392,9 +676,19 @@ export default function App() {
             </button>
           )}
           <div className="w-5 h-5 flex-shrink-0" style={{ background: "var(--brand)", borderRadius: "var(--radius-dot)" }} />
+          {/* A2: nombre del sitio activo en la topbar — da orientación en cualquier hub */}
           <span className="whitespace-nowrap" style={{ fontSize: "var(--font-size-md)", fontWeight: 600, color: "var(--text-primary)" }}>
             PXSOL Web
           </span>
+          {activeSite && (
+            <span
+              className="whitespace-nowrap truncate"
+              style={{ fontSize: "var(--font-size-md)", fontWeight: 400, color: "var(--text-secondary)" }}
+              aria-label={`Sitio activo: ${activeSite.name}`}
+            >
+              · {activeSite.name}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 flex items-center justify-center" style={{ background: "var(--surface-page)", borderRadius: "var(--radius-icon)" }}>
@@ -407,30 +701,72 @@ export default function App() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* ── Icon sidebar (expands on hover to reveal labels) ── */}
+        {/* ── Rail de hubs (Nivel 1) ────────────────────────────────────────────────
+            Siempre expandido (184px) con los labels visibles. El nivel profundo se
+            resuelve con tabs en el contenido, así que el rail ya no colapsa. */}
         <aside
-          onMouseEnter={() => setNavHovered(true)}
-          onMouseLeave={() => setNavHovered(false)}
           className="flex flex-col pt-[10px] flex-shrink-0 overflow-hidden"
           style={{
             background: "var(--shell-icon-bg)",
-            width: navHovered ? 152 : 48,
-            transition: "width 0.2s ease",
+            width: 184,
             zIndex: 10,
           }}
         >
-          {iconNavItems.map(({ id, Icon, label }) => {
+          {/* ── Hubs primarios (nivel 1) ── */}
+          {hubs.map(({ id, Icon, label, disabled }) => {
             const active = iconActive === id;
+            // Rail colapsado: ocultamos labels visualmente pero los conservamos para SR.
+            const labelsVisible = true;
+            if (disabled) {
+              return (
+                // M4: hubs disabled muestran ícono Lock + "· próx." cuando el rail está expandido.
+                <button
+                  key={id}
+                  type="button"
+                  disabled
+                  aria-disabled="true"
+                  aria-label={label}
+                  title="Próximamente"
+                  className="focus-ring-dark flex items-center justify-between mb-1 mx-1.5 cursor-not-allowed"
+                  style={{ height: 36, paddingLeft: 10, paddingRight: 10, gap: 10, background: "transparent", borderRadius: "var(--radius-icon)", border: "1.5px solid transparent" }}
+                >
+                  <span className="flex items-center gap-[10px] min-w-0">
+                    <Icon size={15} style={{ color: "var(--shell-label-muted)", flexShrink: 0 }} />
+                    <span
+                      aria-hidden="true"
+                      className="whitespace-nowrap truncate"
+                      style={{
+                        fontSize: "var(--font-size-md)",
+                        color: "var(--shell-label-muted)",
+                        opacity: labelsVisible ? 1 : 0,
+                        transition: "opacity 0.15s ease",
+                        overflow: "hidden",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {label}
+                    </span>
+                  </span>
+                  {labelsVisible && (
+                    <span className="flex items-center gap-1 flex-shrink-0" aria-hidden="true">
+                      <span style={{ fontSize: "var(--font-size-xs)", color: "var(--shell-label-muted)" }}>· próx.</span>
+                      <Lock size={11} style={{ color: "var(--shell-label-muted)" }} />
+                    </span>
+                  )}
+                </button>
+              );
+            }
             return (
               <button
                 key={id}
                 onClick={() => handleIconNav(id)}
-                aria-label={label}
                 aria-current={active ? "page" : undefined}
+                aria-label={label}
                 className="focus-ring-dark flex items-center mb-1 mx-1.5 transition-colors"
                 style={{
                   height: 36,
                   paddingLeft: 10,
+                  paddingRight: 10,
                   gap: 10,
                   background: active ? "var(--shell-item-active-bg)" : "transparent",
                   border: active ? "1.5px solid var(--shell-item-active-border)" : "1.5px solid transparent",
@@ -440,13 +776,16 @@ export default function App() {
               >
                 <Icon size={15} style={{ color: active ? "var(--shell-icon-active)" : "var(--shell-icon-inactive)", flexShrink: 0 }} />
                 <span
-                  className="whitespace-nowrap"
+                  aria-hidden="true"
+                  className="whitespace-nowrap truncate"
                   style={{
                     fontSize: "var(--font-size-md)",
                     fontWeight: active ? 500 : 400,
                     color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)",
-                    opacity: navHovered ? 1 : 0,
-                    transition: navHovered ? "opacity 0.15s ease 0.08s" : "opacity 0.08s ease",
+                    opacity: labelsVisible ? 1 : 0,
+                    transition: "opacity 0.15s ease",
+                    overflow: "hidden",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {label}
@@ -455,29 +794,88 @@ export default function App() {
             );
           })}
 
+          {/* ── Divider + ítems secundarios (Interno, Métricas) ── */}
           <div className="mx-3 my-1" style={{ height: 1, background: "var(--shell-separator)" }} />
 
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            title="Próximamente"
-            className="focus-ring-dark flex items-center mx-1.5 cursor-not-allowed"
-            style={{ height: 36, paddingLeft: 10, gap: 10, background: "transparent", borderRadius: "var(--radius-icon)", border: "1.5px solid transparent" }}
-          >
-            <BarChart2 size={15} style={{ color: "var(--shell-label-muted)", flexShrink: 0 }} />
-            <span
-              className="whitespace-nowrap"
-              style={{
-                fontSize: "var(--font-size-md)",
-                color: "var(--shell-label-muted)",
-                opacity: navHovered ? 1 : 0,
-                transition: navHovered ? "opacity 0.15s ease 0.08s" : "opacity 0.08s ease",
-              }}
-            >
-              Métricas <span style={{ fontSize: "var(--font-size-xs)" }}>· próx.</span>
-            </span>
-          </button>
+          {railSecondary.map(({ id, Icon, label }) => {
+            const active = iconActive === id;
+            const labelsVisible = true;
+            return (
+              <button
+                key={id}
+                onClick={() => handleIconNav(id)}
+                aria-current={active ? "page" : undefined}
+                aria-label={label}
+                className="focus-ring-dark flex items-center mb-1 mx-1.5 transition-colors"
+                style={{
+                  height: 36,
+                  paddingLeft: 10,
+                  paddingRight: 10,
+                  gap: 10,
+                  background: active ? "var(--shell-item-active-bg)" : "transparent",
+                  border: active ? "1.5px solid var(--shell-item-active-border)" : "1.5px solid transparent",
+                  borderRadius: "var(--radius-icon)",
+                  minWidth: 0,
+                }}
+              >
+                <Icon size={15} style={{ color: active ? "var(--shell-icon-active)" : "var(--shell-icon-inactive)", flexShrink: 0 }} />
+                <span
+                  aria-hidden="true"
+                  className="whitespace-nowrap truncate"
+                  style={{
+                    fontSize: "var(--font-size-md)",
+                    fontWeight: active ? 500 : 400,
+                    color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)",
+                    opacity: labelsVisible ? 1 : 0,
+                    transition: "opacity 0.15s ease",
+                    overflow: "hidden",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {label}
+                </span>
+              </button>
+            );
+          })}
+
+          {(() => {
+            const labelsVisible = true;
+            return (
+              <button
+                type="button"
+                disabled
+                aria-disabled="true"
+                aria-label="Métricas"
+                title="Próximamente"
+                className="focus-ring-dark flex items-center justify-between mx-1.5 cursor-not-allowed"
+                style={{ height: 36, paddingLeft: 10, paddingRight: 10, gap: 10, background: "transparent", borderRadius: "var(--radius-icon)", border: "1.5px solid transparent" }}
+              >
+                <span className="flex items-center gap-[10px] min-w-0">
+                  <BarChart2 size={15} style={{ color: "var(--shell-label-muted)", flexShrink: 0 }} />
+                  <span
+                    aria-hidden="true"
+                    className="whitespace-nowrap truncate"
+                    style={{
+                      fontSize: "var(--font-size-md)",
+                      color: "var(--shell-label-muted)",
+                      opacity: labelsVisible ? 1 : 0,
+                      transition: "opacity 0.15s ease",
+                      overflow: "hidden",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Métricas
+                  </span>
+                </span>
+                {labelsVisible && (
+                  <span className="flex items-center gap-1 flex-shrink-0" aria-hidden="true">
+                    <span style={{ fontSize: "var(--font-size-xs)", color: "var(--shell-label-muted)" }}>· próx.</span>
+                    <Lock size={11} style={{ color: "var(--shell-label-muted)" }} />
+                  </span>
+                )}
+              </button>
+            );
+          })()}
 
           {/* Spacer */}
           <div className="flex-1" />
@@ -485,38 +883,46 @@ export default function App() {
           {/* Actualizar plan */}
           <div className="mx-1.5 mb-3">
             <div className="mx-2 mb-2" style={{ height: 1, background: "var(--shell-separator)" }} />
-            <button
-              aria-label="Actualizar plan"
-              className="focus-ring-dark flex items-center w-full overflow-hidden transition-opacity hover:opacity-85"
-              style={{
-                height: 36,
-                paddingLeft: 10,
-                gap: 10,
-                background: "var(--brand)",
-                borderRadius: "var(--radius-icon)",
-                border: "none",
-                minWidth: 0,
-              }}
-            >
-              <Rocket size={14} style={{ color: "var(--shell-label-active)", flexShrink: 0 }} />
-              <span
-                className="whitespace-nowrap"
-                style={{
-                  fontSize: "var(--font-size-md)",
-                  fontWeight: 500,
-                  color: "var(--shell-label-active)",
-                  opacity: navHovered ? 1 : 0,
-                  transition: navHovered ? "opacity 0.15s ease 0.08s" : "opacity 0.08s ease",
-                }}
-              >
-                Actualizar plan
-              </span>
-            </button>
+            {(() => {
+              const labelsVisible = true;
+              return (
+                <button
+                  aria-label="Actualizar plan"
+                  className="focus-ring-dark flex items-center w-full overflow-hidden transition-opacity hover:opacity-85"
+                  style={{
+                    height: 36,
+                    paddingLeft: 10,
+                    gap: 10,
+                    background: "var(--brand)",
+                    borderRadius: "var(--radius-icon)",
+                    border: "none",
+                    minWidth: 0,
+                  }}
+                >
+                  <Rocket size={14} style={{ color: "var(--shell-label-active)", flexShrink: 0 }} />
+                  <span
+                    aria-hidden="true"
+                    className="whitespace-nowrap truncate"
+                    style={{
+                      fontSize: "var(--font-size-md)",
+                      fontWeight: 500,
+                      color: "var(--shell-label-active)",
+                      opacity: labelsVisible ? 1 : 0,
+                      transition: "opacity 0.15s ease",
+                      overflow: "hidden",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Actualizar plan
+                  </span>
+                </button>
+              );
+            })()}
           </div>
         </aside>
 
         {/* Backdrop del drawer mobile */}
-        {isCompact && siteContext && mobileNavOpen && (
+        {isCompact && showSideNav && mobileNavOpen && (
           <div
             onClick={() => setMobileNavOpen(false)}
             aria-hidden="true"
@@ -532,8 +938,13 @@ export default function App() {
           />
         )}
 
-        {/* ── Secondary sidebar — site-context views only ── */}
-        {siteContext && (
+        {/* ── Nivel 2 — sub-nav del hub activo ────────────────────────────────────
+            Desktop: columna fija a la derecha del rail.
+            Mobile: drawer deslizable (position fixed, overlay del rail).
+            Si el hub activo tiene grupos (Sitios), cada grupo se renderiza como
+            fila de grupo con chevron. Al hacer click abre el Nivel 3.
+            En mobile, los grupos se expanden como acordeón inline. */}
+        {showSideNav && (
           <aside
             className="flex flex-col flex-shrink-0 overflow-y-auto"
             style={{
@@ -554,137 +965,76 @@ export default function App() {
                 : {}),
             }}
           >
-            {/* Site selector */}
-            <span className="uppercase tracking-wider px-1 mb-1.5" style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--site-nav-section)", letterSpacing: "0.06em" }}>
-              Sitio activo
-            </span>
-            <SiteSwitcher
-              sites={sites}
-              activeSiteId={activeSiteId}
-              onSelect={(id) => setActiveSiteId(id)}
-              onSeeAll={() => navigate("mis-sitios")}
-            />
+            {/* Header del hub activo — <h2> para jerarquía semántica */}
+            {activeHub && (
+              <h2
+                style={{
+                  fontSize: "var(--font-size-xs)",
+                  fontWeight: 700,
+                  color: "var(--text-secondary)",
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  margin: 0,
+                  marginBottom: 8,
+                  paddingLeft: 12,
+                  paddingRight: 12,
+                }}
+              >
+                {activeHub.label}
+              </h2>
+            )}
 
-            {/* Group 1: content tools */}
-            {siteNavPrimary.map((item) => {
-              if (item.disabled) {
-                const tooltip = item.addon
-                  ? "Disponible como módulo adicional"
-                  : "No disponible";
+            {/* Selector de sitio activo — solo hub Sitios */}
+            {activeHub?.showSiteSwitcher && (
+              <SiteSwitcher
+                sites={sites}
+                activeSiteId={activeSiteId}
+                onSelect={(id) => setActiveSiteId(id)}
+                onSeeAll={() => navigate("mis-sitios")}
+              />
+            )}
+
+            {/* Items del nivel 2.
+                Grupo (item.children) → fila de navegación; activa cuando la vista
+                pertenece al grupo. Sus ítems se muestran como TABS en el contenido
+                (unificado con Redes/SEO), no como 3er nivel de columna.
+                Leaf directo → renderNavItem como siempre. */}
+            {activeHub?.children?.map((item) => {
+              if (item.children) {
+                const groupActive = item.children.some((c) => ((c.nav ?? c.id) as string) === view);
+                const firstChild = item.children.find((c) => c.id && !c.disabled);
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    disabled
-                    aria-disabled="true"
-                    title={tooltip}
-                    className="focus-ring-dark flex items-center justify-between px-3 h-8 mb-0.5 w-full text-left cursor-not-allowed"
-                    style={{ background: "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", color: "var(--shell-label-inactive)" }}
+                    onClick={() => { if (firstChild) navigate((firstChild.nav ?? firstChild.id) as View); }}
+                    aria-current={groupActive ? "page" : undefined}
+                    className="focus-ring-dark flex items-center px-3 h-8 mb-0.5 w-full text-left transition-colors"
+                    style={{
+                      background: groupActive ? "var(--shell-item-active-bg)" : "transparent",
+                      borderRadius: "var(--radius-nav)",
+                      fontSize: "var(--font-size-md)",
+                      fontWeight: groupActive ? 500 : 400,
+                      color: groupActive ? "var(--shell-label-active)" : "var(--shell-label-inactive)",
+                    }}
                   >
                     <span>{item.label}</span>
-                    {item.addon && (
-                      <Lock
-                        size={11}
-                        aria-hidden="true"
-                        style={{ color: "var(--site-nav-add)", flexShrink: 0 }}
-                      />
-                    )}
                   </button>
                 );
               }
-              const active = view === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => navigate(item.id as View)}
-                  aria-current={active ? "page" : undefined}
-                  className="focus-ring-dark flex items-center justify-between px-3 h-8 mb-0.5 w-full text-left transition-colors"
-                  style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
-                >
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-
-            {/* Divider — fin del grupo contenido */}
-            <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
-
-            {/* Group 2A: Identidad del hotel */}
-            {siteNavIdentity.map((item) => {
-              const active = view === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => navigate(item.id as View)}
-                  aria-current={active ? "page" : undefined}
-                  className="focus-ring-dark w-full text-left px-3 h-8 mb-0.5 transition-colors"
-                  style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-
-            {/* Divider — entre Identidad y Visibilidad */}
-            <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
-
-            {/* Group 2B: Visibilidad */}
-            {siteNavVisibility.map((item) => {
-              const active = view === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => navigate(item.id as View)}
-                  aria-current={active ? "page" : undefined}
-                  className="focus-ring-dark w-full text-left px-3 h-8 mb-0.5 transition-colors"
-                  style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-
-            {/* Divider — entre Visibilidad y Conexiones */}
-            <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
-
-            {/* Group 2C: Conexiones */}
-            {siteNavConnections.map((item) => {
-              const active = view === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => navigate(item.id as View)}
-                  aria-current={active ? "page" : undefined}
-                  className="focus-ring-dark w-full text-left px-3 h-8 mb-0.5 transition-colors"
-                  style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-
-            {/* Divider — fin de configuración, antes de histórico */}
-            <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
-
-            {/* Group 3: versiones */}
-            {siteNavBottom.map((item) => {
-              const active = view === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => navigate(item.id as View)}
-                  aria-current={active ? "page" : undefined}
-                  className="focus-ring-dark w-full text-left px-3 h-8 mb-0.5 transition-colors"
-                  style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
-                >
-                  {item.label}
-                </button>
-              );
+              // Leaf directo
+              return renderNavItem(item, false, view, navigate);
             })}
           </aside>
         )}
 
-        {/* ── Main content ── */}
+        {/* ── Contenido ── Envuelto en columna para poder anteponer la barra de tabs
+            del nivel profundo (SectionTabs) cuando la vista pertenece a una sección. */}
+        <div className="flex flex-col" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+          {sectionItems && sectionItems.length > 1 && (
+            <SectionTabs items={sectionItems} view={view} navigate={navigate} />
+          )}
+          <div className="flex" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
         {view === "interno"       && <InternoView navigate={navigate} />}
         {view === "dashboard"     && (
           <DashboardView
@@ -747,6 +1097,8 @@ export default function App() {
         {view === "google-business"&& <GoogleBusinessView  siteName={activeSite?.name ?? ""} navigate={navigate} />}
         {view === "otas"           && <OTAsView            siteName={activeSite?.name ?? ""} navigate={navigate} />}
         {view === "email"          && <EmailMarketingView  siteName={activeSite?.name ?? ""} navigate={navigate} />}
+          </div>
+        </div>
       </div>
     </div>
 
