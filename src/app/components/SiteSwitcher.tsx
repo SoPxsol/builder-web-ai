@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Search } from "lucide-react";
 import type { Site } from "../types";
 
@@ -15,8 +16,28 @@ export function SiteSwitcher({ sites, activeSiteId, onSelect, onSeeAll }: Props)
   const [focusedIndex, setFocusedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listboxId = useId();
+
+  // El dropdown se renderiza en un portal (position: fixed) para escapar del
+  // overflow del <aside> del nivel 2, que si no lo recorta y rompe el scroll.
+  // `pos` guarda las coordenadas del popover, calculadas desde el trigger.
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
+
+  const updatePosition = useCallback(() => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const gap = 4;
+    const margin = 8;
+    const available = window.innerHeight - rect.bottom - gap - margin;
+    setPos({
+      top: rect.bottom + gap,
+      left: rect.left,
+      width: rect.width,
+      maxHeight: Math.max(160, Math.min(360, available)),
+    });
+  }, []);
 
   const activeSite = sites.find((s) => s.id === activeSiteId) ?? sites[0];
 
@@ -26,16 +47,23 @@ export function SiteSwitcher({ sites, activeSiteId, onSelect, onSeeAll }: Props)
     : sites;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setPos(null);
+      return;
+    }
 
+    updatePosition();
     inputRef.current?.focus();
     const activeIdx = filtered.findIndex((s) => s.id === activeSiteId);
     setFocusedIndex(activeIdx >= 0 ? activeIdx : 0);
 
     function handlePointerOutside(e: PointerEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      // El dropdown vive en un portal fuera de containerRef, así que hay que
+      // chequear ambos para no cerrarlo al clickear dentro de la lista.
+      const insideTrigger = containerRef.current?.contains(target);
+      const insideDropdown = dropdownRef.current?.contains(target);
+      if (!insideTrigger && !insideDropdown) setOpen(false);
     }
     function handleKeydown(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -43,12 +71,21 @@ export function SiteSwitcher({ sites, activeSiteId, onSelect, onSeeAll }: Props)
         closeAndRestoreFocus();
       }
     }
+    // Reposicionar si cambia el layout mientras está abierto (scroll del aside,
+    // resize de la ventana). `capture` para captar el scroll de contenedores internos.
+    function reposition() {
+      updatePosition();
+    }
 
     document.addEventListener("pointerdown", handlePointerOutside);
     document.addEventListener("keydown", handleKeydown);
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
     return () => {
       document.removeEventListener("pointerdown", handlePointerOutside);
       document.removeEventListener("keydown", handleKeydown);
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -129,21 +166,22 @@ export function SiteSwitcher({ sites, activeSiteId, onSelect, onSeeAll }: Props)
         />
       </button>
 
-      {open && (
+      {open && pos && createPortal(
         <div
+          ref={dropdownRef}
           className="flex flex-col"
           style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            left: 0,
-            right: 0,
+            position: "fixed",
+            top: pos.top,
+            left: pos.left,
+            width: pos.width,
             zIndex: 50,
             background: "var(--shell-item-active-bg)",
             border: "1px solid var(--shell-separator)",
             borderRadius: "var(--radius-card)",
             boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
             overflow: "hidden",
-            maxHeight: 360,
+            maxHeight: pos.maxHeight,
           }}
         >
           <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: "1px solid var(--shell-separator)" }}>
@@ -252,7 +290,8 @@ export function SiteSwitcher({ sites, activeSiteId, onSelect, onSeeAll }: Props)
           >
             Ver todos los sitios →
           </button>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
