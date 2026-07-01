@@ -69,66 +69,42 @@ const initialSites: Site[] = [
 
 
 /**
- * Menú interno — ARQUITECTURA CONCEPTUAL del producto (WEB-737).
- * Modelo: ecosistema de APPS de presencia (cada superficie = una app),
- * agrupadas en 3 categorías: Presencia / Crecimiento / Datos & Cuenta.
- *   - "Sitio Web" es UNA app más — sus herramientas viven ADENTRO (anidadas), no sueltas.
- *   - Linktree = formato/add-on dentro de Sitio Web (no una página del sitio).
- *   - Grises = deshabilitados por ahora (addon o "Próximamente").
- *   - Fuera del nav pero accesibles vía navigate(): "ai", "propiedades", "discovery".
- * ⚠ PROTOTIPO para la discusión de IA con Fernanda/Santi — pendiente card-sort de validación
- *   con hoteleros y naming final de categorías (content-designer).
+ * Menú interno — ARQUITECTURA CONCEPTUAL del producto (WEB-737, iteración 01-jul).
+ * Modelo flat centrado en Sitio: la app "Sitio" contiene su edición (Generador IA,
+ * Plantillas, SEO/GEO, Blog, Popups, Formatos que abren el Editor, Configuración);
+ * el resto son canales hermanos (Redes+Linktree, Google My Business, Perfiles OTAs, CRM, ADS).
+ *   - Naranja del diagrama = "app con edición" (abre el Editor compartido).
+ *   - Gris = para después (Perfiles OTAs, CRM, ADS) → deshabilitado en el nav.
+ * ⚠ PROTOTIPO para la discusión de IA con Fernanda/Santi — pendiente card-sort de validación.
  */
 type SiteNavItem = { id?: string; label: string; addon?: boolean; disabled?: boolean; app?: boolean; subheader?: boolean; children?: SiteNavItem[] };
-const siteNavGroups: { label: string; items: SiteNavItem[] }[] = [
+// Flat, centrado en Sitio (iteración diagrama 01-jul). Naranja del diagrama = "app con edición"
+// (abre el EDITOR compartido). Gris = para después. Fuera del nav pero accesibles vía navigate():
+// "info-sitio", "idioma", "versiones", "promociones", "propiedades", "discovery" (viven en el Editor/config).
+const siteNav: SiteNavItem[] = [
   {
-    label: "Presencia",
-    items: [
-      {
-        id: "sitio-web", label: "Sitio Web", app: true,
-        children: [
-          { subheader: true, label: "Formatos" },
-          { id: "fmt-onepage", label: "One-page",  disabled: true },
-          { id: "fmt-www",     label: "Sitio www", disabled: true },
-          { id: "linktree",    label: "Linktree",  disabled: true },
-          { subheader: true, label: "Contenido" },
-          { id: "paginas",     label: "Páginas" },
-          { id: "templates",   label: "Plantillas" },
-          { id: "blog",        label: "Blog" },
-          { id: "popups",      label: "Pop-ups" },
-          { id: "promociones", label: "Landing Pages" },
-          { id: "versiones",   label: "Versiones" },
-        ],
-      },
-      { id: "redes",           label: "Redes Sociales",     addon: true },
-      { id: "google-business", label: "Google My Business", addon: true },
-      { id: "otas",            label: "Perfiles OTAs",      addon: true, disabled: true },
-    ],
-  },
-  {
-    label: "Crecimiento",
-    items: [
-      { id: "seo", label: "Posicionamiento (SEO & GEO)" },
-      { id: "ai",  label: "Asistente IA" },
-      {
-        id: "crm", label: "CRM", app: true,
-        children: [
-          { id: "resenas", label: "Reseñas",         disabled: true },
-          { id: "email",   label: "Email Marketing", addon: true, disabled: true },
-        ],
-      },
-    ],
-  },
-  {
-    label: "Datos & Cuenta",
-    items: [
-      { id: "datos-basicos", label: "Datos del hotel" },
+    id: "sitio", label: "Sitio", app: true,
+    children: [
+      { id: "ai",        label: "Generador sitios IA" },
+      { id: "templates", label: "Plantillas" },
+      { id: "seo",       label: "SEO / GEO" },
+      { id: "blog",      label: "Blog" },
+      { id: "popups",    label: "Pop-ups" },
+      { subheader: true, label: "Formatos (abren el Editor)" },
+      { id: "fmt-onepage", label: "Sitio one-page", disabled: true },
+      { id: "paginas",     label: "Sitio www" },
+      { subheader: true, label: "Configuración" },
       { id: "integraciones", label: "Integración PX" },
-      { id: "idioma",        label: "Multilenguaje" },
-      { id: "info-sitio",    label: "Información del sitio" },
+      { id: "datos-basicos", label: "Datos del hotel" },
       { id: "dns",           label: "DNS", disabled: true },
     ],
   },
+  { id: "redes",           label: "Redes Sociales" },
+  { id: "linktree",        label: "Linktree", disabled: true },
+  { id: "google-business", label: "Google My Business" },
+  { id: "otas",            label: "Perfiles OTAs", disabled: true },
+  { id: "crm",             label: "CRM", disabled: true },
+  { id: "ads",             label: "ADS", disabled: true },
 ];
 
 /** Render de un item hoja del nav. `indent` para las herramientas anidadas dentro de una app. */
@@ -629,36 +605,23 @@ export default function App() {
               onSeeAll={() => navigate("mis-sitios")}
             />
 
-            {/* Menú por grupos (estructura WEB-737 / Fernanda) */}
-            {siteNavGroups.map((group, gi) => (
-              <div key={group.label}>
-                {gi > 0 && (
-                  <div className="mx-1 my-2" style={{ height: 1, background: "var(--site-nav-separator)" }} />
-                )}
-                <span
-                  className="block uppercase tracking-wider px-1 mt-1 mb-1"
-                  style={{ fontSize: "var(--font-size-xs)", fontWeight: 600, color: "var(--site-nav-section)", letterSpacing: "0.06em" }}
-                >
-                  {group.label}
-                </span>
-                {group.items.map((item) =>
-                  item.children ? (
-                    <div key={item.id}>
-                      {/* App (ej. Sitio Web): header no navegable + herramientas anidadas */}
-                      <span
-                        className="block px-3 mt-1.5 mb-0.5"
-                        style={{ fontSize: "var(--font-size-md)", fontWeight: 500, color: "var(--shell-label-active)" }}
-                      >
-                        {item.label}
-                      </span>
-                      {item.children.map((child) => renderNavItem(child, true, view, navigate))}
-                    </div>
-                  ) : (
-                    renderNavItem(item, false, view, navigate)
-                  )
-                )}
-              </div>
-            ))}
+            {/* Menú flat centrado en Sitio (iteración diagrama 01-jul) */}
+            {siteNav.map((item) =>
+              item.children ? (
+                <div key={item.id}>
+                  {/* App con sub-navegación (ej. Sitio): header + herramientas anidadas */}
+                  <span
+                    className="block px-3 mt-1.5 mb-0.5"
+                    style={{ fontSize: "var(--font-size-md)", fontWeight: 500, color: "var(--shell-label-active)" }}
+                  >
+                    {item.label}
+                  </span>
+                  {item.children.map((child) => renderNavItem(child, true, view, navigate))}
+                </div>
+              ) : (
+                renderNavItem(item, false, view, navigate)
+              )
+            )}
           </aside>
         )}
 
