@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
-import { LayoutGrid, Hotel, BarChart2, Bell, Building2, Rocket, Lock, Menu } from "lucide-react";
+import { LayoutGrid, Hotel, BarChart2, Bell, Building2, Rocket, Lock, Menu, Globe } from "lucide-react";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import type { View, Site } from "./types";
 import { DashboardView } from "./components/DashboardView";
@@ -69,59 +69,91 @@ const initialSites: Site[] = [
 
 
 /**
- * Menú interno del sitio — estructura por grupos (WEB-737, propuesta de Fernanda).
- * Grises = deshabilitados por ahora (addon o "Próximamente").
- * Items fuera del nav pero accesibles vía navigate(): "ai", "propiedades" (Habitaciones), "discovery".
- * DUDAS a confirmar con Fernanda:
- *   - "Landing Pages" mapeado a la vista existente "promociones" (¿es rename o vista nueva?).
- *   - "Reseñas" y "DNS": ítems nuevos sin vista → placeholder deshabilitado.
- *   - Renombres: Google My Business, Perfiles OTAs, Integración PX, Datos, Multilenguaje.
+ * Menú interno — ARQUITECTURA CONCEPTUAL del producto (WEB-737).
+ * Modelo: ecosistema de APPS de presencia (cada superficie = una app),
+ * agrupadas en 3 categorías: Presencia / Crecimiento / Datos & Cuenta.
+ *   - "Sitio Web" es UNA app más — sus herramientas viven ADENTRO (anidadas), no sueltas.
+ *   - Linktree = formato/add-on dentro de Sitio Web (no una página del sitio).
+ *   - Grises = deshabilitados por ahora (addon o "Próximamente").
+ *   - Fuera del nav pero accesibles vía navigate(): "ai", "propiedades", "discovery".
+ * ⚠ PROTOTIPO para la discusión de IA con Fernanda/Santi — pendiente card-sort de validación
+ *   con hoteleros y naming final de categorías (content-designer).
  */
-type SiteNavItem = { id: string; label: string; addon?: boolean; disabled?: boolean };
+type SiteNavItem = { id: string; label: string; addon?: boolean; disabled?: boolean; app?: boolean; children?: SiteNavItem[] };
 const siteNavGroups: { label: string; items: SiteNavItem[] }[] = [
   {
-    label: "Sitio",
+    label: "Presencia",
     items: [
-      { id: "templates",   label: "Plantillas" },
-      { id: "paginas",     label: "Páginas" },
-      { id: "blog",        label: "Blog" },
-      { id: "popups",      label: "Pop-ups" },
-      { id: "promociones", label: "Landing Pages" },
-      { id: "versiones",   label: "Versiones" },
-    ],
-  },
-  {
-    label: "Presencia Online",
-    items: [
+      {
+        id: "sitio-web", label: "Sitio Web", app: true,
+        children: [
+          { id: "paginas",     label: "Páginas" },
+          { id: "templates",   label: "Plantillas" },
+          { id: "blog",        label: "Blog" },
+          { id: "popups",      label: "Pop-ups" },
+          { id: "promociones", label: "Landing Pages" },
+          { id: "linktree",    label: "Linktree", disabled: true },
+          { id: "versiones",   label: "Versiones" },
+        ],
+      },
       { id: "redes",           label: "Redes Sociales",     addon: true },
       { id: "google-business", label: "Google My Business", addon: true },
       { id: "otas",            label: "Perfiles OTAs",      addon: true, disabled: true },
     ],
   },
   {
-    label: "Posicionamiento",
+    label: "Crecimiento",
     items: [
-      { id: "seo", label: "SEO & GEO" },
-    ],
-  },
-  {
-    label: "CRM",
-    items: [
+      { id: "seo",     label: "Posicionamiento (SEO & GEO)" },
       { id: "email",   label: "Email Marketing", addon: true, disabled: true },
       { id: "resenas", label: "Reseñas",         disabled: true },
     ],
   },
   {
-    label: "Configuración",
+    label: "Datos & Cuenta",
     items: [
+      { id: "datos-basicos", label: "Datos del hotel" },
       { id: "integraciones", label: "Integración PX" },
-      { id: "datos-basicos", label: "Datos" },
-      { id: "dns",           label: "DNS",                  disabled: true },
-      { id: "info-sitio",    label: "Información del sitio" },
       { id: "idioma",        label: "Multilenguaje" },
+      { id: "info-sitio",    label: "Información del sitio" },
+      { id: "dns",           label: "DNS", disabled: true },
     ],
   },
 ];
+
+/** Render de un item hoja del nav. `indent` para las herramientas anidadas dentro de una app. */
+function renderNavItem(item: SiteNavItem, indent: boolean, view: View, navigate: (v: View) => void) {
+  const padClass = indent ? "pl-6 pr-3" : "px-3";
+  if (item.disabled) {
+    const tooltip = item.addon ? "Disponible como módulo adicional" : "Próximamente";
+    return (
+      <button
+        key={item.id}
+        type="button"
+        disabled
+        aria-disabled="true"
+        title={tooltip}
+        className={`focus-ring-dark flex items-center justify-between ${padClass} h-8 mb-0.5 w-full text-left cursor-not-allowed`}
+        style={{ background: "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", color: "var(--shell-label-inactive)" }}
+      >
+        <span>{item.label}</span>
+        {item.addon && <Lock size={11} aria-hidden="true" style={{ color: "var(--site-nav-add)", flexShrink: 0 }} />}
+      </button>
+    );
+  }
+  const active = view === item.id;
+  return (
+    <button
+      key={item.id}
+      onClick={() => navigate(item.id as View)}
+      aria-current={active ? "page" : undefined}
+      className={`focus-ring-dark flex items-center justify-between ${padClass} h-8 mb-0.5 w-full text-left transition-colors`}
+      style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
+    >
+      <span>{item.label}</span>
+    </button>
+  );
+}
 
 const iconNavItems = [
   { id: "dashboard", Icon: LayoutGrid, label: "Dashboard", views: ["dashboard", "onboarding"] as View[] },
@@ -588,39 +620,23 @@ export default function App() {
                 >
                   {group.label}
                 </span>
-                {group.items.map((item) => {
-                  if (item.disabled) {
-                    const tooltip = item.addon ? "Disponible como módulo adicional" : "Próximamente";
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        disabled
-                        aria-disabled="true"
-                        title={tooltip}
-                        className="focus-ring-dark flex items-center justify-between px-3 h-8 mb-0.5 w-full text-left cursor-not-allowed"
-                        style={{ background: "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", color: "var(--shell-label-inactive)" }}
+                {group.items.map((item) =>
+                  item.children ? (
+                    <div key={item.id}>
+                      {/* App (ej. Sitio Web): header no navegable + herramientas anidadas */}
+                      <span
+                        className="flex items-center gap-1.5 px-3 mt-1.5 mb-0.5"
+                        style={{ fontSize: "var(--font-size-md)", fontWeight: 500, color: "var(--shell-label-active)" }}
                       >
-                        <span>{item.label}</span>
-                        {item.addon && (
-                          <Lock size={11} aria-hidden="true" style={{ color: "var(--site-nav-add)", flexShrink: 0 }} />
-                        )}
-                      </button>
-                    );
-                  }
-                  const active = view === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => navigate(item.id as View)}
-                      aria-current={active ? "page" : undefined}
-                      className="focus-ring-dark flex items-center justify-between px-3 h-8 mb-0.5 w-full text-left transition-colors"
-                      style={{ background: active ? "var(--shell-item-active-bg)" : "transparent", borderRadius: "var(--radius-nav)", fontSize: "var(--font-size-md)", fontWeight: active ? 500 : 400, color: active ? "var(--shell-label-active)" : "var(--shell-label-inactive)" }}
-                    >
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                })}
+                        <Globe size={12} aria-hidden="true" style={{ flexShrink: 0 }} />
+                        {item.label}
+                      </span>
+                      {item.children.map((child) => renderNavItem(child, true, view, navigate))}
+                    </div>
+                  ) : (
+                    renderNavItem(item, false, view, navigate)
+                  )
+                )}
               </div>
             ))}
           </aside>
