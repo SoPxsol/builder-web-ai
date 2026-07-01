@@ -450,6 +450,11 @@ export default function App() {
     return () => { document.documentElement.lang = prev; };
   }, [activeLang]);
 
+  // Mapea la vista activa al hub del rail. Se declara ACÁ (antes del useEffect de
+  // sincronización de grupos) porque ese effect lo usa en su array de dependencias:
+  // si se declarara más abajo, quedaría en la TDZ y el render tiraría ReferenceError.
+  const iconActive = getIconActive(view);
+
   // Sincroniza activeGroupId con la vista activa: si la vista pertenece a un grupo
   // del hub Sitios, abre ese grupo. Si es un leaf directo (ai) o no pertenece a
   // ningún grupo, cierra el nivel 3. Así el deep-link y el back funcionan solos.
@@ -509,7 +514,6 @@ export default function App() {
   const activeSite: Site | undefined = sites.find((s) => s.id === activeSiteId) ?? sites[0];
   // En site-context sin sitios no hay nada que mostrar — caemos al dashboard,
   // que ya tiene su empty state propio.
-  const iconActive = getIconActive(view);
 
   // Hub activo y visibilidad de la 2da columna.
   // A3: cualquier hub primario no-Dashboard muestra la 2da columna (con header del hub),
