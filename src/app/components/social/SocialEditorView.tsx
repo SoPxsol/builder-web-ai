@@ -1079,9 +1079,10 @@ function ElementsPanel({
   return (
     <aside
       aria-label="Elementos de la pieza"
-      className="flex flex-col flex-shrink-0"
+      className={inSheet ? "flex flex-col" : "flex flex-col flex-shrink-0 overflow-y-auto"}
       style={{
         width: inSheet ? "100%" : 200,
+        minHeight: 0,
         background: "var(--surface-page)",
         borderRight: inSheet ? "none" : "0.5px solid var(--border-ui)",
       }}
