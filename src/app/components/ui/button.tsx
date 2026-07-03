@@ -15,6 +15,7 @@
  * mismo hover/focus/disabled, sin nueva dependencia de estilado.
  */
 
+import { forwardRef } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "destructive";
@@ -91,17 +92,20 @@ const VARIANT_STYLE: Record<ButtonVariant, React.CSSProperties> = {
 
 /* ─── Componente ────────────────────────────────────────────────────────────── */
 
-export function Button({
-  variant = "primary",
-  size = "md",
-  fullWidth = false,
-  leftIcon,
-  rightIcon,
-  disabled,
-  children,
-  style,
-  ...rest
-}: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  {
+    variant = "primary",
+    size = "md",
+    fullWidth = false,
+    leftIcon,
+    rightIcon,
+    disabled,
+    children,
+    style,
+    ...rest
+  },
+  ref,
+) {
   const variantStyle = VARIANT_STYLE[variant];
   const sizeStyle = SIZE[size];
 
@@ -129,6 +133,7 @@ export function Button({
 
   return (
     <button
+      ref={ref}
       type="button"
       disabled={disabled}
       /**
@@ -154,4 +159,4 @@ export function Button({
       )}
     </button>
   );
-}
+});
