@@ -196,6 +196,12 @@ function resolvePositionClaim(
   };
 }
 
+/** Id del input de Título en ElementsPanel — usado por el texto del lienzo para enfocarlo (click-to-edit). */
+const TITLE_INPUT_ID = "title-text-input";
+
+/** Id del input de Subtítulo en ElementsPanel — usado por el texto del lienzo para enfocarlo (click-to-edit). */
+const SUB_INPUT_ID = "sub-text-input";
+
 /** Límite suave de caracteres de la Etiqueta — más chico en Historia (9:16, menos ancho útil). */
 const TAG_MAX_CHARS = 24;
 const TAG_MAX_CHARS_STORY = 18;
@@ -460,7 +466,6 @@ export function SocialEditorView({
                 <Canvas
                   post={post}
                   isStory={isStory}
-                  onPatch={onPatch}
                   onFocusTag={() => {
                     // Mobile: la Etiqueta se edita en el bottom sheet "Elementos" — lo abrimos
                     // y esperamos a que monte para poder enfocar su input de texto.
@@ -475,6 +480,14 @@ export function SocialEditorView({
                     setSheet("elements");
                     window.setTimeout(() => document.getElementById(CTA_LABEL_INPUT_ID)?.focus(), 80);
                   }}
+                  onFocusTitle={() => {
+                    setSheet("elements");
+                    window.setTimeout(() => document.getElementById(TITLE_INPUT_ID)?.focus(), 80);
+                  }}
+                  onFocusSub={() => {
+                    setSheet("elements");
+                    window.setTimeout(() => document.getElementById(SUB_INPUT_ID)?.focus(), 80);
+                  }}
                 />
               </div>
             </div>
@@ -488,10 +501,11 @@ export function SocialEditorView({
                 <Canvas
                   post={post}
                   isStory={isStory}
-                  onPatch={onPatch}
                   onFocusTag={() => document.getElementById(TAG_TEXT_INPUT_ID)?.focus()}
                   onFocusLogo={() => document.getElementById(LOGO_SIZE_SM_BUTTON_ID)?.focus()}
                   onFocusCta={() => document.getElementById(CTA_LABEL_INPUT_ID)?.focus()}
+                  onFocusTitle={() => document.getElementById(TITLE_INPUT_ID)?.focus()}
+                  onFocusSub={() => document.getElementById(SUB_INPUT_ID)?.focus()}
                 />
               </div>
 
@@ -635,39 +649,31 @@ export function SocialEditorView({
 }
 
 /* ════════════════════════════════════════════════════════════════════════
- * Lienzo — protagonista, overlay editable inline
+ * Lienzo — protagonista, solo visualización de texto (click-to-edit hacia el panel)
  * ════════════════════════════════════════════════════════════════════════ */
 
 function Canvas({
   post,
   isStory,
-  onPatch,
   onFocusTag,
   onFocusLogo,
   onFocusCta,
+  onFocusTitle,
+  onFocusSub,
 }: {
   post: SocialPost;
   isStory: boolean;
-  onPatch: (patch: Partial<SocialPost>) => void;
   /** Click-to-edit: la Etiqueta se edita en el panel, no inline — este callback le pasa el foco. */
   onFocusTag: () => void;
   /** Click-to-edit: el Logo se edita en el panel — este callback le pasa el foco. */
   onFocusLogo: () => void;
   /** Click-to-edit: el CTA se edita en el panel — este callback le pasa el foco. */
   onFocusCta: () => void;
+  /** Click-to-edit: el Título se edita en el panel — este callback le pasa el foco. */
+  onFocusTitle: () => void;
+  /** Click-to-edit: el Subtítulo se edita en el panel — este callback le pasa el foco. */
+  onFocusSub: () => void;
 }) {
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [editingSub, setEditingSub] = useState(false);
-  const titleRef = useRef<HTMLTextAreaElement>(null);
-  const subRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editingTitle) titleRef.current?.focus();
-  }, [editingTitle]);
-  useEffect(() => {
-    if (editingSub) subRef.current?.focus();
-  }, [editingSub]);
-
   const scrim = resolveScrim(post);
   // Color de texto dinámico: se calcula sobre el color del scrim cuando está
   // activo y con opacidad relevante; si no, cae al piso oscuro no-configurable
@@ -675,8 +681,6 @@ function Canvas({
   const effectiveBg = scrim.enabled && scrim.opacity >= 35 ? scrim.color : NEUTRAL_SCRIM_COLOR;
   const overlayTextColor = readableTextColor(effectiveBg);
   const overlaySubColor = overlayTextColor === "var(--text-primary)" ? "var(--text-secondary)" : "rgba(255,255,255,0.85)";
-  const overlayInputBg = overlayTextColor === "var(--text-primary)" ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.35)";
-  const overlayInputBorder = overlayTextColor === "var(--text-primary)" ? "1px dashed rgba(0,0,0,0.35)" : "1px dashed rgba(255,255,255,0.6)";
 
   return (
     <div className="flex flex-col items-center" style={{ gap: 8, width: "100%", maxWidth: isStory ? 320 : 460 }}>
@@ -713,117 +717,54 @@ function Canvas({
           className="absolute inset-0 flex flex-col justify-end"
           style={{ padding: 16 }}
         >
-          {editingTitle ? (
-            <textarea
-              ref={titleRef}
-              value={post.overlay}
-              onChange={(e) => onPatch({ overlay: e.target.value })}
-              onBlur={() => setEditingTitle(false)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  setEditingTitle(false);
-                }
-                if (e.key === "Escape") {
-                  e.stopPropagation();
-                  setEditingTitle(false);
-                }
-              }}
-              rows={2}
-              aria-label="Título sobre la imagen"
-              className="w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-              style={{
-                background: overlayInputBg,
-                border: overlayInputBorder,
-                borderRadius: 6,
-                padding: "6px 8px",
-                color: overlayTextColor,
-                fontWeight: 600,
-                fontSize: 15,
-                lineHeight: 1.25,
-                resize: "vertical",
-                outlineColor: "var(--ring-on-dark)",
-                fontFamily: "inherit",
-              }}
-            />
-          ) : (
+          {/* Título — solo visualización; click-to-edit pasa el foco al input del panel de Elementos. */}
+          <button
+            type="button"
+            onClick={onFocusTitle}
+            aria-label="Editar título — se edita en el panel de Elementos"
+            className="text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 hover:opacity-90"
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: "4px 6px",
+              margin: "-4px -6px",
+              borderRadius: 6,
+              color: overlayTextColor,
+              fontWeight: 600,
+              fontSize: 15,
+              lineHeight: 1.25,
+              cursor: "pointer",
+              outlineColor: "var(--ring-on-dark)",
+              minHeight: 44,
+            }}
+          >
+            {post.overlay || "Sin título — click para escribirlo en el panel"}
+          </button>
+
+          {!isStory && (
             <button
               type="button"
-              onClick={() => setEditingTitle(true)}
-              aria-label="Editar título sobre la imagen"
+              onClick={onFocusSub}
+              aria-label="Editar subtítulo — se edita en el panel de Elementos"
               className="text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 hover:opacity-90"
               style={{
+                marginTop: 2,
                 background: "transparent",
                 border: "none",
-                padding: "4px 6px",
-                margin: "-4px -6px",
+                padding: "3px 6px",
                 borderRadius: 6,
-                color: overlayTextColor,
-                fontWeight: 600,
-                fontSize: 15,
-                lineHeight: 1.25,
-                cursor: "text",
+                color: overlaySubColor,
+                fontSize: 12.5,
+                cursor: "pointer",
                 outlineColor: "var(--ring-on-dark)",
                 minHeight: 44,
+                display: "flex",
+                alignItems: "center",
               }}
             >
-              {post.overlay || "Toca para escribir el título…"}
+              {post.sub || "Sin subtítulo — click para escribirlo en el panel"}
             </button>
           )}
-
-          {!isStory &&
-            (editingSub ? (
-              <input
-                ref={subRef}
-                type="text"
-                value={post.sub}
-                onChange={(e) => onPatch({ sub: e.target.value })}
-                onBlur={() => setEditingSub(false)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") setEditingSub(false);
-                  if (e.key === "Escape") {
-                    e.stopPropagation();
-                    setEditingSub(false);
-                  }
-                }}
-                aria-label="Subtítulo sobre la imagen"
-                className="w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-                style={{
-                  marginTop: 4,
-                  background: overlayInputBg,
-                  border: overlayInputBorder,
-                  borderRadius: 6,
-                  padding: "5px 8px",
-                  color: overlaySubColor,
-                  fontSize: 12.5,
-                  outlineColor: "var(--ring-on-dark)",
-                  fontFamily: "inherit",
-                }}
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={() => setEditingSub(true)}
-                aria-label="Editar subtítulo sobre la imagen"
-                className="text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 hover:opacity-90"
-                style={{
-                  marginTop: 2,
-                  background: "transparent",
-                  border: "none",
-                  padding: "3px 6px",
-                  borderRadius: 6,
-                  color: overlaySubColor,
-                  fontSize: 12.5,
-                  cursor: "text",
-                  outlineColor: "var(--ring-on-dark)",
-                  minHeight: 44,
-                  display: "flex",
-                  alignItems: "center",
-                }}
-              >
-                {post.sub || "Toca para escribir el subtítulo…"}
-              </button>
-            ))}
 
           {isStory && (
             <div className="flex flex-col" style={{ gap: 6, marginTop: 8 }}>
@@ -1102,34 +1043,8 @@ function ElementsPanel({
         </p>
       </div>
       <div className="flex flex-col" style={{ padding: "0 8px 8px", gap: 4 }}>
-        {/* + Texto — v1: agregar texto significa asegurar que el subtítulo tenga contenido editable. */}
-        <button
-          type="button"
-          onClick={() => {
-            if (!post.sub) onPatch({ sub: "Nuevo texto" });
-          }}
-          className="flex items-center w-full transition-colors hover:bg-[#fff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
-          style={{
-            minHeight: 44,
-            padding: "6px 8px",
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            textAlign: "left",
-            gap: 8,
-            borderRadius: 6,
-            outlineColor: "var(--ring)",
-          }}
-        >
-          <span
-            aria-hidden="true"
-            className="flex items-center justify-center flex-shrink-0"
-            style={{ width: 26, height: 26, background: "#fff", border: "0.5px solid var(--border-ui)", borderRadius: 6, color: "var(--text-secondary)" }}
-          >
-            <TypeIcon size={13} />
-          </span>
-          <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)", flex: 1 }}>+ Texto</span>
-        </button>
+        {/* Texto de la pieza (título + subtítulo) — siempre presente en el lienzo, se edita acá en vez de sobre la imagen. */}
+        <TextCard post={post} onPatch={onPatch} isStory={post.type === "Historia" || post.type === "Story"} />
 
         {/* Logo (marca del sitio) — card con toggle + controles inline. Origen: logo de marca del sitio, no se sube acá. */}
         <LogoCard post={post} onPatch={onPatch} />
@@ -1141,6 +1056,113 @@ function ElementsPanel({
         <CtaCard post={post} onPatch={onPatch} />
       </div>
     </aside>
+  );
+}
+
+/**
+ * Card de Texto de la pieza (Título + Subtítulo) en el panel de Elementos —
+ * a diferencia de Etiqueta/Logo/CTA no lleva toggle: título y subtítulo son
+ * parte fija de la pieza (siempre están en el lienzo), así que la card queda
+ * siempre expandida. Reemplaza la edición inline sobre la imagen — el lienzo
+ * ahora solo muestra el texto (click-to-edit vuelve acá).
+ */
+function TextCard({
+  post,
+  onPatch,
+  isStory,
+}: {
+  post: SocialPost;
+  onPatch: (patch: Partial<SocialPost>) => void;
+  isStory: boolean;
+}) {
+  return (
+    <div
+      style={{
+        background: "#fff",
+        border: "0.5px solid var(--border-ui)",
+        borderRadius: 8,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        className="flex items-center w-full"
+        style={{ minHeight: 44, padding: "6px 8px", gap: 8 }}
+      >
+        <span
+          aria-hidden="true"
+          className="flex items-center justify-center flex-shrink-0"
+          style={{ width: 26, height: 26, background: "var(--surface-page)", border: "0.5px solid var(--border-ui)", borderRadius: 6, color: "var(--text-secondary)" }}
+        >
+          <TypeIcon size={13} />
+        </span>
+        <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)", flex: 1 }}>
+          Texto de la pieza
+        </span>
+      </div>
+
+      <div className="flex flex-col" style={{ padding: "0 10px 12px", gap: 12, borderTop: "0.5px solid var(--border-ui)" }}>
+        {/* Título */}
+        <div style={{ marginTop: 10 }}>
+          <label htmlFor={TITLE_INPUT_ID} style={settingLabel}>
+            Título
+          </label>
+          <textarea
+            id={TITLE_INPUT_ID}
+            value={post.overlay}
+            onChange={(e) => onPatch({ overlay: e.target.value })}
+            placeholder="Ej: Mañanas que no se apuran."
+            rows={2}
+            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{
+              width: "100%",
+              padding: "6px 10px",
+              background: "var(--surface-page)",
+              border: "0.5px solid var(--border-ui)",
+              borderRadius: 6,
+              fontSize: 12,
+              lineHeight: 1.4,
+              color: "var(--text-primary)",
+              outline: "none",
+              outlineColor: "var(--accent-info)",
+              fontFamily: "inherit",
+              resize: "vertical",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        {/* Subtítulo — no aplica a Historia (usa el slot de sticker/deslizá en su lugar) */}
+        {!isStory && (
+          <div>
+            <label htmlFor={SUB_INPUT_ID} style={settingLabel}>
+              Subtítulo
+            </label>
+            <input
+              id={SUB_INPUT_ID}
+              type="text"
+              value={post.sub}
+              onChange={(e) => onPatch({ sub: e.target.value })}
+              placeholder="Ej: Hotel Azul Marino"
+              className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              style={{
+                width: "100%",
+                height: 34,
+                padding: "0 10px",
+                background: "var(--surface-page)",
+                border: "0.5px solid var(--border-ui)",
+                borderRadius: 6,
+                fontSize: 12,
+                color: "var(--text-primary)",
+                outline: "none",
+                outlineColor: "var(--accent-info)",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
