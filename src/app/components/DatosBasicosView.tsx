@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Check, AlertCircle } from "lucide-react";
 import type { View } from "../types";
 import { ViewHeader } from "./ui/view-header";
+import { TextField } from "./ui/text-field";
+import { Button } from "./ui/button";
 
 interface Props {
   siteName: string;
@@ -40,7 +42,9 @@ function fieldStyle(hasError: boolean) {
     background: "var(--surface-page)",
     fontSize: "var(--font-size-md)",
     color: "var(--text-primary)",
-    outlineColor: hasError ? "var(--destructive)" : "var(--brand)",
+    // Focus ring azul (--accent-info) por contrato semántico: el foco de campos
+    // de formulario NO usa --brand (reservado a CTAs). Alineado con TextField.
+    outlineColor: hasError ? "var(--destructive)" : "var(--accent-info)",
     outlineOffset: 2,
     width: "100%",
   };
@@ -98,48 +102,6 @@ export function DatosBasicosView({ siteName, navigate }: Props) {
     setTimeout(() => setSaveState("idle"), 2500);
   }
 
-  function Field({
-    label,
-    field,
-    type = "text",
-    inputMode,
-  }: {
-    label: string;
-    field: FieldKey;
-    type?: string;
-    inputMode?: "text" | "email" | "tel" | "url";
-  }) {
-    const id = `datos-${field}`;
-    const errMsgId = `${id}-err`;
-    const error = errors[field];
-    return (
-      <div>
-        <label htmlFor={id} style={labelStyle}>{label}</label>
-        <input
-          id={id}
-          type={type}
-          inputMode={inputMode}
-          value={form[field]}
-          onChange={(e) => update(field, e.target.value)}
-          onBlur={() => blur(field)}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errMsgId : undefined}
-          className="focus-visible:outline focus-visible:outline-2"
-          style={fieldStyle(!!error)}
-        />
-        {error && (
-          <p
-            id={errMsgId}
-            className="flex items-center gap-1 mt-1"
-            style={{ fontSize: "var(--font-size-xs)", color: "var(--destructive)" }}
-          >
-            <AlertCircle size={10} aria-hidden="true" /> {error}
-          </p>
-        )}
-      </div>
-    );
-  }
-
   return (
     <main className="flex-1 overflow-y-auto" style={{ background: "var(--surface-page)" }}>
       <div style={{ padding: "var(--space-5)", maxWidth: 600, margin: "0 auto" }}>
@@ -149,24 +111,18 @@ export function DatosBasicosView({ siteName, navigate }: Props) {
           title="Datos del hotel"
           navigate={navigate}
           action={
-            <button
-              type="button"
+            <Button
+              variant="primary"
               onClick={handleSave}
-              className="flex items-center gap-1.5 px-4 h-8 transition-opacity hover:opacity-85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-              style={{
-                background: saveState === "saved" ? "var(--status-active)" : "var(--brand)",
-                borderRadius: "var(--radius-nav)",
-                fontSize: "var(--font-size-md)",
-                fontWeight: 500,
-                color: "#fff",
-                outlineColor: "var(--brand)",
-                border: "none",
-                cursor: "pointer",
-              }}
+              leftIcon={saveState === "saved" ? <Check size={12} /> : undefined}
+              style={
+                saveState === "saved"
+                  ? { background: "var(--status-active)", outlineColor: "var(--status-active)" }
+                  : undefined
+              }
             >
-              {saveState === "saved" && <Check size={12} aria-hidden="true" />}
               {saveState === "saved" ? "Guardado" : "Guardar cambios"}
-            </button>
+            </Button>
           }
         />
 
@@ -199,7 +155,14 @@ export function DatosBasicosView({ siteName, navigate }: Props) {
           <p style={{ fontSize: "var(--font-size-lg)", fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>
             Datos del hotel
           </p>
-          <Field label="Nombre del hotel" field="nombreHotel" />
+          <TextField
+            id="datos-nombreHotel"
+            label="Nombre del hotel"
+            value={form.nombreHotel}
+            onChange={(v) => update("nombreHotel", v)}
+            onBlur={() => blur("nombreHotel")}
+            error={errors.nombreHotel}
+          />
           <div>
             <label htmlFor="datos-tipoAlojamiento" style={labelStyle}>Tipo de alojamiento</label>
             <select
@@ -222,9 +185,34 @@ export function DatosBasicosView({ siteName, navigate }: Props) {
               ))}
             </select>
           </div>
-          <Field label="Dirección" field="direccion" />
-          <Field label="Teléfono" field="telefono" type="tel" inputMode="tel" />
-          <Field label="Email de reservas" field="emailReservas" type="email" inputMode="email" />
+          <TextField
+            id="datos-direccion"
+            label="Dirección"
+            value={form.direccion}
+            onChange={(v) => update("direccion", v)}
+            onBlur={() => blur("direccion")}
+            error={errors.direccion}
+          />
+          <TextField
+            id="datos-telefono"
+            label="Teléfono"
+            type="tel"
+            inputMode="tel"
+            value={form.telefono}
+            onChange={(v) => update("telefono", v)}
+            onBlur={() => blur("telefono")}
+            error={errors.telefono}
+          />
+          <TextField
+            id="datos-emailReservas"
+            label="Email de reservas"
+            type="email"
+            inputMode="email"
+            value={form.emailReservas}
+            onChange={(v) => update("emailReservas", v)}
+            onBlur={() => blur("emailReservas")}
+            error={errors.emailReservas}
+          />
           <div>
             <label htmlFor="datos-moneda" style={labelStyle}>Moneda</label>
             <select

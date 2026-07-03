@@ -53,7 +53,12 @@
   --switch-background: #cbced4;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
+  /* Focus ring neutro sobre superficies claras. Oscurecido desde el gris
+     default de shadcn (oklch 0.708 ≈ #a0a0a0, ~2.6:1 s/blanco) a #8a8a8a
+     (~3.45:1) para cumplir WCAG 2.2 AA — 1.4.11 Non-text Contrast (foco ≥3:1).
+     El foco sobre superficies oscuras usa --ring-on-dark; el de inputs usa
+     --accent-info (azul). En dark mode, .dark redefine --ring aparte. */
+  --ring: #8a8a8a;
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Check, AlertCircle } from "lucide-react";
 import type { View } from "../types";
 import { ViewHeader } from "./ui/view-header";
+import { TextField } from "./ui/text-field";
+import { Button } from "./ui/button";
 
 interface Props {
   siteName: string;
@@ -36,7 +38,9 @@ function fieldStyle(hasError: boolean) {
     background: "var(--surface-page)",
     fontSize: "var(--font-size-md)",
     color: "var(--text-primary)",
-    outlineColor: hasError ? "var(--destructive)" : "var(--brand)",
+    // Focus ring azul (--accent-info) por contrato semántico: el foco de campos
+    // de formulario NO usa --brand (reservado a CTAs). Alineado con TextField.
+    outlineColor: hasError ? "var(--destructive)" : "var(--accent-info)",
     outlineOffset: 2,
     width: "100%",
   };
@@ -87,48 +91,6 @@ export function InfoSitioView({ siteName, navigate }: Props) {
     setTimeout(() => setSaveState("idle"), 2500);
   }
 
-  function Field({
-    label,
-    field,
-    type = "text",
-    inputMode,
-  }: {
-    label: string;
-    field: FieldKey;
-    type?: string;
-    inputMode?: "text" | "email" | "tel" | "url";
-  }) {
-    const id = `info-${field}`;
-    const errMsgId = `${id}-err`;
-    const error = errors[field];
-    return (
-      <div>
-        <label htmlFor={id} style={labelStyle}>{label}</label>
-        <input
-          id={id}
-          type={type}
-          inputMode={inputMode}
-          value={form[field]}
-          onChange={(e) => update(field, e.target.value)}
-          onBlur={() => blur(field)}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errMsgId : undefined}
-          className="focus-visible:outline focus-visible:outline-2"
-          style={fieldStyle(!!error)}
-        />
-        {error && (
-          <p
-            id={errMsgId}
-            className="flex items-center gap-1 mt-1"
-            style={{ fontSize: "var(--font-size-xs)", color: "var(--destructive)" }}
-          >
-            <AlertCircle size={10} aria-hidden="true" /> {error}
-          </p>
-        )}
-      </div>
-    );
-  }
-
   return (
     <main className="flex-1 overflow-y-auto" style={{ background: "var(--surface-page)" }}>
       <div style={{ padding: "var(--space-5)", maxWidth: 600, margin: "0 auto" }}>
@@ -138,24 +100,18 @@ export function InfoSitioView({ siteName, navigate }: Props) {
           title="Información del sitio"
           navigate={navigate}
           action={
-            <button
-              type="button"
+            <Button
+              variant="primary"
               onClick={handleSave}
-              className="flex items-center gap-1.5 px-4 h-8 transition-opacity hover:opacity-85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-              style={{
-                background: saveState === "saved" ? "var(--status-active)" : "var(--brand)",
-                borderRadius: "var(--radius-nav)",
-                fontSize: "var(--font-size-md)",
-                fontWeight: 500,
-                color: "#fff",
-                outlineColor: "var(--brand)",
-                border: "none",
-                cursor: "pointer",
-              }}
+              leftIcon={saveState === "saved" ? <Check size={12} /> : undefined}
+              style={
+                saveState === "saved"
+                  ? { background: "var(--status-active)", outlineColor: "var(--status-active)" }
+                  : undefined
+              }
             >
-              {saveState === "saved" && <Check size={12} aria-hidden="true" />}
               {saveState === "saved" ? "Guardado" : "Guardar cambios"}
-            </button>
+            </Button>
           }
         />
 
@@ -188,8 +144,22 @@ export function InfoSitioView({ siteName, navigate }: Props) {
           <p style={{ fontSize: "var(--font-size-lg)", fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>
             Identidad del sitio
           </p>
-          <Field label="Nombre del sitio" field="nombreSitio" />
-          <Field label="Dominio" field="dominio" />
+          <TextField
+            id="info-nombreSitio"
+            label="Nombre del sitio"
+            value={form.nombreSitio}
+            onChange={(v) => update("nombreSitio", v)}
+            onBlur={() => blur("nombreSitio")}
+            error={errors.nombreSitio}
+          />
+          <TextField
+            id="info-dominio"
+            label="Dominio"
+            value={form.dominio}
+            onChange={(v) => update("dominio", v)}
+            onBlur={() => blur("dominio")}
+            error={errors.dominio}
+          />
           <div>
             <label htmlFor="info-plantilla" style={labelStyle}>Plantilla activa</label>
             <select
