@@ -6,11 +6,11 @@
  * adopción total del DS del Builder (tokens, componentes UI, shell).
  *
  * Bugs del QA original corregidos:
- * - Acciones de asset SIEMPRE visibles (no opacity-0 group-hover).
+ * - Acciones de pieza SIEMPRE visibles (no opacity-0 group-hover).
  * - Tabs implementados como tablist accesible (role/aria/flechas de teclado).
  * - Modal con focus-trap, aria-modal y retorno de foco al cerrar.
  * - Estados de carga, vacío y error contemplados.
- * - aria-live para anunciar assets listos.
+ * - aria-live para anunciar piezas listas.
  */
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -26,8 +26,9 @@ import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { SocialPhonePreview } from "./SocialPhonePreview";
 import { SocialEditorView } from "./SocialEditorView";
-import { socialPosts, INTENT_OPTIONS, EMPTY_BRIEF, briefToPrompt } from "../../data/social-demo";
+import { socialPosts, INTENT_OPTIONS, EMPTY_BRIEF, briefToPrompt, briefToHumanText, generatePosts, postTypeLabel } from "../../data/social-demo";
 import type { SocialPost, IntentId, CampaignBrief } from "../../data/social-demo";
+import { trapTabKey } from "../../utils/focus";
 
 /* ──────────────────────────────────────────────────────────────────────────────
  * Props
@@ -83,6 +84,25 @@ function aspectFor(size: string): string {
   return "aspect-square";
 }
 
+/**
+ * Copy único de "Conectar {red}" — antes había 3 variantes con textos
+ * levemente distintos entre sí (header, chip de cuenta, empty state).
+ * Un solo texto reusable evita drift (WEB-737 T2.10). Sin `label`, arma la
+ * versión genérica del header (todavía no hay una red puntual elegida).
+ */
+function connectNetworkModal(label?: string): ModalInfo {
+  if (!label) {
+    return {
+      title: "Conectar cuenta",
+      body: "Desde acá vas a poder conectar una cuenta de red social para publicar y programar tus piezas. En la versión completa este flujo estará integrado.",
+    };
+  }
+  return {
+    title: `Conectar ${label}`,
+    body: `Para conectar tu cuenta de ${label}, necesitás autorizar el acceso desde la configuración de tu página. En la versión completa este flujo estará integrado acá.`,
+  };
+}
+
 /* ──────────────────────────────────────────────────────────────────────────────
  * Modal genérico accesible
  * ────────────────────────────────────────────────────────────────────────────── */
@@ -103,6 +123,7 @@ function Modal({
   titleId: string;
 }) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const panelRef   = useRef<HTMLDivElement>(null);
   const closeRef   = useRef<HTMLButtonElement>(null);
 
   // Focus trap: al montar, mueve el foco al botón de cierre.
@@ -110,14 +131,17 @@ function Modal({
     closeRef.current?.focus();
   }, []);
 
-  // Cerrar con Escape.
+  // Cerrar con Escape + ciclo first/last real entre TODOS los focusables
+  // (antes quedaba atrapado en un solo botón — la × era inalcanzable por
+  // teclado). Mismo patrón que ModalShell del editor (WEB-737 T1.4).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-      if (e.key === "Tab") {
-        // Focus trap simple: un solo elemento focusable (el botón cerrar).
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (trapTabKey(e, panelRef.current)) {
         e.preventDefault();
-        closeRef.current?.focus();
       }
     }
     document.addEventListener("keydown", onKey);
@@ -133,6 +157,7 @@ function Modal({
       onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -197,7 +222,7 @@ function Modal({
 }
 
 /* ──────────────────────────────────────────────────────────────────────────────
- * PostCard — asset individual con acciones siempre visibles
+ * PostCard — pieza individual con acciones siempre visibles
  * ────────────────────────────────────────────────────────────────────────────── */
 
 interface PostCardProps {
@@ -231,7 +256,7 @@ function PostCard({ post, onAction }: PostCardProps) {
       <div className={`${aspectFor(post.size)} relative overflow-hidden`}>
         <img
           src={post.image}
-          alt={`${post.type} — ${post.overlay}`}
+          alt={`${postTypeLabel(post.type)} — ${post.overlay}`}
           className="w-full h-full object-cover"
         />
         {/* Overlay de texto */}
@@ -246,7 +271,7 @@ function PostCard({ post, onAction }: PostCardProps) {
         {/* Badge de tipo */}
         <div className="absolute top-2 left-2 flex items-center gap-1.5">
           <Badge tone="neutral" style={{ background: "rgba(255,255,255,0.9)", color: "var(--text-primary)" }}>
-            {post.type}
+            {postTypeLabel(post.type)}
           </Badge>
           <PostStatusBadge post={post} />
         </div>
@@ -290,7 +315,7 @@ function PostCard({ post, onAction }: PostCardProps) {
               outlineColor: "var(--ring)",
               whiteSpace: "nowrap",
             }}
-            aria-label={`Editar ${post.type} — ${post.overlay}`}
+            aria-label={`Editar ${postTypeLabel(post.type)} — ${post.overlay}`}
           >
             <Pencil size={11} aria-hidden="true" />
             <span>Editar</span>
@@ -311,7 +336,7 @@ function PostCard({ post, onAction }: PostCardProps) {
               outlineColor: "var(--ring)",
               whiteSpace: "nowrap",
             }}
-            aria-label={`Descargar ${post.type} — ${post.overlay}`}
+            aria-label={`Descargar ${postTypeLabel(post.type)} — ${post.overlay}`}
           >
             <Download size={11} aria-hidden="true" />
             <span>Descargar</span>
@@ -327,22 +352,25 @@ function PostCard({ post, onAction }: PostCardProps) {
  * ────────────────────────────────────────────────────────────────────────────── */
 
 /** Pool mensual de prompts IA — única fuente de verdad, compartida entre el
- * generador de assets ("Generar nuevos assets") y el chat IA del editor
+ * generador de piezas ("Generar piezas nuevas") y el chat IA del editor
  * (SocialEditorView → IaPanel). Ambos gastan del mismo total de 200. */
 const MAX_PROMPTS_POOL = 200;
-/** Costo en prompts de generar una tanda de 6 assets nuevos. */
+/** Costo en prompts de generar una tanda de 6 piezas nuevas. */
 const GENERATE_ASSETS_COST = 6;
 
 export function RedesSocialesView({ siteName, navigate }: Props) {
   const [activeNetwork, setActiveNetwork] = useState("Instagram");
   // Brief de comunicación — default vacío: ninguna card preseleccionada (WEB-737 sub-paso 2).
   const [brief, setBrief] = useState<CampaignBrief>(EMPTY_BRIEF);
-  const [generating, setGenerating] = useState(false);
-  // Pool compartido de prompts IA (generador de assets + chat IA del editor).
+  // Red en la que se está generando — antes era un boolean global que pintaba
+  // el spinner en TODAS las tabs conectadas a la vez (WEB-737 T1.1, bug).
+  // null = no hay generación en curso.
+  const [generatingNetwork, setGeneratingNetwork] = useState<string | null>(null);
+  // Pool compartido de prompts IA (generador de piezas + chat IA del editor).
   const [remainingPrompts, setRemainingPrompts] = useState(184);
   const [modal, setModal] = useState<ModalInfo | null>(null);
   const [showPhone, setShowPhone] = useState(true);
-  // Anuncio accesible de assets listos
+  // Anuncio accesible de piezas listas
   const [liveMessage, setLiveMessage] = useState("");
   // Referencia al wrapper del botón Generar para retorno de foco al cerrar modal
   const generateBtnWrapRef = useRef<HTMLDivElement>(null);
@@ -382,6 +410,16 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
     }, 0);
   }, []);
 
+  /** CTA del empty state — enfoca (y scrollea hacia) la primera card del selector de intención (WEB-737 T2.8). */
+  const focusIntentGroup = useCallback(() => {
+    const firstRadio = intentGroupRef.current?.querySelector<HTMLButtonElement>('[role="radio"]');
+    firstRadio?.scrollIntoView({ behavior: "smooth", block: "center" });
+    firstRadio?.focus();
+  }, []);
+
+  // Generación en curso solo importa a nivel UI para la red activa — otra tab
+  // puede seguir mostrando su contenido mientras esta genera (WEB-737 T1.1).
+  const generating = generatingNetwork === activeNetwork;
   const promptsExhausted = remainingPrompts < GENERATE_ASSETS_COST;
 
   // Brief incompleto: sin intent elegido, o custom sin texto. Bloquea "Generar".
@@ -389,17 +427,42 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
   const briefIncomplete = currentPrompt.trim().length === 0;
 
   function triggerGenerate() {
-    if (generating || promptsExhausted || briefIncomplete) return;
-    setGenerating(true);
+    if (generatingNetwork || promptsExhausted || briefIncomplete) return;
+    const targetNetwork = activeNetwork;
+    const humanText = briefToHumanText(brief);
+    setGeneratingNetwork(targetNetwork);
     setLiveMessage("");
     setRemainingPrompts((r) => Math.max(0, r - GENERATE_ASSETS_COST));
     setTimeout(() => {
-      setGenerating(false);
-      const msg = `6 nuevos assets listos para ${activeNetwork}`;
-      setLiveMessage(msg);
+      setGeneratingNetwork(null);
+
+      // Mock: en este demo la generación no falla nunca — pero el camino de
+      // error queda armado y probado (WEB-737 T1.9). Para simularlo, descomentar:
+      // const failed = false;
+      // if (failed) {
+      //   setModal({
+      //     title: "No pudimos generar las piezas",
+      //     body: "Hubo un problema al crear tus piezas. No te descontamos prompts. Probá de nuevo en un momento.",
+      //     tone: "error",
+      //   });
+      //   setRemainingPrompts((r) => Math.min(MAX_PROMPTS_POOL, r + GENERATE_ASSETS_COST)); // revertir el descuento
+      //   return;
+      // }
+
+      // Éxito: las piezas se agregan de verdad al estado de la red donde se
+      // generaron — la grilla, el badge de la tab y el phone preview se
+      // actualizan con contenido real, no solo el modal (WEB-737 T1.2).
+      const newPosts = generatePosts(targetNetwork, brief, GENERATE_ASSETS_COST);
+      setPostsByNetwork((prev) => ({
+        ...prev,
+        [targetNetwork]: [...newPosts, ...(prev[targetNetwork] ?? [])],
+      }));
+
+      const netLabel = NETWORKS.find((n) => n.id === targetNetwork)?.label ?? targetNetwork;
+      setLiveMessage(`${GENERATE_ASSETS_COST} piezas nuevas listas para ${netLabel}`);
       setModal({
-        title: "Assets listos",
-        body: `Generamos 6 piezas para "${currentPrompt}" en ${activeNetwork}. En la versión completa esto se sincroniza con tu calendario editorial.`,
+        title: "Piezas listas",
+        body: `Generamos ${GENERATE_ASSETS_COST} piezas para "${humanText}" en ${netLabel}. En la versión completa esto se sincroniza con tu calendario editorial.`,
         tone: "success",
       });
     }, 1800);
@@ -460,19 +523,14 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
               const net = NETWORKS.find((n) => n.id === activeNetwork);
               const count = (postsByNetwork[activeNetwork] ?? []).length;
               const label = net?.label ?? activeNetwork;
-              return `${count} piezas generadas para ${label} — feed, stories y más. Editá lo que necesites y descargá cuando quieras.`;
+              return `${count} piezas generadas para ${label} — feed, historias y más. Editá lo que necesites y descargá cuando quieras.`;
             })()}
             navigate={navigate}
             action={
               <Button
                 variant="primary"
                 leftIcon={<LinkIcon size={13} aria-hidden="true" />}
-                onClick={() =>
-                  setModal({
-                    title: "Conectar cuenta",
-                    body: "Desde acá vas a poder conectar una cuenta de red social para publicar y programar tus piezas. En la versión completa este flujo estará integrado.",
-                  })
-                }
+                onClick={() => setModal(connectNetworkModal())}
               >
                 Conectar cuenta
               </Button>
@@ -551,12 +609,7 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
                       outlineColor: "var(--ring)",
                     }}
                     aria-label={`Conectar ${net.label}`}
-                    onClick={() =>
-                      setModal({
-                        title: `Conectar ${net.label}`,
-                        body: `Para conectar tu cuenta de ${net.label}, necesitás autorizar el acceso desde la configuración de tu página. En la versión completa este flujo estará integrado aquí.`,
-                      })
-                    }
+                    onClick={() => setModal(connectNetworkModal(net.label))}
                   >
                     {Icon && <Icon size={13} aria-hidden="true" style={{ color: net.brandColor }} />}
                     {!Icon && (
@@ -576,7 +629,7 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
 
           {/* ── Toolbar de campaña ── */}
           <section
-            aria-label="Generar assets"
+            aria-label="Generar piezas"
             className="flex flex-col gap-4 mb-5"
             style={{
               background: "var(--surface-card)",
@@ -754,26 +807,54 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
             </div>
 
             {/* Botón generar — div wrapper para retorno de foco al cerrar modal */}
-            <div className="flex items-end justify-end gap-3 flex-wrap">
-              <span style={{ fontSize: 10.5, color: promptsExhausted ? "var(--destructive)" : "var(--text-tertiary)" }}>
-                Te quedan {remainingPrompts} / {MAX_PROMPTS_POOL} prompts este mes
-              </span>
-              <div ref={generateBtnWrapRef}>
-              <Button
-                variant="primary"
-                disabled={generating || promptsExhausted || briefIncomplete}
-                onClick={triggerGenerate}
-                leftIcon={
-                  generating
-                    ? <Loader2 size={13} aria-hidden="true" className="animate-spin" />
-                    : <Sparkles size={13} aria-hidden="true" />
-                }
-                aria-busy={generating}
-                aria-live="polite"
-              >
-                {generating ? "Generando…" : "Generar nuevos assets"}
-              </Button>
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-end justify-end gap-3 flex-wrap">
+                <span style={{ fontSize: 10.5, color: promptsExhausted ? "var(--destructive)" : "var(--text-tertiary)" }}>
+                  Te quedan {remainingPrompts} / {MAX_PROMPTS_POOL} prompts este mes
+                </span>
+                <div ref={generateBtnWrapRef} className="flex flex-col items-end" style={{ gap: 4 }}>
+                  <Button
+                    variant="primary"
+                    disabled={generating || promptsExhausted || briefIncomplete}
+                    onClick={triggerGenerate}
+                    leftIcon={
+                      generating
+                        ? <Loader2 size={13} aria-hidden="true" className="animate-spin" />
+                        : <Sparkles size={13} aria-hidden="true" />
+                    }
+                    aria-busy={generating}
+                    aria-live="polite"
+                    title="Cada pieza usa 1 prompt"
+                  >
+                    {generating ? "Generando…" : "Generar piezas nuevas"}
+                  </Button>
+                  {/* Costo visible ANTES de gastar — nunca se descuentan prompts sin que el hotelero lo sepa de antemano (WEB-737 T1.7). */}
+                  {!generating && !promptsExhausted && (
+                    <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>
+                      Genera {GENERATE_ASSETS_COST} piezas · usa {GENERATE_ASSETS_COST} prompts
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {/* Sin prompts: antes el botón solo se deshabilitaba sin explicar por qué (WEB-737 T1.8). */}
+              {promptsExhausted && (
+                <div
+                  className="flex items-center gap-2 flex-wrap justify-end"
+                  style={{ padding: "8px 12px", background: "var(--badge-orange-bg)", borderRadius: "var(--radius-nav)" }}
+                >
+                  <span style={{ fontSize: 11.5, color: "var(--badge-orange-text)", fontWeight: 600 }}>
+                    Se agotaron tus prompts del mes
+                  </span>
+                  <button
+                    type="button"
+                    className="transition-opacity hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+                    style={{ background: "transparent", border: "none", fontSize: 11, fontWeight: 600, color: "var(--accent-info)", cursor: "pointer", padding: 0, outlineColor: "var(--accent-info)" }}
+                  >
+                    Sumar más prompts
+                  </button>
+                </div>
+              )}
             </div>
           </section>
 
@@ -883,7 +964,7 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
               >
                 {isActive && (
                   <div className="flex gap-6 items-start">
-                    {/* ── Grid de assets ── */}
+                    {/* ── Grid de piezas ── */}
                     <div
                       className="flex-1 min-w-0"
                       style={{ minWidth: 0 }}
@@ -914,17 +995,12 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
                             {net.label} no está conectado
                           </p>
                           <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", maxWidth: 320, lineHeight: 1.5, margin: "0 0 16px" }}>
-                            Conectá tu cuenta para ver y publicar los assets generados.
+                            Conectá tu cuenta para ver y publicar las piezas generadas.
                           </p>
                           <Button
                             variant="secondary"
                             leftIcon={<LinkIcon size={13} aria-hidden="true" />}
-                            onClick={() =>
-                              setModal({
-                                title: `Conectar ${net.label}`,
-                                body: `Para conectar tu cuenta de ${net.label}, necesitás autorizar el acceso. En la versión completa este flujo estará integrado aquí.`,
-                              })
-                            }
+                            onClick={() => setModal(connectNetworkModal(net.label))}
                           >
                             Conectar {net.label}
                           </Button>
@@ -950,7 +1026,7 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
                             style={{ color: "var(--brand)", marginBottom: 12 }}
                           />
                           <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)" }}>
-                            Generando assets para {net.label}…
+                            Creando piezas para {net.label}…
                           </p>
                         </div>
                       )}
@@ -966,11 +1042,14 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
                           }}
                         >
                           <p style={{ fontSize: "var(--font-size-lg)", fontWeight: 600, color: "var(--text-primary)", margin: "0 0 6px" }}>
-                            Todavía no hay assets
+                            Todavía no hay piezas
                           </p>
-                          <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", maxWidth: 320, lineHeight: 1.5 }}>
-                            Elegí qué querés comunicar y hacé clic en "Generar nuevos assets" para crear piezas para {net.label}.
+                          <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", maxWidth: 320, lineHeight: 1.5, margin: "0 0 16px" }}>
+                            Elegí qué querés comunicar y generá tu primera pieza para {net.label}.
                           </p>
+                          <Button variant="secondary" onClick={focusIntentGroup}>
+                            Elegir qué comunicar
+                          </Button>
                         </div>
                       )}
 
