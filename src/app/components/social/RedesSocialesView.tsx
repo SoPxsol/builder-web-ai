@@ -111,6 +111,16 @@ interface ModalInfo {
   title: string;
   body: string;
   tone?: "default" | "success" | "error";
+  /**
+   * Convierte el modal informativo en una confirmación de dos vías (Pase A ·
+   * ítem 1, "Despublicar" desde la grilla): si está presente, el botón
+   * primario pasa a mostrar `confirmLabel` y ejecuta `onConfirm` en vez de
+   * cerrar; aparece además un "Cancelar" que solo cierra.
+   */
+  confirm?: {
+    confirmLabel: string;
+    onConfirm: () => void;
+  };
 }
 
 function Modal({
@@ -191,9 +201,14 @@ function Modal({
           {info.body}
         </p>
 
-        <div className="flex justify-end mt-5">
-          <Button ref={closeRef} variant="primary" onClick={onClose}>
-            Entendido
+        <div className="flex justify-end mt-5" style={{ gap: 8 }}>
+          {info.confirm && (
+            <Button variant="secondary" onClick={onClose}>
+              Cancelar
+            </Button>
+          )}
+          <Button ref={closeRef} variant="primary" onClick={info.confirm ? info.confirm.onConfirm : onClose}>
+            {info.confirm ? info.confirm.confirmLabel : "Entendido"}
           </Button>
         </div>
 
@@ -227,7 +242,7 @@ function Modal({
 
 interface PostCardProps {
   post: SocialPost;
-  onAction: (action: "edit" | "download") => void;
+  onAction: (action: "edit" | "download" | "unpublish") => void;
 }
 
 /** Pill de estado sobre la card (badge sobre la imagen) — solo si no es "draft". */
@@ -320,27 +335,57 @@ function PostCard({ post, onAction }: PostCardProps) {
             <Pencil size={11} aria-hidden="true" />
             <span>Editar</span>
           </button>
-          <button
-            type="button"
-            onClick={() => onAction("download")}
-            className="flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-opacity hover:opacity-70"
-            style={{
-              height: 28,
-              padding: "0 8px",
-              fontSize: "var(--font-size-sm)",
-              color: "var(--text-secondary)",
-              background: "var(--surface-page)",
-              border: "0.5px solid var(--border-ui)",
-              borderRadius: "var(--radius-nav)",
-              cursor: "pointer",
-              outlineColor: "var(--ring)",
-              whiteSpace: "nowrap",
-            }}
-            aria-label={`Descargar ${postTypeLabel(post.type)} — ${post.overlay}`}
-          >
-            <Download size={11} aria-hidden="true" />
-            <span>Descargar</span>
-          </button>
+          {/*
+            Publicada: "Despublicar" reemplaza a "Descargar" en el pie (3 botones
+            de texto no entran en el ancho mínimo calibrado de la card — ver nota
+            arriba). Descargar sigue disponible desde el menú Publicar del editor.
+            Sin publicar: se mantiene Descargar como hasta ahora (Pase A · ítem 1).
+          */}
+          {post.status === "published" ? (
+            <button
+              type="button"
+              onClick={() => onAction("unpublish")}
+              className="flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-opacity hover:opacity-70"
+              style={{
+                height: 28,
+                padding: "0 8px",
+                fontSize: "var(--font-size-sm)",
+                color: "var(--text-secondary)",
+                background: "var(--surface-page)",
+                border: "0.5px solid var(--border-ui)",
+                borderRadius: "var(--radius-nav)",
+                cursor: "pointer",
+                outlineColor: "var(--ring)",
+                whiteSpace: "nowrap",
+              }}
+              aria-label={`Despublicar ${postTypeLabel(post.type)} — ${post.overlay}`}
+            >
+              <EyeOff size={11} aria-hidden="true" />
+              <span>Despublicar</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onAction("download")}
+              className="flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-opacity hover:opacity-70"
+              style={{
+                height: 28,
+                padding: "0 8px",
+                fontSize: "var(--font-size-sm)",
+                color: "var(--text-secondary)",
+                background: "var(--surface-page)",
+                border: "0.5px solid var(--border-ui)",
+                borderRadius: "var(--radius-nav)",
+                cursor: "pointer",
+                outlineColor: "var(--ring)",
+                whiteSpace: "nowrap",
+              }}
+              aria-label={`Descargar ${postTypeLabel(post.type)} — ${post.overlay}`}
+            >
+              <Download size={11} aria-hidden="true" />
+              <span>Descargar</span>
+            </button>
+          )}
         </div>
       </div>
     </article>
@@ -1077,6 +1122,22 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
                                 if (action === "edit") {
                                   // Abre el editor real de la pieza (WEB-737 — reemplaza el modal placeholder).
                                   setEditing({ network: net.id, index: i });
+                                  return;
+                                }
+                                if (action === "unpublish") {
+                                  // Publicar deja de ser irreversible (Pase A · ítem 1) — confirmación
+                                  // breve antes de volver la pieza a borrador desde la grilla.
+                                  setModal({
+                                    title: "¿Despublicar esta pieza?",
+                                    body: `Vuelve a borrador y deja de estar visible en tu cuenta de ${net.label}. Podés volver a publicarla cuando quieras.`,
+                                    confirm: {
+                                      confirmLabel: "Despublicar",
+                                      onConfirm: () => {
+                                        patchPost(net.id, i, { status: "draft" });
+                                        closeModal();
+                                      },
+                                    },
+                                  });
                                   return;
                                 }
                                 setModal({
