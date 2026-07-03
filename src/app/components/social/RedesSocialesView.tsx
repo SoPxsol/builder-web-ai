@@ -17,7 +17,8 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   Camera, Users, Download, Pencil, Sparkles, Loader2,
   Smartphone, EyeOff, X, CheckCircle2, AlertCircle,
-  Link as LinkIcon,
+  Link as LinkIcon, Tag, BedDouble, UtensilsCrossed, CalendarDays,
+  Sun, Flower2, PenLine,
 } from "lucide-react";
 import type { View } from "../../types";
 import { ViewHeader } from "../ui/view-header";
@@ -25,8 +26,8 @@ import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { SocialPhonePreview } from "./SocialPhonePreview";
 import { SocialEditorView } from "./SocialEditorView";
-import { socialPosts, campaignOptions } from "../../data/social-demo";
-import type { SocialPost } from "../../data/social-demo";
+import { socialPosts, INTENT_OPTIONS, EMPTY_BRIEF, briefToPrompt } from "../../data/social-demo";
+import type { SocialPost, IntentId, CampaignBrief } from "../../data/social-demo";
 
 /* ──────────────────────────────────────────────────────────────────────────────
  * Props
@@ -55,6 +56,17 @@ const NETWORKS: NetworkDef[] = [
   { id: "Facebook",  label: "Facebook",  icon: Users,    brandColor: "#1877F2", connected: true  },
   { id: "TikTok",   label: "TikTok",   icon: null,     brandColor: "#FE2C55", connected: false },
 ];
+
+/** Ícono por intención de comunicación — usado en las cards del selector "¿Qué querés comunicar?". */
+const INTENT_ICON: Record<IntentId, React.ComponentType<{ size?: number; "aria-hidden"?: string | boolean }>> = {
+  "promo":      Tag,
+  "new-room":   BedDouble,
+  "gastronomy": UtensilsCrossed,
+  "event":      CalendarDays,
+  "season":     Sun,
+  "wellness":   Flower2,
+  "custom":     PenLine,
+};
 
 /* ──────────────────────────────────────────────────────────────────────────────
  * Utilidades
@@ -323,7 +335,8 @@ const GENERATE_ASSETS_COST = 6;
 
 export function RedesSocialesView({ siteName, navigate }: Props) {
   const [activeNetwork, setActiveNetwork] = useState("Instagram");
-  const [campaign, setCampaign] = useState(campaignOptions[0]);
+  // Brief de comunicación — default vacío: ninguna card preseleccionada (WEB-737 sub-paso 2).
+  const [brief, setBrief] = useState<CampaignBrief>(EMPTY_BRIEF);
   const [generating, setGenerating] = useState(false);
   // Pool compartido de prompts IA (generador de assets + chat IA del editor).
   const [remainingPrompts, setRemainingPrompts] = useState(184);
@@ -335,6 +348,8 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
   const generateBtnWrapRef = useRef<HTMLDivElement>(null);
   // Referencia al tablist para navegación por flechas
   const tablistRef = useRef<HTMLDivElement>(null);
+  // Referencia al radiogroup de intención para navegación por flechas
+  const intentGroupRef = useRef<HTMLDivElement>(null);
 
   const modalTitleId = useId();
 
@@ -369,8 +384,12 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
 
   const promptsExhausted = remainingPrompts < GENERATE_ASSETS_COST;
 
+  // Brief incompleto: sin intent elegido, o custom sin texto. Bloquea "Generar".
+  const currentPrompt = briefToPrompt(brief);
+  const briefIncomplete = currentPrompt.trim().length === 0;
+
   function triggerGenerate() {
-    if (generating || promptsExhausted) return;
+    if (generating || promptsExhausted || briefIncomplete) return;
     setGenerating(true);
     setLiveMessage("");
     setRemainingPrompts((r) => Math.max(0, r - GENERATE_ASSETS_COST));
@@ -380,7 +399,7 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
       setLiveMessage(msg);
       setModal({
         title: "Assets listos",
-        body: `Generamos 6 piezas para "${campaign}" en ${activeNetwork}. En la versión completa esto se sincroniza con tu calendario editorial.`,
+        body: `Generamos 6 piezas para "${currentPrompt}" en ${activeNetwork}. En la versión completa esto se sincroniza con tu calendario editorial.`,
         tone: "success",
       });
     }, 1800);
@@ -402,6 +421,25 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
     } else if (e.key === "End") {
       e.preventDefault();
       tabs[tabs.length - 1].focus();
+    }
+  }
+
+  // Navegación por flechas dentro del radiogroup de intención (WCAG 2.2 — Keyboard)
+  function handleIntentKeydown(e: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    const radios = intentGroupRef.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]');
+    if (!radios) return;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      e.preventDefault();
+      radios[(index + 1) % radios.length].focus();
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      e.preventDefault();
+      radios[(index - 1 + radios.length) % radios.length].focus();
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      radios[0].focus();
+    } else if (e.key === "End") {
+      e.preventDefault();
+      radios[radios.length - 1].focus();
     }
   }
 
@@ -533,7 +571,7 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
           {/* ── Toolbar de campaña ── */}
           <section
             aria-label="Generar assets"
-            className="flex items-end gap-3 flex-wrap mb-5"
+            className="flex flex-col gap-4 mb-5"
             style={{
               background: "var(--surface-card)",
               borderRadius: "var(--radius-card)",
@@ -541,10 +579,10 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
               padding: "var(--space-4)",
             }}
           >
-            {/* Select de campaña */}
-            <div className="flex-1" style={{ minWidth: 240 }}>
-              <label
-                htmlFor="campaign-select"
+            {/* Cards de intención — radiogroup accesible (reemplaza al <select> de campaña) */}
+            <div>
+              <span
+                id="intent-group-label"
                 style={{
                   display: "block",
                   fontSize: "var(--font-size-xs)",
@@ -552,44 +590,172 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
                   color: "var(--text-secondary)",
                   textTransform: "uppercase",
                   letterSpacing: "0.06em",
-                  marginBottom: 6,
+                  marginBottom: 8,
                 }}
               >
                 ¿Qué querés comunicar?
-              </label>
-              <select
-                id="campaign-select"
-                value={campaign}
-                onChange={(e) => setCampaign(e.target.value)}
-                disabled={generating}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  height: 34,
-                  padding: "0 10px",
-                  fontSize: "var(--font-size-md)",
-                  color: "var(--text-primary)",
-                  background: "var(--surface-page)",
-                  border: "0.5px solid var(--border-ui)",
-                  borderRadius: "var(--radius-nav)",
-                  cursor: generating ? "not-allowed" : "pointer",
-                  appearance: "auto",
-                  outlineColor: "var(--accent-info)",
-                }}
-                className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              </span>
+
+              <div
+                ref={intentGroupRef}
+                role="radiogroup"
+                aria-labelledby="intent-group-label"
+                className="grid gap-2"
+                style={{ gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))" }}
               >
-                {campaignOptions.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+                {INTENT_OPTIONS.map((opt, index) => {
+                  const Icon = INTENT_ICON[opt.id];
+                  const selected = brief.intent === opt.id;
+                  const isCustom = opt.id === "custom";
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      tabIndex={selected || (!brief.intent && index === 0) ? 0 : -1}
+                      disabled={generating}
+                      onClick={() => setBrief({ intent: opt.id })}
+                      onKeyDown={(e) => handleIntentKeydown(e, index)}
+                      className="flex flex-col items-center justify-center text-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                      style={{
+                        minHeight: 68,          // target táctil ≥44px con margen para ícono + label
+                        padding: "10px 6px",
+                        gap: 5,
+                        background: selected ? "var(--accent-info-bg)" : "var(--surface-page)",
+                        border: selected
+                          ? "1.5px solid var(--brand)"
+                          : isCustom
+                            ? "1.5px dashed var(--border-ui)"
+                            : "0.5px solid var(--border-ui)",
+                        borderRadius: "var(--radius-nav)",
+                        cursor: generating ? "not-allowed" : "pointer",
+                        outlineColor: "var(--accent-info)",
+                        opacity: generating ? 0.6 : 1,
+                      }}
+                    >
+                      <Icon
+                        size={17}
+                        aria-hidden="true"
+                        style={{ color: selected ? "var(--brand)" : "var(--text-secondary)" }}
+                      />
+                      <span
+                        style={{
+                          fontSize: "var(--font-size-xs)",
+                          fontWeight: selected ? 600 : 500,
+                          color: selected ? "var(--text-primary)" : "var(--text-secondary)",
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {opt.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Campos condicionales según la intención elegida */}
+              {brief.intent && brief.intent !== "custom" && (
+                <div className="grid gap-3 mt-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+                  <div>
+                    <label htmlFor="intent-detail" style={{ display: "block", fontSize: "var(--font-size-xs)", color: "var(--text-secondary)", marginBottom: 4 }}>
+                      Detalle (opcional)
+                    </label>
+                    <input
+                      id="intent-detail"
+                      type="text"
+                      value={brief.detail ?? ""}
+                      onChange={(e) => setBrief((b) => ({ ...b, detail: e.target.value }))}
+                      placeholder={INTENT_OPTIONS.find((o) => o.id === brief.intent)?.detailPlaceholder}
+                      disabled={generating}
+                      className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        height: 34,
+                        padding: "0 10px",
+                        fontSize: "var(--font-size-md)",
+                        color: "var(--text-primary)",
+                        background: "var(--surface-page)",
+                        border: "0.5px solid var(--border-ui)",
+                        borderRadius: "var(--radius-nav)",
+                        outlineColor: "var(--accent-info)",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="intent-keydata" style={{ display: "block", fontSize: "var(--font-size-xs)", color: "var(--text-secondary)", marginBottom: 4 }}>
+                      Dato clave (opcional)
+                    </label>
+                    <input
+                      id="intent-keydata"
+                      type="text"
+                      value={brief.keyData ?? ""}
+                      onChange={(e) => setBrief((b) => ({ ...b, keyData: e.target.value }))}
+                      placeholder={INTENT_OPTIONS.find((o) => o.id === brief.intent)?.keyDataPlaceholder}
+                      disabled={generating}
+                      className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        height: 34,
+                        padding: "0 10px",
+                        fontSize: "var(--font-size-md)",
+                        color: "var(--text-primary)",
+                        background: "var(--surface-page)",
+                        border: "0.5px solid var(--border-ui)",
+                        borderRadius: "var(--radius-nav)",
+                        outlineColor: "var(--accent-info)",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {brief.intent === "custom" && (
+                <div className="mt-3">
+                  <label htmlFor="intent-custom" style={{ display: "block", fontSize: "var(--font-size-xs)", color: "var(--text-secondary)", marginBottom: 4 }}>
+                    Contanos qué querés comunicar
+                  </label>
+                  <textarea
+                    id="intent-custom"
+                    value={brief.customText ?? ""}
+                    onChange={(e) => setBrief((b) => ({ ...b, customText: e.target.value }))}
+                    placeholder="Ej: Queremos anunciar que ahora aceptamos mascotas en todas las habitaciones."
+                    rows={2}
+                    disabled={generating}
+                    className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      padding: "8px 10px",
+                      fontSize: "var(--font-size-md)",
+                      lineHeight: 1.5,
+                      color: "var(--text-primary)",
+                      background: "var(--surface-page)",
+                      border: "0.5px solid var(--border-ui)",
+                      borderRadius: "var(--radius-nav)",
+                      outlineColor: "var(--accent-info)",
+                      fontFamily: "inherit",
+                      resize: "vertical",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Botón generar — div wrapper para retorno de foco al cerrar modal */}
-            <div className="flex flex-col items-end" style={{ gap: 4 }}>
+            <div className="flex items-end justify-end gap-3 flex-wrap">
+              <span style={{ fontSize: 10.5, color: promptsExhausted ? "var(--destructive)" : "var(--text-tertiary)" }}>
+                Te quedan {remainingPrompts} / {MAX_PROMPTS_POOL} prompts este mes
+              </span>
               <div ref={generateBtnWrapRef}>
               <Button
                 variant="primary"
-                disabled={generating || promptsExhausted}
+                disabled={generating || promptsExhausted || briefIncomplete}
                 onClick={triggerGenerate}
                 leftIcon={
                   generating
@@ -602,9 +768,6 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
                 {generating ? "Generando…" : "Generar nuevos assets"}
               </Button>
               </div>
-              <span style={{ fontSize: 10.5, color: promptsExhausted ? "var(--destructive)" : "var(--text-tertiary)" }}>
-                Te quedan {remainingPrompts} / {MAX_PROMPTS_POOL} prompts este mes
-              </span>
             </div>
           </section>
 
@@ -800,7 +963,7 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
                             Todavía no hay assets
                           </p>
                           <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", maxWidth: 320, lineHeight: 1.5 }}>
-                            Seleccioná una campaña y hacé clic en "Generar nuevos assets" para crear piezas para {net.label}.
+                            Elegí qué querés comunicar y hacé clic en "Generar nuevos assets" para crear piezas para {net.label}.
                           </p>
                         </div>
                       )}

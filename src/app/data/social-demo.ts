@@ -103,10 +103,109 @@ export const socialPosts: Record<string, SocialPost[]> = {
   TikTok:    ttPosts,
 };
 
-export const campaignOptions: string[] = [
-  "Promoción de verano",
-  "Lanzamiento de nueva suite",
-  "Oferta last-minute",
-  "Semana de bienestar",
-  "Día del viajero",
+/**
+ * Intención de comunicación — reemplaza al viejo `campaignOptions` (lista fija
+ * de strings decorativos). El hotelero elige QUÉ quiere comunicar mediante
+ * cards guiadas + una opción de texto libre ("custom"), y ese brief real
+ * alimenta la generación de assets (ver CampaignBrief más abajo).
+ */
+export type IntentId =
+  | "promo"
+  | "new-room"
+  | "gastronomy"
+  | "event"
+  | "season"
+  | "wellness"
+  | "custom";
+
+export interface IntentOption {
+  id: IntentId;
+  /** Label corto para la card. */
+  label: string;
+  /** Placeholder contextual del campo "Dato clave" — solo intents guiados (no custom). */
+  keyDataPlaceholder?: string;
+  /** Placeholder contextual del campo "Detalle" — solo intents guiados (no custom). */
+  detailPlaceholder?: string;
+}
+
+export const INTENT_OPTIONS: IntentOption[] = [
+  {
+    id: "promo",
+    label: "Promo/Oferta",
+    detailPlaceholder: "Ej: Descuento por reserva anticipada",
+    keyDataPlaceholder: "Ej: 20% off hasta el 30/06",
+  },
+  {
+    id: "new-room",
+    label: "Nueva habitación",
+    detailPlaceholder: "Ej: Suite Master con terraza y jacuzzi",
+    keyDataPlaceholder: "Ej: Disponible desde agosto",
+  },
+  {
+    id: "gastronomy",
+    label: "Gastronomía",
+    detailPlaceholder: "Ej: Nuevo menú de temporada",
+    keyDataPlaceholder: "Ej: Todos los días desde las 19h",
+  },
+  {
+    id: "event",
+    label: "Evento",
+    detailPlaceholder: "Ej: Cena maridada con vinos locales",
+    keyDataPlaceholder: "Ej: 14 de julio, cupos limitados",
+  },
+  {
+    id: "season",
+    label: "Temporada",
+    detailPlaceholder: "Ej: Verano 2026 en Cartagena",
+    keyDataPlaceholder: "Ej: Válido hasta el 15/09",
+  },
+  {
+    id: "wellness",
+    label: "Bienestar",
+    detailPlaceholder: "Ej: Semana de yoga y spa",
+    keyDataPlaceholder: "Ej: Cupos limitados, agosto",
+  },
+  {
+    id: "custom",
+    label: "Escribir lo mío",
+  },
 ];
+
+/** Label legible de cada intención — usado para armar el brief y el modal de éxito. */
+export const INTENT_LABEL: Record<IntentId, string> = Object.fromEntries(
+  INTENT_OPTIONS.map((opt) => [opt.id, opt.label])
+) as Record<IntentId, string>;
+
+/**
+ * Brief real que "alimenta la IA" al generar assets — reemplaza al viejo
+ * `campaign: string` decorativo. Retrocompatible: intent vacío ("" as IntentId)
+ * representa el estado inicial sin selección (ninguna card preseleccionada).
+ */
+export interface CampaignBrief {
+  /** "" = sin selección (estado default, ninguna card preseleccionada). */
+  intent: IntentId | "";
+  /** Afina la intención elegida. Solo aplica si intent !== "custom". Opcional. */
+  detail?: string;
+  /** Único texto libre cuando intent === "custom". */
+  customText?: string;
+  /** Dato estructurado corto opcional (fechas, % descuento, etc). Solo si intent !== "custom". */
+  keyData?: string;
+}
+
+export const EMPTY_BRIEF: CampaignBrief = { intent: "" };
+
+/**
+ * Arma el prompt de texto que efectivamente se envía a la IA / se muestra
+ * como transparencia en el modal de éxito. Devuelve "" si el brief está
+ * incompleto (sin intent, o custom sin texto).
+ */
+export function briefToPrompt(brief: CampaignBrief): string {
+  if (brief.intent === "custom") {
+    return (brief.customText ?? "").trim();
+  }
+  if (!brief.intent) return "";
+  const label = INTENT_LABEL[brief.intent];
+  const detail = brief.detail?.trim();
+  const keyData = brief.keyData?.trim();
+  return `${label}${detail ? `: ${detail}` : ""}${keyData ? ` — ${keyData}` : ""}`;
+}
