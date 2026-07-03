@@ -53,6 +53,7 @@ import {
   ELEMENT_POSITIONS,
   CTA_POSITIONS,
   SITE_LOGO_URL,
+  postTypeLabel,
 } from "../../data/social-demo";
 import type { SocialPost, ScrimConfig, TagElement, LogoElement, CtaElement, ElementPosition, CtaPosition } from "../../data/social-demo";
 import { SocialPhonePreview } from "./SocialPhonePreview";
@@ -75,7 +76,7 @@ interface Props {
   onDownload?: () => void;
   /**
    * Prompts que quedan del pool mensual de 200 — fuente de verdad única,
-   * compartida con "Generar nuevos assets" en RedesSocialesView. Si no se
+   * compartida con "Generar piezas nuevas" en RedesSocialesView. Si no se
    * pasa, el panel de IA cae a MAX_PROMPTS (retrocompatible con otros callers).
    */
   remainingPrompts?: number;
@@ -240,6 +241,11 @@ function hexToRgba(hex: string, alpha: number): string {
 /**
  * Piso mínimo de legibilidad, no configurable: un degradé sutil que garantiza
  * contraste bajo el texto incluso si el usuario baja la opacidad del scrim a 0.
+ * Por diseño solo cubre la franja inferior (donde vive el overlay de título/
+ * subtítulo). Los elementos que pueden caer en top- o center (Etiqueta, Logo,
+ * CTA) NO dependen de este degradé — cada uno resuelve su propio respaldo de
+ * contraste local (fondo/chip translúcido + sombra) para no perder legibilidad
+ * sobre foto clara (WEB-737 T1.5): ver TagChip, LogoImage y CtaChip más abajo.
  */
 const MIN_LEGIBILITY_GRADIENT = "linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.45) 100%)";
 
@@ -289,6 +295,8 @@ export function SocialEditorView({
   const [publishMenuOpen, setPublishMenuOpen] = useState(false);
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [scheduling, setScheduling] = useState(false);
+  // ISO de la programación recién confirmada — dispara el modal de éxito con fecha/hora (WEB-737 T2.9).
+  const [scheduledDoneAt, setScheduledDoneAt] = useState<string | null>(null);
   const [downloadDone, setDownloadDone] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [sheet, setSheet] = useState<null | "elements" | "content" | "ia">(null);
@@ -366,7 +374,7 @@ export function SocialEditorView({
         ref={modalRef}
         role="dialog"
         aria-modal="true"
-        aria-label={`Editor de ${post.type} — ${post.overlay || "sin título"}`}
+        aria-label={`Editor de ${postTypeLabel(post.type)} — ${post.overlay || "sin título"}`}
         className="flex flex-col"
         style={{
           position: "relative",
@@ -419,9 +427,9 @@ export function SocialEditorView({
             <span
               className="truncate"
               style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", maxWidth: 200 }}
-              title={post.type}
+              title={postTypeLabel(post.type)}
             >
-              {post.type}
+              {postTypeLabel(post.type)}
             </span>
           </nav>
 
@@ -540,6 +548,7 @@ export function SocialEditorView({
                         type="button"
                         role="tab"
                         aria-selected={active}
+                        aria-label={t.id === "ia" ? "Asistente IA" : undefined}
                         onClick={() => setRightTab(t.id)}
                         className="flex-1 flex items-center justify-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
                         style={{
@@ -556,7 +565,7 @@ export function SocialEditorView({
                         }}
                       >
                         {t.id === "ia" && <Sparkles size={12} aria-hidden="true" />}
-                        {t.id === "ia" ? "IA ✨" : t.label}
+                        {t.id === "ia" ? "IA" : t.label}
                       </button>
                     );
                   })}
@@ -620,7 +629,17 @@ export function SocialEditorView({
           onConfirm={(iso) => {
             onPatch({ status: "scheduled", scheduledAt: iso });
             setScheduling(false);
+            setScheduledDoneAt(iso);
           }}
+        />
+      )}
+
+      {scheduledDoneAt && (
+        <SimpleModal
+          title="Publicación programada"
+          body={`Programado para el ${formatScheduledConfirmation(scheduledDoneAt)}. Podés editarlo hasta ese momento.`}
+          tone="success"
+          onClose={() => setScheduledDoneAt(null)}
         />
       )}
 
@@ -962,10 +981,17 @@ function CtaChip({ cta, onFocusEdit }: { cta: CtaElement; onFocusEdit: () => voi
           {cta.label || "Reservá ahora"}
         </span>
       ) : (
+        // "text-link": antes solo tenía un text-shadow sutil, insuficiente sobre
+        // foto clara (WEB-737 T1.5). Mini-scrim local (fondo oscuro translúcido)
+        // + text-shadow reforzado con contorno en varias direcciones — igual
+        // que el fondo claro del logo, pero oscuro porque el texto es blanco.
         <span
           className="inline-flex items-center"
           style={{
+            padding: "5px 10px",
             maxWidth: "100%",
+            background: "rgba(0,0,0,0.35)",
+            borderRadius: "var(--radius-dot)",
             color: "#fff",
             fontSize: 13,
             fontWeight: 700,
@@ -974,7 +1000,7 @@ function CtaChip({ cta, onFocusEdit }: { cta: CtaElement; onFocusEdit: () => voi
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
-            textShadow: "0 1px 3px rgba(0,0,0,0.5)",
+            textShadow: "0 1px 2px rgba(0,0,0,0.7), 0 0 6px rgba(0,0,0,0.5)",
           }}
         >
           {cta.label || "Reservá ahora"}
@@ -1104,13 +1130,13 @@ function TextCard({
         {/* Título */}
         <div style={{ marginTop: 10 }}>
           <label htmlFor={TITLE_INPUT_ID} style={settingLabel}>
-            Título
+            Título sobre la imagen
           </label>
           <textarea
             id={TITLE_INPUT_ID}
             value={post.overlay}
             onChange={(e) => onPatch({ overlay: e.target.value })}
-            placeholder="Ej: Mañanas que no se apuran."
+            placeholder="Ej: Mañanas sin apuro"
             rows={2}
             className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{
@@ -1135,7 +1161,7 @@ function TextCard({
         {!isStory && (
           <div>
             <label htmlFor={SUB_INPUT_ID} style={settingLabel}>
-              Subtítulo
+              Subtítulo sobre la imagen
             </label>
             <input
               id={SUB_INPUT_ID}
@@ -1812,7 +1838,7 @@ function ContentPanel({
             className="transition-opacity hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
             style={{ background: "transparent", border: "none", fontSize: 11, fontWeight: 500, color: "var(--accent-info)", cursor: "pointer", padding: 0, outlineColor: "var(--accent-info)" }}
           >
-            Cambiar
+            Cambiar imagen
           </button>
           <span aria-hidden="true" style={{ width: 1, height: 10, background: "var(--border-ui)" }} />
           <span
@@ -1829,7 +1855,7 @@ function ContentPanel({
       {/* Marca + capa sobre la imagen (mismo bloque: la marca define el color del tinte) */}
       <div>
         <ChromeToggle
-          label="Aplicar marca"
+          label="Usar color de marca"
           on={!!post.brandApplied}
           onChange={(v) => {
             const scrim = resolveScrim(post);
@@ -1840,7 +1866,7 @@ function ContentPanel({
           }}
         />
         <p style={{ fontSize: 10, color: "var(--text-tertiary)", margin: "6px 0 0", lineHeight: 1.4 }}>
-          Tiñe el degradé sobre la imagen con el color de marca del hotel en vez de negro neutro.
+          Tiñe la capa sobre la imagen con el color de tu hotel en lugar de negro.
         </p>
 
         {/* Capa sobre la imagen — siempre disponible, independiente de la marca */}
@@ -1906,8 +1932,8 @@ function ContentPanel({
               style={{ width: "100%", accentColor: "var(--brand)", outlineColor: "var(--accent-info)", minHeight: 24 }}
             />
             <div className="flex items-center justify-between" style={{ marginTop: 2 }}>
-              <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Transparente</span>
-              <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Cubre todo</span>
+              <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Suave</span>
+              <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Intenso</span>
             </div>
           </div>
         )}
@@ -2059,7 +2085,7 @@ function IaPanel({
   onPatch: (patch: Partial<SocialPost>) => void;
   /** Prompts que quedan del pool mensual — fuente de verdad única, elevada a RedesSocialesView. */
   remainingPrompts: number;
-  /** Descuenta 1 prompt del pool compartido (generador de assets + chat IA gastan del mismo total). */
+  /** Descuenta 1 prompt del pool compartido (generador de piezas + chat IA gastan del mismo total). */
   onSpendPrompt: () => void;
 }) {
   const [messages, setMessages] = useState<IaMsg[]>([]);
@@ -2111,7 +2137,7 @@ function IaPanel({
             >
               <Sparkles size={18} />
             </span>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Editor IA</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Asistente IA</p>
             <p style={{ fontSize: 11, color: "var(--text-secondary)", margin: 0, lineHeight: 1.5 }}>
               Pedile a la IA que ajuste el texto de esta pieza. Nunca reemplaza sola: siempre elegís "Usar esta" antes de aplicar.
             </p>
@@ -2209,7 +2235,7 @@ function IaPanel({
             className="transition-opacity hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
             style={{ background: "transparent", border: "none", fontSize: 11, fontWeight: 600, color: "var(--accent-info)", cursor: "pointer", padding: 0, outlineColor: "var(--accent-info)" }}
           >
-            Sumar pack extra
+            Sumar más prompts
           </button>
         </div>
       ) : (
@@ -2342,8 +2368,29 @@ function formatShortDate(iso: string): string {
   return d.toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
 }
 
+/** "el {fecha} a las {hora}" para el modal de confirmación de programación (WEB-737 T2.9). */
+function formatScheduledConfirmation(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const date = d.toLocaleDateString("es-CO", { day: "2-digit", month: "long", year: "numeric" });
+  const time = d.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+  return `${date} a las ${time}`;
+}
+
 function SaveIndicator({ status, onRetry }: { status: AutosaveStatus; onRetry: () => void }) {
   const [, setTick] = useState(0);
+  // Cuenta errores consecutivos: si el usuario ya reintentó y volvió a fallar,
+  // el copy lo aclara en vez de repetir el mismo mensaje (WEB-737 T2.9).
+  const errorStreakRef = useRef(0);
+
+  useEffect(() => {
+    if (status.kind === "error") {
+      errorStreakRef.current += 1;
+    } else if (status.kind === "saved") {
+      errorStreakRef.current = 0;
+    }
+  }, [status]);
+
   useEffect(() => {
     if (status.kind !== "saved") return;
     const id = window.setInterval(() => setTick((t) => t + 1), 10000);
@@ -2370,10 +2417,13 @@ function SaveIndicator({ status, onRetry }: { status: AutosaveStatus; onRetry: (
     );
   }
 
+  // status.kind === "error" — el segundo fallo consecutivo (ya reintentó una vez) usa copy distinto.
+  const isRepeatedFailure = errorStreakRef.current > 1;
+
   return (
     <span role="status" aria-live="assertive" className="flex items-center" style={{ gap: 6, fontSize: 11, color: "var(--destructive)" }}>
       <TriangleAlert size={12} aria-hidden="true" />
-      No se pudo guardar
+      {isRepeatedFailure ? "Seguimos sin poder guardar. Revisá tu conexión." : "No se pudo guardar"}
       <button
         type="button"
         onClick={onRetry}
@@ -2658,14 +2708,29 @@ function PublishConfirmModal({
   );
 }
 
+/** YYYY-MM-DD de hoy en horario local — piso del input date (WEB-737 T1.3, no se puede programar en el pasado). */
+function todayLocalISODate(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function ScheduleModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: (iso: string) => void }) {
   const titleId = "schedule-title";
+  const minDate = todayLocalISODate();
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
 
+  // Fecha+hora elegidas, resueltas a Date solo cuando ambos campos están completos.
+  const chosen = date && time ? new Date(`${date}T${time}`) : null;
+  const isPast = !!chosen && chosen.getTime() <= Date.now();
+  const canConfirm = !!date && !!time && !isPast;
+
   function confirm() {
-    if (!date || !time) return;
-    onConfirm(new Date(`${date}T${time}`).toISOString());
+    if (!canConfirm || !chosen) return;
+    onConfirm(chosen.toISOString());
   }
 
   return (
@@ -2673,14 +2738,16 @@ function ScheduleModal({ onCancel, onConfirm }: { onCancel: () => void; onConfir
       <h2 id={titleId} style={{ fontSize: "var(--font-size-lg)", fontWeight: 600, color: "var(--text-primary)", margin: "0 0 12px" }}>
         Programar publicación
       </h2>
-      <div className="flex flex-col" style={{ gap: 12, marginBottom: 16 }}>
+      <div className="flex flex-col" style={{ gap: 12, marginBottom: isPast ? 8 : 16 }}>
         <div>
           <label htmlFor="sched-date" style={settingLabel}>Fecha</label>
           <input
             id="sched-date"
             type="date"
             value={date}
+            min={minDate}
             onChange={(e) => setDate(e.target.value)}
+            aria-invalid={isPast || undefined}
             className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{ width: "100%", height: 38, padding: "0 10px", background: "var(--surface-page)", border: "0.5px solid var(--border-ui)", borderRadius: 6, fontSize: 13, color: "var(--text-primary)", outlineColor: "var(--accent-info)", boxSizing: "border-box" }}
           />
@@ -2692,14 +2759,20 @@ function ScheduleModal({ onCancel, onConfirm }: { onCancel: () => void; onConfir
             type="time"
             value={time}
             onChange={(e) => setTime(e.target.value)}
+            aria-invalid={isPast || undefined}
             className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{ width: "100%", height: 38, padding: "0 10px", background: "var(--surface-page)", border: "0.5px solid var(--border-ui)", borderRadius: 6, fontSize: 13, color: "var(--text-primary)", outlineColor: "var(--accent-info)", boxSizing: "border-box" }}
           />
         </div>
+        {isPast && (
+          <p role="alert" style={{ fontSize: 11.5, color: "var(--destructive)", margin: 0, lineHeight: 1.4 }}>
+            Elegí una fecha y hora futuras — no se puede programar en el pasado.
+          </p>
+        )}
       </div>
       <div className="flex justify-end" style={{ gap: 8 }}>
         <Button variant="secondary" onClick={onCancel}>Cancelar</Button>
-        <Button variant="primary" onClick={confirm} disabled={!date || !time}>
+        <Button variant="primary" onClick={confirm} disabled={!canConfirm}>
           Programar
         </Button>
       </div>
@@ -2807,6 +2880,7 @@ function MobileBottomBar({
             type="button"
             onClick={() => onOpen(id)}
             aria-pressed={isActive}
+            aria-label={id === "ia" ? "Asistente IA" : undefined}
             className="flex-1 flex flex-col items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
             style={{
               gap: 3,
