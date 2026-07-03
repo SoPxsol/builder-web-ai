@@ -198,10 +198,35 @@ export const socialPosts: Record<string, SocialPost[]> = {
 };
 
 /**
+ * Label en español de cada `type` interno — el id (`post.type`) queda en
+ * inglés porque de él depende lógica existente (`isStory`, filtros del
+ * phone preview, formato de la pieza); lo que ve el hotelero se traduce acá.
+ * WEB-737 Tier 2 (T2.3/T2.4): "Story"/"Historia" se unifican a "Historia" en
+ * todo el copy visible.
+ */
+export const POST_TYPE_LABEL: Record<string, string> = {
+  "Post":           "Post",
+  "Story":          "Historia",
+  "Historia":       "Historia",
+  "Reel cover":     "Portada de reel",
+  "Ad banner":      "Anuncio",
+  "Ad creative":    "Anuncio",
+  "Event cover":    "Portada de evento",
+  "Page banner":    "Portada de página",
+  "Profile banner": "Portada de perfil",
+  "Video thumb":    "Miniatura de video",
+};
+
+/** Traduce un `type` interno a su label visible; si no está mapeado, lo devuelve tal cual. */
+export function postTypeLabel(type: string): string {
+  return POST_TYPE_LABEL[type] ?? type;
+}
+
+/**
  * Intención de comunicación — reemplaza al viejo `campaignOptions` (lista fija
  * de strings decorativos). El hotelero elige QUÉ quiere comunicar mediante
  * cards guiadas + una opción de texto libre ("custom"), y ese brief real
- * alimenta la generación de assets (ver CampaignBrief más abajo).
+ * alimenta la generación de piezas (ver CampaignBrief más abajo).
  */
 export type IntentId =
   | "promo"
@@ -271,7 +296,7 @@ export const INTENT_LABEL: Record<IntentId, string> = Object.fromEntries(
 ) as Record<IntentId, string>;
 
 /**
- * Brief real que "alimenta la IA" al generar assets — reemplaza al viejo
+ * Brief real que "alimenta la IA" al generar piezas — reemplaza al viejo
  * `campaign: string` decorativo. Retrocompatible: intent vacío ("" as IntentId)
  * representa el estado inicial sin selección (ninguna card preseleccionada).
  */
@@ -302,4 +327,55 @@ export function briefToPrompt(brief: CampaignBrief): string {
   const detail = brief.detail?.trim();
   const keyData = brief.keyData?.trim();
   return `${label}${detail ? `: ${detail}` : ""}${keyData ? ` — ${keyData}` : ""}`;
+}
+
+/**
+ * Versión HUMANA del brief — para mostrarle al hotelero (modal de éxito,
+ * overlay de las piezas recién generadas). A diferencia de `briefToPrompt`
+ * (que arma la sintaxis "Label: detalle — dato clave" para "enviar a la IA"),
+ * esta nunca expone esa sintaxis cruda. Si hay texto propio (detail/customText)
+ * lo usa tal cual; si no, cae a la intención en lenguaje natural.
+ * WEB-737 T1.6.
+ */
+export function briefToHumanText(brief: CampaignBrief): string {
+  if (brief.intent === "custom") {
+    return (brief.customText ?? "").trim();
+  }
+  if (!brief.intent) return "";
+  const detail = brief.detail?.trim();
+  if (detail) return detail;
+  return INTENT_LABEL[brief.intent];
+}
+
+/** Plantilla de tipo/tamaño de pieza nueva, por red — mismo shape que ya usan igPosts/fbPosts/ttPosts. */
+const GENERATE_TEMPLATE_BY_NETWORK: Record<string, { type: string; size: string }> = {
+  Instagram: { type: "Post", size: "1080×1080" },
+  Facebook:  { type: "Post", size: "1200×630" },
+  TikTok:    { type: "Video thumb", size: "1080×1920" },
+};
+
+/** Pool de imágenes para ciclar al generar piezas nuevas — cualquier foto del hotel sirve de punto de partida. */
+const GENERATE_IMAGE_POOL = Object.values(hotelImages);
+
+/**
+ * Genera `count` piezas nuevas para `network` a partir del brief humano — usado
+ * por "Generar piezas nuevas" en RedesSocialesView (WEB-737 T1.2). Antes el
+ * botón solo abría un modal sin tocar el estado; ahora las piezas quedan
+ * reales en la grilla, en el contador de la tab y en el phone preview.
+ * Mock determinístico: cicla imágenes del hotel + arma overlay/sub con el
+ * texto humano del brief (nunca la sintaxis cruda de `briefToPrompt`).
+ */
+export function generatePosts(network: string, brief: CampaignBrief, count = 6): SocialPost[] {
+  const template = GENERATE_TEMPLATE_BY_NETWORK[network] ?? GENERATE_TEMPLATE_BY_NETWORK.Instagram;
+  const humanText = briefToHumanText(brief) || "Nueva publicación";
+  const keyData = brief.intent !== "custom" ? brief.keyData?.trim() : undefined;
+
+  return Array.from({ length: count }, (_, i) => ({
+    type: template.type,
+    size: template.size,
+    image: GENERATE_IMAGE_POOL[i % GENERATE_IMAGE_POOL.length],
+    overlay: humanText,
+    sub: keyData || "Hotel Azul Marino · Cartagena",
+    status: "draft",
+  }));
 }
