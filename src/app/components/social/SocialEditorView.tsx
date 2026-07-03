@@ -300,11 +300,35 @@ export function SocialEditorView({
   const [downloadDone, setDownloadDone] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [sheet, setSheet] = useState<null | "elements" | "content" | "ia">(null);
+  // Publicar deja de ser irreversible: al confirmar se muestra este modal de
+  // éxito con la opción de volver a borrador ahí mismo, en vez de solo cerrar
+  // (Pase A · ítem 1). Confirmación previa para "Despublicar" (misma idea que
+  // "Pasar a borrador" del editor de blog, pero con un paso de confirmación
+  // porque acá la pieza puede estar ya visible en la cuenta conectada).
+  const [publishDoneOpen, setPublishDoneOpen] = useState(false);
+  const [confirmUnpublish, setConfirmUnpublish] = useState(false);
+  const isPublished = (post.status ?? "draft") === "published";
+  // Cierre con guardado en error: interceptamos las 3 vías (←, ESC, overlay) y
+  // pedimos confirmación en vez de perder cambios sin persistir (Pase A · ítem 2).
+  const [confirmCloseWithError, setConfirmCloseWithError] = useState(false);
+  function requestClose() {
+    if (autosave.status.kind === "error") {
+      setConfirmCloseWithError(true);
+      return;
+    }
+    onClose();
+  }
+  function unpublish() {
+    onPatch({ status: "draft" });
+    setConfirmUnpublish(false);
+    setPublishDoneOpen(false);
+  }
 
   const isMobile = useMediaQuery("(max-width: 768px)");
 
   /* ─── Focus trap + ESC + body scroll lock + retorno de foco ──────────── */
   const modalRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -318,7 +342,7 @@ export function SocialEditorView({
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
+        requestClose();
         return;
       }
       if (e.key === "Tab" && modal) {
@@ -343,7 +367,8 @@ export function SocialEditorView({
       document.body.style.overflow = prevOverflow;
       previouslyFocusedRef.current?.focus();
     };
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autosave.status.kind]);
 
   const contentZone = (
     <ContentPanel
@@ -360,6 +385,8 @@ export function SocialEditorView({
 
   const overlay = (
     <div
+      ref={overlayRef}
+      onClick={(e) => { if (e.target === overlayRef.current) requestClose(); }}
       style={{
         position: "fixed",
         inset: 0,
@@ -401,7 +428,7 @@ export function SocialEditorView({
         >
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Volver a redes sociales"
             title="Volver a redes sociales"
             className="flex items-center justify-center transition-colors hover:bg-[var(--surface-page)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
@@ -438,6 +465,30 @@ export function SocialEditorView({
           <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
             {!isMobile && <SaveIndicator status={autosave.status} onRetry={autosave.flush} />}
             <StatusPill status={post.status ?? "draft"} scheduledAt={post.scheduledAt} />
+            {/* "Despublicar" — mismo patrón visual que "Pasar a borrador" del editor
+                de blog (texto plano, solo visible si está publicada). Acá pide
+                confirmación previa: la pieza puede estar viva en la cuenta conectada. */}
+            {!isMobile && isPublished && (
+              <button
+                type="button"
+                onClick={() => setConfirmUnpublish(true)}
+                className="transition-opacity hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                style={{
+                  height: 30,
+                  padding: "0 6px",
+                  background: "transparent",
+                  border: "none",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: "var(--accent-info)",
+                  cursor: "pointer",
+                  outlineColor: "var(--accent-info)",
+                  borderRadius: 6,
+                }}
+              >
+                Despublicar
+              </button>
+            )}
             {!isMobile && (
               <ViewModeSwitch value={viewMode} onChange={setViewMode} />
             )}
@@ -618,9 +669,71 @@ export function SocialEditorView({
           onConfirm={() => {
             onPatch({ status: "published", scheduledAt: undefined });
             setConfirmPublish(false);
-            onClose();
+            // Antes cerraba el editor de una — publicar es reversible ahora,
+            // así que mostramos el estado post-publicación con salida a elegir
+            // en vez de dar por hecho que el hotelero quiere irse (Pase A · ítem 1).
+            setPublishDoneOpen(true);
           }}
         />
+      )}
+
+      {publishDoneOpen && (
+        <ModalShell titleId="publish-done-title" onClose={() => setPublishDoneOpen(false)}>
+          <CheckCircle2 size={20} aria-hidden="true" style={{ color: "var(--status-active)", marginBottom: 8 }} />
+          <h2 id="publish-done-title" style={{ fontSize: "var(--font-size-lg)", fontWeight: 600, color: "var(--text-primary)", margin: "0 0 8px" }}>
+            Publicado en {network}
+          </h2>
+          <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", lineHeight: 1.5, margin: "0 0 16px" }}>
+            La pieza ya está visible en tu cuenta. Podés seguir editando otras piezas o despublicarla si te arrepentís.
+          </p>
+          <div className="flex justify-end flex-wrap" style={{ gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setConfirmUnpublish(true)}
+              className="transition-opacity hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              style={{ height: 34, padding: "0 12px", background: "transparent", border: "0.5px solid var(--border-ui)", borderRadius: 6, fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", cursor: "pointer", outlineColor: "var(--ring)" }}
+            >
+              Despublicar
+            </button>
+            <Button variant="primary" onClick={() => { setPublishDoneOpen(false); onClose(); }}>
+              Ver en la grilla
+            </Button>
+          </div>
+        </ModalShell>
+      )}
+
+      {confirmUnpublish && (
+        <ModalShell titleId="confirm-unpublish-title" onClose={() => setConfirmUnpublish(false)}>
+          <TriangleAlert size={20} aria-hidden="true" style={{ color: "var(--destructive)", marginBottom: 8 }} />
+          <h2 id="confirm-unpublish-title" style={{ fontSize: "var(--font-size-lg)", fontWeight: 600, color: "var(--text-primary)", margin: "0 0 8px" }}>
+            ¿Despublicar esta pieza?
+          </h2>
+          <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", lineHeight: 1.5, margin: "0 0 16px" }}>
+            Vuelve a borrador y deja de estar visible en tu cuenta de {network}. Podés volver a publicarla cuando quieras.
+          </p>
+          <div className="flex justify-end" style={{ gap: 8 }}>
+            <Button variant="secondary" onClick={() => setConfirmUnpublish(false)}>Cancelar</Button>
+            <Button variant="primary" onClick={unpublish}>Despublicar</Button>
+          </div>
+        </ModalShell>
+      )}
+
+      {confirmCloseWithError && (
+        <ModalShell titleId="confirm-close-title" onClose={() => setConfirmCloseWithError(false)}>
+          <TriangleAlert size={20} aria-hidden="true" style={{ color: "var(--destructive)", marginBottom: 8 }} />
+          <h2 id="confirm-close-title" style={{ fontSize: "var(--font-size-lg)", fontWeight: 600, color: "var(--text-primary)", margin: "0 0 8px" }}>
+            Tenés cambios sin guardar
+          </h2>
+          <p style={{ fontSize: "var(--font-size-md)", color: "var(--text-secondary)", lineHeight: 1.5, margin: "0 0 16px" }}>
+            No pudimos guardar los últimos cambios. Si cerrás ahora, se van a perder.
+          </p>
+          <div className="flex justify-end" style={{ gap: 8 }}>
+            <Button variant="secondary" onClick={() => setConfirmCloseWithError(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => { setConfirmCloseWithError(false); onClose(); }}>
+              Cerrar sin guardar
+            </Button>
+          </div>
+        </ModalShell>
       )}
 
       {scheduling && (
@@ -2093,6 +2206,11 @@ function IaPanel({
   const [loading, setLoading] = useState(false);
   const [proposal, setProposal] = useState<{ overlay: string; sub: string } | null>(null);
   const seedRef = useRef(0);
+  // Deshacer de una sola posición (Pase A · ítem 4): guarda el overlay/sub de
+  // ANTES de aplicar la última variante. No es un historial — al aplicar una
+  // nueva variante o deshacer, este valor se pisa/limpia. Alcanza para el caso
+  // real: "aplicué y me arrepentí", no para ir y volver varias veces.
+  const [undoSnapshot, setUndoSnapshot] = useState<{ overlay: string; sub: string } | null>(null);
 
   const exhausted = remainingPrompts <= 0;
 
@@ -2194,6 +2312,8 @@ function IaPanel({
                   <button
                     type="button"
                     onClick={() => {
+                      // Guarda el texto de ANTES de aplicar — es lo que "Deshacer" restaura.
+                      setUndoSnapshot({ overlay: post.overlay, sub: post.sub });
                       onPatch({ overlay: proposal.overlay, sub: proposal.sub });
                       setMessages((m) => [...m, { role: "assistant", text: "Listo, apliqué esa variante." }]);
                       setProposal(null);
@@ -2215,6 +2335,30 @@ function IaPanel({
                     Descartar
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Deshacer de una sola posición — aparece pegado al último "Usar esta"
+                confirmado. Se limpia si se deshace o si se aplica otra variante. */}
+            {undoSnapshot && !proposal && !loading && (
+              <div
+                className="flex items-center flex-wrap"
+                style={{ alignSelf: "flex-start", gap: 6, fontSize: 11, color: "var(--text-secondary)" }}
+              >
+                <span>¿No era lo que buscabas?</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onPatch({ overlay: undoSnapshot.overlay, sub: undoSnapshot.sub });
+                    setMessages((m) => [...m, { role: "assistant", text: "Deshecho — volví al texto anterior." }]);
+                    setUndoSnapshot(null);
+                  }}
+                  className="flex items-center transition-opacity hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+                  style={{ gap: 4, background: "transparent", border: "none", fontSize: 11, fontWeight: 600, color: "var(--accent-info)", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2, outlineColor: "var(--accent-info)", padding: 0 }}
+                >
+                  <RotateCw size={10} aria-hidden="true" />
+                  Deshacer
+                </button>
               </div>
             )}
           </div>
@@ -2717,6 +2861,20 @@ function todayLocalISODate(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/**
+ * Zona horaria del navegador (IANA, ej. "America/Bogota") — solo aclara la
+ * expectativa en el copy del programador; la lógica de guardado sigue igual
+ * (Date local → toISOString → UTC). Con hoteles en 9 países LATAM, dejar
+ * explícito "tu hora local" evita que se lea como hora del hotel o UTC.
+ */
+function timeZoneLabel(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return "hora del dispositivo";
+  }
+}
+
 function ScheduleModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: (iso: string) => void }) {
   const titleId = "schedule-title";
   const minDate = todayLocalISODate();
@@ -2769,6 +2927,12 @@ function ScheduleModal({ onCancel, onConfirm }: { onCancel: () => void; onConfir
             Elegí una fecha y hora futuras — no se puede programar en el pasado.
           </p>
         )}
+        {/* Aclaración de expectativa, no cambia la lógica de guardado (Pase A ·
+            ítem 3): para hoteles en distintos países LATAM, la fecha se guarda
+            en la hora local del navegador — esto lo hace explícito. */}
+        <p style={{ fontSize: 11, color: "var(--text-tertiary)", margin: 0, lineHeight: 1.4 }}>
+          Se publicará en tu hora local ({timeZoneLabel()}).
+        </p>
       </div>
       <div className="flex justify-end" style={{ gap: 8 }}>
         <Button variant="secondary" onClick={onCancel}>Cancelar</Button>
