@@ -467,6 +467,12 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
               <Button
                 variant="primary"
                 leftIcon={<LinkIcon size={13} aria-hidden="true" />}
+                onClick={() =>
+                  setModal({
+                    title: "Conectar cuenta",
+                    body: "Desde acá vas a poder conectar una cuenta de red social para publicar y programar tus piezas. En la versión completa este flujo estará integrado.",
+                  })
+                }
               >
                 Conectar cuenta
               </Button>
