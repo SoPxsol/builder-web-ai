@@ -49,6 +49,43 @@ export const DEFAULT_SCRIM: ScrimConfig = {
   type: "gradient",
 };
 
+/**
+ * Posiciones predefinidas tipo "slot" para elementos superpuestos a la imagen
+ * (Etiqueta, y luego Logo/CTA). A propósito NO es posición libre (x/y) — el
+ * hotelero elige de un set cerrado vía mini-grid visual, nunca el pixel exacto.
+ * Genérico: lo reusan todos los elementos que se ubican sobre el lienzo.
+ */
+export type ElementPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center";
+
+export const ELEMENT_POSITIONS: { id: ElementPosition; label: string }[] = [
+  { id: "top-left", label: "Arriba izquierda" },
+  { id: "top-right", label: "Arriba derecha" },
+  { id: "center", label: "Centro" },
+  { id: "bottom-left", label: "Abajo izquierda" },
+  { id: "bottom-right", label: "Abajo derecha" },
+];
+
+/**
+ * Etiqueta (oferta) — primer elemento "slot" real del editor. Logo y CTA van
+ * a seguir el mismo patrón (enabled/position + su propio contenido).
+ */
+export interface TagElement {
+  enabled: boolean;
+  /** Ej: "20% OFF", "Nueva suite". */
+  text: string;
+  /** solid = fondo de marca; outline = chip transparente con borde. */
+  style: "solid" | "outline";
+  position: ElementPosition;
+}
+
+export const DEFAULT_TAG: TagElement = {
+  enabled: false,
+  text: "20% OFF",
+  style: "solid",
+  // "top-left": no compite con el overlay de título/subtítulo, que vive abajo.
+  position: "top-left",
+};
+
 export interface SocialPost {
   type: string;
   size: string;
@@ -63,6 +100,8 @@ export interface SocialPost {
   brandApplied?: boolean;
   /** Capa de tinte sobre la imagen. Opcional/retrocompatible — si falta, se usa DEFAULT_SCRIM. */
   scrim?: ScrimConfig;
+  /** Etiqueta (oferta) sobre el lienzo. Opcional/retrocompatible — si falta, se usa DEFAULT_TAG (enabled: false). */
+  tag?: TagElement;
   status?: "draft" | "published" | "scheduled";
   /** ISO, presente cuando status === "scheduled". */
   scheduledAt?: string;

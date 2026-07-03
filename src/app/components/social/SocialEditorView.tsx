@@ -40,8 +40,8 @@ import {
 } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { hotelImages, DEFAULT_SCRIM } from "../../data/social-demo";
-import type { SocialPost, ScrimConfig } from "../../data/social-demo";
+import { hotelImages, DEFAULT_SCRIM, DEFAULT_TAG, ELEMENT_POSITIONS } from "../../data/social-demo";
+import type { SocialPost, ScrimConfig, TagElement, ElementPosition } from "../../data/social-demo";
 import { SocialPhonePreview } from "./SocialPhonePreview";
 import { useAutosave, formatSavedAgo, type AutosaveStatus } from "../builder/useAutosave";
 import { FOCUSABLE_SELECTOR } from "../../utils/focus";
@@ -96,6 +96,18 @@ const NEUTRAL_SCRIM_COLOR = "#000000";
 function resolveScrim(post: SocialPost): ScrimConfig {
   return post.scrim ?? DEFAULT_SCRIM;
 }
+
+/** Resuelve la etiqueta efectiva del post: retrocompatible si `post.tag` no existe. */
+function resolveTag(post: SocialPost): TagElement {
+  return post.tag ?? DEFAULT_TAG;
+}
+
+/** Límite suave de caracteres de la Etiqueta — más chico en Historia (9:16, menos ancho útil). */
+const TAG_MAX_CHARS = 24;
+const TAG_MAX_CHARS_STORY = 18;
+
+/** Id del input de texto de la Etiqueta en ElementsPanel — usado por el chip del lienzo para enfocarlo (click-to-edit). */
+const TAG_TEXT_INPUT_ID = "tag-text-input";
 
 /** Genera el `background` CSS de la capa de tinte según tipo/color/opacidad. */
 function scrimBackground(scrim: ScrimConfig): string {
@@ -159,7 +171,7 @@ export function SocialEditorView({
       }),
     [],
   );
-  const watched = `${post.overlay} ${post.sub} ${post.caption ?? ""} ${post.hashtags ?? ""} ${post.image} ${post.brandApplied} ${JSON.stringify(post.scrim)}`;
+  const watched = `${post.overlay} ${post.sub} ${post.caption ?? ""} ${post.hashtags ?? ""} ${post.image} ${post.brandApplied} ${JSON.stringify(post.scrim)} ${JSON.stringify(post.tag)}`;
   const autosave = useAutosave({ value: watched, save });
 
   /* ─── UI ephemeral ────────────────────────────────────────────────────── */
@@ -342,7 +354,17 @@ export function SocialEditorView({
           ) : isMobile ? (
             <div className="flex-1 overflow-y-auto" style={{ minWidth: 0, background: "var(--surface-page)" }}>
               <div style={{ padding: "16px 14px 24px" }}>
-                <Canvas post={post} isStory={isStory} onPatch={onPatch} />
+                <Canvas
+                  post={post}
+                  isStory={isStory}
+                  onPatch={onPatch}
+                  onFocusTag={() => {
+                    // Mobile: la Etiqueta se edita en el bottom sheet "Elementos" — lo abrimos
+                    // y esperamos a que monte para poder enfocar su input de texto.
+                    setSheet("elements");
+                    window.setTimeout(() => document.getElementById(TAG_TEXT_INPUT_ID)?.focus(), 80);
+                  }}
+                />
               </div>
             </div>
           ) : (
@@ -352,7 +374,12 @@ export function SocialEditorView({
 
               {/* CENTRO — Lienzo */}
               <div className="flex-1 overflow-y-auto flex flex-col items-center" style={{ minWidth: 0, background: "var(--surface-page)", padding: "28px 24px" }}>
-                <Canvas post={post} isStory={isStory} onPatch={onPatch} />
+                <Canvas
+                  post={post}
+                  isStory={isStory}
+                  onPatch={onPatch}
+                  onFocusTag={() => document.getElementById(TAG_TEXT_INPUT_ID)?.focus()}
+                />
               </div>
 
               {/* DERECHA — Contenido / IA */}
@@ -502,10 +529,13 @@ function Canvas({
   post,
   isStory,
   onPatch,
+  onFocusTag,
 }: {
   post: SocialPost;
   isStory: boolean;
   onPatch: (patch: Partial<SocialPost>) => void;
+  /** Click-to-edit: la Etiqueta se edita en el panel, no inline — este callback le pasa el foco. */
+  onFocusTag: () => void;
 }) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingSub, setEditingSub] = useState(false);
@@ -544,6 +574,12 @@ function Canvas({
         <div className="absolute inset-0" aria-hidden="true" style={{ background: MIN_LEGIBILITY_GRADIENT }} />
         {/* Capa de tinte configurable por el usuario (marca / neutro, parejo / degradé). */}
         <div className="absolute inset-0" aria-hidden="true" style={{ background: scrimBackground(scrim) }} />
+
+        {/* Etiqueta (oferta) — slot posicionado, click-to-edit hacia el panel de Elementos. */}
+        {resolveTag(post).enabled && (
+          <TagChip tag={resolveTag(post)} onFocusEdit={onFocusTag} />
+        )}
+
         <div
           className="absolute inset-0 flex flex-col justify-end"
           style={{ padding: 16 }}
@@ -681,6 +717,76 @@ function Canvas({
   );
 }
 
+/**
+ * Resuelve el `style` de posicionamiento absoluto para un slot dado — genérico,
+ * lo va a reusar cualquier elemento superpuesto al lienzo (Etiqueta, Logo, CTA).
+ */
+function positionStyle(position: ElementPosition): React.CSSProperties {
+  const edge = 12;
+  switch (position) {
+    case "top-left":
+      return { top: edge, left: edge };
+    case "top-right":
+      return { top: edge, right: edge };
+    case "bottom-left":
+      return { bottom: edge, left: edge };
+    case "bottom-right":
+      return { bottom: edge, right: edge };
+    case "center":
+      return { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
+  }
+}
+
+/**
+ * Chip real de la Etiqueta sobre el lienzo — clickeable, sin drag, pasa el foco
+ * al panel. El botón usa padding "invisible" para llegar al target táctil de
+ * 44px sin agrandar el chip visual (mismo recurso que el título/subtítulo).
+ */
+function TagChip({ tag, onFocusEdit }: { tag: TagElement; onFocusEdit: () => void }) {
+  const solid = tag.style === "solid";
+  return (
+    <button
+      type="button"
+      onClick={onFocusEdit}
+      aria-label={`Editar etiqueta: ${tag.text || "sin texto"}`}
+      className="absolute inline-flex items-center transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+      style={{
+        ...positionStyle(tag.position),
+        maxWidth: "calc(100% - 24px)",
+        padding: 8,
+        margin: -8,
+        minHeight: 44,
+        minWidth: 44,
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        outlineColor: "var(--ring-on-dark)",
+      }}
+    >
+      <span
+        className="inline-flex items-center"
+        style={{
+          padding: "6px 12px",
+          maxWidth: "100%",
+          background: solid ? "var(--brand)" : "rgba(0,0,0,0.28)",
+          border: solid ? "none" : "1.5px solid #fff",
+          borderRadius: "var(--radius-dot)",
+          color: solid ? readableTextColor("#e84a2c") : "#fff",
+          fontSize: 12,
+          fontWeight: 700,
+          lineHeight: 1.3,
+          boxShadow: solid ? "none" : "0 1px 3px rgba(0,0,0,0.25)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {tag.text || "Etiqueta"}
+      </span>
+    </button>
+  );
+}
+
 function StubPill({ label }: { label: string }) {
   return (
     <div
@@ -714,13 +820,6 @@ function ElementsPanel({
   onPatch: (patch: Partial<SocialPost>) => void;
   inSheet?: boolean;
 }) {
-  const items = [
-    { id: "text", label: "Texto", Icon: TypeIcon, enabled: true },
-    { id: "logo", label: "Logo", Icon: ImageIcon, enabled: false },
-    { id: "tag", label: "Etiqueta (oferta)", Icon: Tag, enabled: false },
-    { id: "cta", label: "CTA", Icon: LinkIcon, enabled: false },
-  ];
-
   return (
     <aside
       aria-label="Elementos de la pieza"
@@ -746,52 +845,321 @@ function ElementsPanel({
         </p>
       </div>
       <div className="flex flex-col" style={{ padding: "0 8px 8px", gap: 4 }}>
-        {items.map(({ id, label, Icon, enabled }) => (
-          <button
-            key={id}
-            type="button"
-            disabled={!enabled}
-            onClick={() => {
-              if (id === "text") {
-                // v1: agrega texto significa asegurar que el subtítulo tenga contenido editable.
-                if (!post.sub) onPatch({ sub: "Nuevo texto" });
-              }
-            }}
-            className="flex items-center w-full transition-colors hover:bg-[#fff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] disabled:cursor-not-allowed disabled:opacity-60"
-            style={{
-              minHeight: 44,
-              padding: "6px 8px",
-              background: "transparent",
-              border: "none",
-              cursor: enabled ? "pointer" : "not-allowed",
-              textAlign: "left",
-              gap: 8,
-              borderRadius: 6,
-              outlineColor: "var(--ring)",
-            }}
+        {/* + Texto — v1: agregar texto significa asegurar que el subtítulo tenga contenido editable. */}
+        <button
+          type="button"
+          onClick={() => {
+            if (!post.sub) onPatch({ sub: "Nuevo texto" });
+          }}
+          className="flex items-center w-full transition-colors hover:bg-[#fff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+          style={{
+            minHeight: 44,
+            padding: "6px 8px",
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            textAlign: "left",
+            gap: 8,
+            borderRadius: 6,
+            outlineColor: "var(--ring)",
+          }}
+        >
+          <span
+            aria-hidden="true"
+            className="flex items-center justify-center flex-shrink-0"
+            style={{ width: 26, height: 26, background: "#fff", border: "0.5px solid var(--border-ui)", borderRadius: 6, color: "var(--text-secondary)" }}
           >
-            <span
-              aria-hidden="true"
-              className="flex items-center justify-center flex-shrink-0"
-              style={{
-                width: 26,
-                height: 26,
-                background: "#fff",
-                border: "0.5px solid var(--border-ui)",
-                borderRadius: 6,
-                color: "var(--text-secondary)",
-              }}
-            >
-              <Icon size={13} />
-            </span>
-            <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)", flex: 1 }}>
-              + {label}
-            </span>
-            {!enabled && <Badge tone="warning" style={{ height: 16, fontSize: 8.5 }}>Próximamente</Badge>}
-          </button>
-        ))}
+            <TypeIcon size={13} />
+          </span>
+          <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)", flex: 1 }}>+ Texto</span>
+        </button>
+
+        {/* Logo — stub disabled, mismo patrón que antes */}
+        <button
+          type="button"
+          disabled
+          className="flex items-center w-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] disabled:cursor-not-allowed disabled:opacity-60"
+          style={{ minHeight: 44, padding: "6px 8px", background: "transparent", border: "none", textAlign: "left", gap: 8, borderRadius: 6, outlineColor: "var(--ring)" }}
+        >
+          <span aria-hidden="true" className="flex items-center justify-center flex-shrink-0" style={{ width: 26, height: 26, background: "#fff", border: "0.5px solid var(--border-ui)", borderRadius: 6, color: "var(--text-secondary)" }}>
+            <ImageIcon size={13} />
+          </span>
+          <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)", flex: 1 }}>+ Logo</span>
+          <Badge tone="warning" style={{ height: 16, fontSize: 8.5 }}>Próximamente</Badge>
+        </button>
+
+        {/* Etiqueta (oferta) — primer elemento "slot" real: card con toggle + controles inline. */}
+        <TagCard post={post} onPatch={onPatch} />
+
+        {/* CTA — stub disabled, mismo patrón que antes */}
+        <button
+          type="button"
+          disabled
+          className="flex items-center w-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] disabled:cursor-not-allowed disabled:opacity-60"
+          style={{ minHeight: 44, padding: "6px 8px", background: "transparent", border: "none", textAlign: "left", gap: 8, borderRadius: 6, outlineColor: "var(--ring)" }}
+        >
+          <span aria-hidden="true" className="flex items-center justify-center flex-shrink-0" style={{ width: 26, height: 26, background: "#fff", border: "0.5px solid var(--border-ui)", borderRadius: 6, color: "var(--text-secondary)" }}>
+            <LinkIcon size={13} />
+          </span>
+          <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)", flex: 1 }}>+ CTA</span>
+          <Badge tone="warning" style={{ height: 16, fontSize: 8.5 }}>Próximamente</Badge>
+        </button>
       </div>
     </aside>
+  );
+}
+
+/**
+ * Card de la Etiqueta (oferta) en el panel de Elementos — patrón que van a
+ * replicar Logo y CTA: header con toggle, y al activarse expande controles
+ * inline (texto, estilo, posición). El toggle OFF saca la etiqueta del lienzo
+ * pero conserva el texto ya cargado (no castiga el probar-y-volver).
+ */
+function TagCard({ post, onPatch }: { post: SocialPost; onPatch: (patch: Partial<SocialPost>) => void }) {
+  const isStory = post.type === "Historia" || post.type === "Story";
+  const tag = resolveTag(post);
+  const maxChars = isStory ? TAG_MAX_CHARS_STORY : TAG_MAX_CHARS;
+  const overLimit = tag.text.length > maxChars;
+
+  function patchTag(partial: Partial<TagElement>) {
+    onPatch({ tag: { ...tag, ...partial } });
+  }
+
+  return (
+    <div
+      style={{
+        background: "#fff",
+        border: "0.5px solid var(--border-ui)",
+        borderRadius: 8,
+        overflow: "hidden",
+      }}
+    >
+      <button
+        type="button"
+        role="switch"
+        aria-checked={tag.enabled}
+        onClick={() => patchTag({ enabled: !tag.enabled })}
+        className="flex items-center w-full transition-colors hover:bg-[var(--surface-page)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+        style={{ minHeight: 44, padding: "6px 8px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", gap: 8 }}
+      >
+        <span
+          aria-hidden="true"
+          className="flex items-center justify-center flex-shrink-0"
+          style={{ width: 26, height: 26, background: "var(--surface-page)", border: "0.5px solid var(--border-ui)", borderRadius: 6, color: "var(--text-secondary)" }}
+        >
+          <Tag size={13} />
+        </span>
+        <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)", flex: 1 }}>
+          {tag.enabled ? "Etiqueta (oferta)" : "+ Etiqueta (oferta)"}
+        </span>
+        <span
+          aria-hidden="true"
+          style={{
+            width: 32,
+            height: 18,
+            borderRadius: 9,
+            padding: 2,
+            display: "flex",
+            flexShrink: 0,
+            background: tag.enabled ? "var(--status-active)" : "var(--border-ui)",
+            justifyContent: tag.enabled ? "flex-end" : "flex-start",
+            transition: "background 0.15s ease",
+          }}
+        >
+          <span style={{ width: 14, height: 14, borderRadius: 7, background: "#fff" }} />
+        </span>
+      </button>
+
+      {tag.enabled && (
+        <div className="flex flex-col" style={{ padding: "0 10px 12px", gap: 12, borderTop: "0.5px solid var(--border-ui)" }}>
+          {/* Texto */}
+          <div style={{ marginTop: 10 }}>
+            <label htmlFor={TAG_TEXT_INPUT_ID} style={settingLabel}>
+              Texto
+            </label>
+            <input
+              id={TAG_TEXT_INPUT_ID}
+              type="text"
+              value={tag.text}
+              onChange={(e) => patchTag({ text: e.target.value })}
+              placeholder="Ej: 20% OFF"
+              aria-describedby="tag-text-counter"
+              className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              style={{
+                width: "100%",
+                height: 34,
+                padding: "0 10px",
+                background: "var(--surface-page)",
+                border: overLimit ? "1px solid var(--destructive)" : "0.5px solid var(--border-ui)",
+                borderRadius: 6,
+                fontSize: 12,
+                color: "var(--text-primary)",
+                outline: "none",
+                outlineColor: "var(--accent-info)",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+              }}
+            />
+            <p
+              id="tag-text-counter"
+              role={overLimit ? "alert" : undefined}
+              style={{
+                fontSize: 10,
+                margin: "4px 0 0",
+                textAlign: "right",
+                color: overLimit ? "var(--destructive)" : "var(--text-tertiary)",
+              }}
+            >
+              {overLimit
+                ? `Un poco largo para verse bien — probá acortarlo (${tag.text.length}/${maxChars})`
+                : `${tag.text.length}/${maxChars}`}
+            </p>
+          </div>
+
+          {/* Estilo */}
+          <div>
+            <span style={settingLabel}>Estilo</span>
+            <div
+              role="tablist"
+              aria-label="Estilo de la etiqueta"
+              className="flex items-center"
+              style={{ background: "var(--surface-page)", border: "0.5px solid var(--border-ui)", borderRadius: 7, padding: 2, gap: 2 }}
+            >
+              {(
+                [
+                  { id: "solid" as const, label: "Sólido" },
+                  { id: "outline" as const, label: "Outline" },
+                ]
+              ).map((opt) => {
+                const active = tag.style === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => patchTag({ style: opt.id })}
+                    className="flex-1 flex items-center justify-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+                    style={{
+                      height: 30,
+                      background: active ? "#fff" : "transparent",
+                      border: "none",
+                      borderRadius: 5,
+                      fontSize: 11.5,
+                      fontWeight: active ? 600 : 500,
+                      color: active ? "var(--text-primary)" : "var(--text-secondary)",
+                      cursor: "pointer",
+                      outlineColor: "var(--accent-info)",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Posición — mini-grid genérico, reusable por Logo/CTA */}
+          <div>
+            <span style={settingLabel}>Posición</span>
+            <PositionPicker
+              value={tag.position}
+              onChange={(position) => patchTag({ position })}
+              ariaLabel="Posición de la etiqueta sobre la imagen"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Mini-grid visual de posición — GENÉRICO, no atado a la Etiqueta. Logo y CTA
+ * van a reusar este mismo selector. Radiogroup accesible: flechas para mover
+ * entre celdas, aria-checked, celdas ≥44px (touch-friendly).
+ */
+function PositionPicker({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: ElementPosition;
+  onChange: (position: ElementPosition) => void;
+  ariaLabel: string;
+}) {
+  // Layout fijo 3x2 que mapea a las 5 posiciones del modelo (centro ocupa el medio de la fila del medio).
+  const grid: (ElementPosition | null)[][] = [
+    ["top-left", null, "top-right"],
+    [null, "center", null],
+    ["bottom-left", null, "bottom-right"],
+  ];
+
+  function move(delta: [number, number]) {
+    const flat = ELEMENT_POSITIONS.map((p) => p.id);
+    const idx = flat.indexOf(value);
+    const next = flat[(idx + delta[0] + flat.length) % flat.length];
+    onChange(next);
+  }
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      className="grid"
+      style={{ gridTemplateColumns: "repeat(3, 1fr)", gap: 4, maxWidth: 160 }}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+          e.preventDefault();
+          move([1, 0]);
+        } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+          e.preventDefault();
+          move([-1, 0]);
+        }
+      }}
+    >
+      {grid.flatMap((row, ri) =>
+        row.map((cell, ci) => {
+          if (!cell) {
+            return <span key={`${ri}-${ci}`} aria-hidden="true" style={{ width: 44, height: 44 }} />;
+          }
+          const meta = ELEMENT_POSITIONS.find((p) => p.id === cell)!;
+          const active = value === cell;
+          return (
+            <button
+              key={cell}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              aria-label={meta.label}
+              title={meta.label}
+              tabIndex={active ? 0 : -1}
+              onClick={() => onChange(cell)}
+              className="flex items-center justify-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+              style={{
+                width: 44,
+                height: 44,
+                background: active ? "var(--badge-blue-bg)" : "var(--surface-page)",
+                border: active ? "1.5px solid var(--accent-info)" : "0.5px solid var(--border-ui)",
+                borderRadius: 6,
+                cursor: "pointer",
+                outlineColor: "var(--accent-info)",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 2,
+                  background: active ? "var(--accent-info)" : "var(--text-tertiary)",
+                }}
+              />
+            </button>
+          );
+        }),
+      )}
+    </div>
   );
 }
 
