@@ -24,6 +24,7 @@ import { ViewHeader } from "../ui/view-header";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { SocialPhonePreview } from "./SocialPhonePreview";
+import { SocialEditorView } from "./SocialEditorView";
 import { socialPosts, campaignOptions } from "../../data/social-demo";
 import type { SocialPost } from "../../data/social-demo";
 
@@ -192,6 +193,18 @@ interface PostCardProps {
   onAction: (action: "edit" | "download") => void;
 }
 
+/** Pill de estado sobre la card (badge sobre la imagen) — solo si no es "draft". */
+function PostStatusBadge({ post }: { post: SocialPost }) {
+  if (!post.status || post.status === "draft") return null;
+  if (post.status === "published") {
+    return <Badge tone="success">Publicado</Badge>;
+  }
+  const shortDate = post.scheduledAt
+    ? new Date(post.scheduledAt).toLocaleDateString("es-CO", { day: "2-digit", month: "short" })
+    : "";
+  return <Badge tone="info">Programado{shortDate ? ` ${shortDate}` : ""}</Badge>;
+}
+
 function PostCard({ post, onAction }: PostCardProps) {
   return (
     <article
@@ -219,10 +232,11 @@ function PostCard({ post, onAction }: PostCardProps) {
           <div className="text-white/80 text-[11px] mt-0.5">{post.sub}</div>
         </div>
         {/* Badge de tipo */}
-        <div className="absolute top-2 left-2">
+        <div className="absolute top-2 left-2 flex items-center gap-1.5">
           <Badge tone="neutral" style={{ background: "rgba(255,255,255,0.9)", color: "var(--text-primary)" }}>
             {post.type}
           </Badge>
+          <PostStatusBadge post={post} />
         </div>
       </div>
 
@@ -315,7 +329,24 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
 
   const modalTitleId = useId();
 
-  const posts: SocialPost[] = socialPosts[activeNetwork] ?? [];
+  // Posts elevados a estado local (single source of truth): editar/publicar/
+  // programar se reflejan en la grilla y en el preview del teléfono.
+  const [postsByNetwork, setPostsByNetwork] = useState<Record<string, SocialPost[]>>(socialPosts);
+  // Pieza abierta en el editor: { network, index } — null = editor cerrado.
+  const [editing, setEditing] = useState<{ network: string; index: number } | null>(null);
+
+  const posts: SocialPost[] = postsByNetwork[activeNetwork] ?? [];
+
+  /** Aplica un patch a un post puntual (por red + índice) — pasado al editor como onPatch. */
+  const patchPost = useCallback((network: string, index: number, patch: Partial<SocialPost>) => {
+    setPostsByNetwork((prev) => {
+      const list = prev[network] ?? [];
+      if (!list[index]) return prev;
+      const nextList = list.slice();
+      nextList[index] = { ...nextList[index], ...patch };
+      return { ...prev, [network]: nextList };
+    });
+  }, []);
 
   // Retorno de foco al cerrar modal
   const closeModal = useCallback(() => {
@@ -377,7 +408,7 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
             title="Redes sociales"
             description={(() => {
               const net = NETWORKS.find((n) => n.id === activeNetwork);
-              const count = (socialPosts[activeNetwork] ?? []).length;
+              const count = (postsByNetwork[activeNetwork] ?? []).length;
               const label = net?.label ?? activeNetwork;
               return `${count} piezas generadas para ${label} — feed, stories y más. Editá lo que necesites y descargá cuando quieras.`;
             })()}
@@ -613,7 +644,7 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
                     }
                     <span>{net.label}</span>
                     <Badge tone="neutral" style={{ marginLeft: 2 }}>
-                      {socialPosts[net.id]?.length ?? 0}
+                      {postsByNetwork[net.id]?.length ?? 0}
                     </Badge>
                     {/* Indicador de tab activo */}
                     {active && (
@@ -653,7 +684,7 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
 
           {/* ── Contenido del tab activo ── */}
           {NETWORKS.map((net) => {
-            const tabPosts = socialPosts[net.id] ?? [];
+            const tabPosts = postsByNetwork[net.id] ?? [];
             const isActive = activeNetwork === net.id;
 
             return (
@@ -777,20 +808,18 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
                             <PostCard
                               key={i}
                               post={post}
-                              onAction={(action) =>
-                                setModal(
-                                  action === "edit"
-                                    ? {
-                                        title: "Editor de assets",
-                                        body: "En la versión completa abrimos el editor visual con tu marca aplicada, listo para ajustes finales.",
-                                      }
-                                    : {
-                                        title: "Descarga iniciada",
-                                        body: "Generamos un .zip con la pieza en todas las variantes (PNG, JPG, formato vertical y cuadrado).",
-                                        tone: "success",
-                                      }
-                                )
-                              }
+                              onAction={(action) => {
+                                if (action === "edit") {
+                                  // Abre el editor real de la pieza (WEB-737 — reemplaza el modal placeholder).
+                                  setEditing({ network: net.id, index: i });
+                                  return;
+                                }
+                                setModal({
+                                  title: "Descarga iniciada",
+                                  body: "Generamos un .zip con la pieza en todas las variantes (PNG, JPG, formato vertical y cuadrado).",
+                                  tone: "success",
+                                });
+                              }}
                             />
                           ))}
                         </div>
@@ -856,6 +885,24 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
           info={modal}
           onClose={closeModal}
           titleId={modalTitleId}
+        />
+      )}
+
+      {/* ── Editor de piezas de Redes Sociales (WEB-737) ── */}
+      {editing && postsByNetwork[editing.network]?.[editing.index] && (
+        <SocialEditorView
+          post={postsByNetwork[editing.network][editing.index]}
+          network={editing.network}
+          connected={NETWORKS.find((n) => n.id === editing.network)?.connected ?? false}
+          onPatch={(patch) => patchPost(editing.network, editing.index, patch)}
+          onClose={() => setEditing(null)}
+          onDownload={() =>
+            setModal({
+              title: "Descarga iniciada",
+              body: "Generamos un .zip con la pieza en todas las variantes (PNG, JPG, formato vertical y cuadrado).",
+              tone: "success",
+            })
+          }
         />
       )}
     </>
