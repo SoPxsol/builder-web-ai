@@ -86,6 +86,57 @@ export const DEFAULT_TAG: TagElement = {
   position: "top-left",
 };
 
+/**
+ * Logo — origen "Marca del sitio", NO se sube ad-hoc en este editor. En este
+ * demo lo tomamos de un mock (no hay draftStore/NavConfig conectado al módulo
+ * de Redes Sociales); en producción sale del logo de marca configurado en el
+ * header del sitio (ver `LogoConfig`/`NavConfig` en `src/app/types/builder.ts`).
+ * Si el sitio no tuviera logo cargado, `SITE_LOGO_URL` sería `null` y el
+ * toggle de la card queda disabled (ver `LogoCard` en SocialEditorView).
+ */
+export const SITE_LOGO_URL: string | null = u("photo-1578683010236-d716f9a3f461", 200);
+
+export interface LogoElement {
+  enabled: boolean;
+  position: ElementPosition;
+  /** sm = discreto (default); md = más presencia, sin tapar la foto. */
+  size: "sm" | "md";
+}
+
+export const DEFAULT_LOGO: LogoElement = {
+  enabled: false,
+  // "top-right": no compite con el overlay de título/subtítulo, que vive abajo.
+  position: "top-right",
+  size: "sm",
+};
+
+/**
+ * CTA — solo visual/persuasivo dentro de la pieza (ej. "Reservá ahora"). v1 NO
+ * lleva URL/tracking: el link real vive en la bio del perfil de la red social.
+ */
+export type CtaStyle = "button" | "text-link";
+/** El CTA no ofrece posiciones "top-*": no es su lugar semántico. */
+export type CtaPosition = "bottom-left" | "bottom-right" | "center";
+
+export interface CtaElement {
+  enabled: boolean;
+  label: string;
+  style: CtaStyle;
+  position: CtaPosition;
+}
+
+/** Slots habilitados para el CTA — subconjunto de ELEMENT_POSITIONS. */
+export const CTA_POSITIONS: { id: CtaPosition; label: string }[] = ELEMENT_POSITIONS.filter(
+  (p): p is { id: CtaPosition; label: string } => p.id === "bottom-left" || p.id === "bottom-right" || p.id === "center",
+);
+
+export const DEFAULT_CTA: CtaElement = {
+  enabled: false,
+  label: "Reservá ahora",
+  style: "button",
+  position: "bottom-right",
+};
+
 export interface SocialPost {
   type: string;
   size: string;
@@ -102,6 +153,10 @@ export interface SocialPost {
   scrim?: ScrimConfig;
   /** Etiqueta (oferta) sobre el lienzo. Opcional/retrocompatible — si falta, se usa DEFAULT_TAG (enabled: false). */
   tag?: TagElement;
+  /** Logo de marca del sitio sobre el lienzo. Opcional/retrocompatible — si falta, se usa DEFAULT_LOGO (enabled: false). */
+  logo?: LogoElement;
+  /** CTA visual (sin URL/tracking) sobre el lienzo. Opcional/retrocompatible — si falta, se usa DEFAULT_CTA (enabled: false). */
+  cta?: CtaElement;
   status?: "draft" | "published" | "scheduled";
   /** ISO, presente cuando status === "scheduled". */
   scheduledAt?: string;

@@ -1,16 +1,20 @@
 /**
  * SocialEditorView.tsx — Editor de piezas de Redes Sociales (v1)
- * WEB-737 | Rama: sofia/web-737-social-editor
+ * WEB-737 | Rama: sofia/web-737-social-editor-logo-cta (encadenada desde -tag)
  *
  * Arquitectura calcada de ArticleEditorView (blog): modal full-screen vía
  * createPortal, focus trap + ESC + body scroll lock + retorno de foco,
  * autosave con useAutosave, responsive con bottom sheets en mobile.
  *
- * v1 alcance: el elemento editable es el overlay de texto (título + subtítulo)
- * sobre la imagen, más caption/hashtags del posteo, formato, imagen y "aplicar
- * marca". Logo / Etiqueta / CTA quedan como stubs "Próximamente" (ver Elementos).
- * La IA es un MOCK de co-creación: propone variantes de texto, nunca reemplaza
- * sola — el usuario elige "Usar esta" o "Descarta".
+ * v1 alcance: overlay de texto (título + subtítulo) sobre la imagen, caption/
+ * hashtags del posteo, formato, imagen, "aplicar marca" + capa de tinte, y tres
+ * elementos "slot" sobre el lienzo (posición por mini-grid cerrado, nunca drag
+ * libre): Etiqueta (oferta), Logo (origen: marca del sitio, no se sube acá) y
+ * CTA (visual, sin URL/tracking — el link real vive en la bio del perfil).
+ * Los tres comparten `ElementPosition`/`PositionPicker` y resuelven choques de
+ * posición entre sí (ver `resolvePositionClaim`). La IA es un MOCK de
+ * co-creación: propone variantes de texto, nunca reemplaza sola — el usuario
+ * elige "Usar esta" o "Descarta".
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -40,8 +44,17 @@ import {
 } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { hotelImages, DEFAULT_SCRIM, DEFAULT_TAG, ELEMENT_POSITIONS } from "../../data/social-demo";
-import type { SocialPost, ScrimConfig, TagElement, ElementPosition } from "../../data/social-demo";
+import {
+  hotelImages,
+  DEFAULT_SCRIM,
+  DEFAULT_TAG,
+  DEFAULT_LOGO,
+  DEFAULT_CTA,
+  ELEMENT_POSITIONS,
+  CTA_POSITIONS,
+  SITE_LOGO_URL,
+} from "../../data/social-demo";
+import type { SocialPost, ScrimConfig, TagElement, LogoElement, CtaElement, ElementPosition, CtaPosition } from "../../data/social-demo";
 import { SocialPhonePreview } from "./SocialPhonePreview";
 import { useAutosave, formatSavedAgo, type AutosaveStatus } from "../builder/useAutosave";
 import { FOCUSABLE_SELECTOR } from "../../utils/focus";
@@ -102,12 +115,102 @@ function resolveTag(post: SocialPost): TagElement {
   return post.tag ?? DEFAULT_TAG;
 }
 
+/** Resuelve el logo efectivo del post: retrocompatible si `post.logo` no existe. */
+function resolveLogo(post: SocialPost): LogoElement {
+  return post.logo ?? DEFAULT_LOGO;
+}
+
+/** Resuelve el CTA efectivo del post: retrocompatible si `post.cta` no existe. */
+function resolveCta(post: SocialPost): CtaElement {
+  return post.cta ?? DEFAULT_CTA;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────────
+ * Resolución de choques de posición — Etiqueta, Logo y CTA comparten el mismo
+ * set de slots. Regla: al mover un elemento a una posición P ya ocupada por
+ * otro elemento habilitado, reubicamos automáticamente al ocupante al slot
+ * libre más cercano. El elemento recién movido "gana" el slot. No hay
+ * configuración manual de colisión — es determinístico y sin motor de layout.
+ * ────────────────────────────────────────────────────────────────────────────── */
+
+type SlotKey = "tag" | "logo" | "cta";
+
+/** Orden de cercanía por slot — primer libre de esta lista es el destino del desalojado. */
+const NEAREST_SLOTS: Record<ElementPosition, ElementPosition[]> = {
+  "top-left": ["top-right", "bottom-left", "center", "bottom-right"],
+  "top-right": ["top-left", "bottom-right", "center", "bottom-left"],
+  "bottom-left": ["bottom-right", "top-left", "center", "top-right"],
+  "bottom-right": ["bottom-left", "top-right", "center", "top-left"],
+  center: ["bottom-right", "bottom-left", "top-right", "top-left"],
+};
+
+/**
+ * Dado el estado de los 3 elementos y cuál se acaba de mover a `position`,
+ * devuelve el patch de `SocialPost` con la posición ganada + el reacomodo del
+ * ocupante anterior (si lo había). El CTA nunca "compite" por top-*: si un
+ * elemento fue desalojado hacia una posición no válida para su propio tipo, se
+ * salta esa opción (ver `allowedFor`).
+ */
+function resolvePositionClaim(
+  post: SocialPost,
+  mover: SlotKey,
+  position: ElementPosition,
+): Pick<SocialPost, "tag" | "logo" | "cta"> {
+  const tag = resolveTag(post);
+  const logo = resolveLogo(post);
+  const cta = resolveCta(post);
+  const state: Record<SlotKey, { enabled: boolean; position: ElementPosition }> = { tag, logo, cta };
+
+  function allowedFor(slot: SlotKey, pos: ElementPosition): boolean {
+    // El CTA no tiene semántica en top-* — nunca lo reubicamos ahí.
+    if (slot === "cta") return pos === "bottom-left" || pos === "bottom-right" || pos === "center";
+    return true;
+  }
+
+  // ¿Quién más (habilitado, distinto del que se mueve) ya está en esa posición?
+  const occupant = (Object.keys(state) as SlotKey[]).find(
+    (key) => key !== mover && state[key].enabled && state[key].position === position,
+  );
+
+  let occupantNewPosition: ElementPosition | null = null;
+  if (occupant) {
+    const candidates = NEAREST_SLOTS[position].filter((p) => allowedFor(occupant, p));
+    const takenByOthers = new Set(
+      (Object.keys(state) as SlotKey[])
+        .filter((key) => key !== occupant && key !== mover)
+        .filter((key) => state[key].enabled)
+        .map((key) => state[key].position),
+    );
+    occupantNewPosition = candidates.find((p) => p !== position && !takenByOthers.has(p)) ?? candidates[0];
+  }
+
+  return {
+    tag: mover === "tag" ? { ...tag, position } : occupant === "tag" && occupantNewPosition ? { ...tag, position: occupantNewPosition } : tag,
+    logo: mover === "logo" ? { ...logo, position } : occupant === "logo" && occupantNewPosition ? { ...logo, position: occupantNewPosition } : logo,
+    cta:
+      mover === "cta"
+        ? { ...cta, position: position as CtaPosition }
+        : occupant === "cta" && occupantNewPosition
+          ? { ...cta, position: occupantNewPosition as CtaPosition }
+          : cta,
+  };
+}
+
 /** Límite suave de caracteres de la Etiqueta — más chico en Historia (9:16, menos ancho útil). */
 const TAG_MAX_CHARS = 24;
 const TAG_MAX_CHARS_STORY = 18;
 
 /** Id del input de texto de la Etiqueta en ElementsPanel — usado por el chip del lienzo para enfocarlo (click-to-edit). */
 const TAG_TEXT_INPUT_ID = "tag-text-input";
+
+/** Límite suave de caracteres del label del CTA — corto a propósito, es un botón, no una frase. */
+const CTA_MAX_CHARS = 20;
+
+/** Id del input de label del CTA en ElementsPanel — usado por el CTA del lienzo para enfocarlo (click-to-edit). */
+const CTA_LABEL_INPUT_ID = "cta-label-input";
+
+/** Id del primer control (segmented Sm/Md) del Logo en ElementsPanel — el logo no tiene campo de texto que enfocar. */
+const LOGO_SIZE_SM_BUTTON_ID = "logo-size-sm-button";
 
 /** Genera el `background` CSS de la capa de tinte según tipo/color/opacidad. */
 function scrimBackground(scrim: ScrimConfig): string {
@@ -171,7 +274,7 @@ export function SocialEditorView({
       }),
     [],
   );
-  const watched = `${post.overlay} ${post.sub} ${post.caption ?? ""} ${post.hashtags ?? ""} ${post.image} ${post.brandApplied} ${JSON.stringify(post.scrim)} ${JSON.stringify(post.tag)}`;
+  const watched = `${post.overlay} ${post.sub} ${post.caption ?? ""} ${post.hashtags ?? ""} ${post.image} ${post.brandApplied} ${JSON.stringify(post.scrim)} ${JSON.stringify(post.tag)} ${JSON.stringify(post.logo)} ${JSON.stringify(post.cta)}`;
   const autosave = useAutosave({ value: watched, save });
 
   /* ─── UI ephemeral ────────────────────────────────────────────────────── */
@@ -364,6 +467,14 @@ export function SocialEditorView({
                     setSheet("elements");
                     window.setTimeout(() => document.getElementById(TAG_TEXT_INPUT_ID)?.focus(), 80);
                   }}
+                  onFocusLogo={() => {
+                    setSheet("elements");
+                    window.setTimeout(() => document.getElementById(LOGO_SIZE_SM_BUTTON_ID)?.focus(), 80);
+                  }}
+                  onFocusCta={() => {
+                    setSheet("elements");
+                    window.setTimeout(() => document.getElementById(CTA_LABEL_INPUT_ID)?.focus(), 80);
+                  }}
                 />
               </div>
             </div>
@@ -379,6 +490,8 @@ export function SocialEditorView({
                   isStory={isStory}
                   onPatch={onPatch}
                   onFocusTag={() => document.getElementById(TAG_TEXT_INPUT_ID)?.focus()}
+                  onFocusLogo={() => document.getElementById(LOGO_SIZE_SM_BUTTON_ID)?.focus()}
+                  onFocusCta={() => document.getElementById(CTA_LABEL_INPUT_ID)?.focus()}
                 />
               </div>
 
@@ -530,12 +643,18 @@ function Canvas({
   isStory,
   onPatch,
   onFocusTag,
+  onFocusLogo,
+  onFocusCta,
 }: {
   post: SocialPost;
   isStory: boolean;
   onPatch: (patch: Partial<SocialPost>) => void;
   /** Click-to-edit: la Etiqueta se edita en el panel, no inline — este callback le pasa el foco. */
   onFocusTag: () => void;
+  /** Click-to-edit: el Logo se edita en el panel — este callback le pasa el foco. */
+  onFocusLogo: () => void;
+  /** Click-to-edit: el CTA se edita en el panel — este callback le pasa el foco. */
+  onFocusCta: () => void;
 }) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingSub, setEditingSub] = useState(false);
@@ -578,6 +697,16 @@ function Canvas({
         {/* Etiqueta (oferta) — slot posicionado, click-to-edit hacia el panel de Elementos. */}
         {resolveTag(post).enabled && (
           <TagChip tag={resolveTag(post)} onFocusEdit={onFocusTag} />
+        )}
+
+        {/* Logo (marca del sitio) — slot posicionado, click-to-edit hacia el panel de Elementos. */}
+        {resolveLogo(post).enabled && SITE_LOGO_URL && (
+          <LogoImage logo={resolveLogo(post)} onFocusEdit={onFocusLogo} />
+        )}
+
+        {/* CTA — slot posicionado (solo bottom-izq/der/centro), click-to-edit hacia el panel de Elementos. */}
+        {resolveCta(post).enabled && (
+          <CtaChip cta={resolveCta(post)} onFocusEdit={onFocusCta} />
         )}
 
         <div
@@ -720,8 +849,11 @@ function Canvas({
 /**
  * Resuelve el `style` de posicionamiento absoluto para un slot dado — genérico,
  * lo va a reusar cualquier elemento superpuesto al lienzo (Etiqueta, Logo, CTA).
+ * `bottomOffset` levanta el elemento por encima del borde inferior — lo usa el
+ * CTA para no quedar pegado/tapando el overlay de título/subtítulo, que vive
+ * siempre en la franja inferior.
  */
-function positionStyle(position: ElementPosition): React.CSSProperties {
+function positionStyle(position: ElementPosition, bottomOffset = 0): React.CSSProperties {
   const edge = 12;
   switch (position) {
     case "top-left":
@@ -729,13 +861,16 @@ function positionStyle(position: ElementPosition): React.CSSProperties {
     case "top-right":
       return { top: edge, right: edge };
     case "bottom-left":
-      return { bottom: edge, left: edge };
+      return { bottom: edge + bottomOffset, left: edge };
     case "bottom-right":
-      return { bottom: edge, right: edge };
+      return { bottom: edge + bottomOffset, right: edge };
     case "center":
       return { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
   }
 }
+
+/** Alto aproximado de la franja del overlay de texto (título + subtítulo) que el CTA debe evitar tapar en bottom-*. */
+const CTA_BOTTOM_CLEARANCE = 54;
 
 /**
  * Chip real de la Etiqueta sobre el lienzo — clickeable, sin drag, pasa el foco
@@ -783,6 +918,127 @@ function TagChip({ tag, onFocusEdit }: { tag: TagElement; onFocusEdit: () => voi
       >
         {tag.text || "Etiqueta"}
       </span>
+    </button>
+  );
+}
+
+/** Tamaño del logo en píxeles según `LogoElement.size`. */
+const LOGO_SIZE_PX: Record<LogoElement["size"], number> = { sm: 32, md: 48 };
+
+/**
+ * Logo (marca del sitio) sobre el lienzo — clickeable, sin drag, pasa el foco
+ * al panel. Contenedor con fondo translúcido + sombra sutil: piso mínimo de
+ * legibilidad para que el logo no se pierda si cae sobre una zona clara de la foto.
+ */
+function LogoImage({ logo, onFocusEdit }: { logo: LogoElement; onFocusEdit: () => void }) {
+  const size = LOGO_SIZE_PX[logo.size];
+  return (
+    <button
+      type="button"
+      onClick={onFocusEdit}
+      aria-label="Editar logo"
+      className="absolute inline-flex items-center justify-center transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+      style={{
+        ...positionStyle(logo.position),
+        padding: 8,
+        margin: -8,
+        minHeight: 44,
+        minWidth: 44,
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        outlineColor: "var(--ring-on-dark)",
+      }}
+    >
+      <span
+        className="flex items-center justify-center"
+        style={{
+          width: size,
+          height: size,
+          padding: 4,
+          background: "rgba(255,255,255,0.85)",
+          borderRadius: 8,
+          boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+        }}
+      >
+        <img
+          src={SITE_LOGO_URL ?? undefined}
+          alt="Logo del hotel"
+          className="w-full h-full object-contain"
+          style={{ borderRadius: 4 }}
+        />
+      </span>
+    </button>
+  );
+}
+
+/**
+ * CTA sobre el lienzo — clickeable, sin drag, pasa el foco al panel.
+ * "button" = pill con fondo de marca; "text-link" = texto subrayado sobre la foto.
+ */
+function CtaChip({ cta, onFocusEdit }: { cta: CtaElement; onFocusEdit: () => void }) {
+  const isButton = cta.style === "button";
+  // El overlay de título/subtítulo vive siempre abajo — si el CTA cae en bottom-*,
+  // le damos margen para no quedar pegado/tapándolo (ver CTA_BOTTOM_CLEARANCE).
+  const bottomOffset = cta.position === "center" ? 0 : CTA_BOTTOM_CLEARANCE;
+  return (
+    <button
+      type="button"
+      onClick={onFocusEdit}
+      aria-label={`Editar CTA: ${cta.label || "sin texto"}`}
+      className="absolute inline-flex items-center transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+      style={{
+        ...positionStyle(cta.position, bottomOffset),
+        maxWidth: "calc(100% - 24px)",
+        padding: 8,
+        margin: -8,
+        minHeight: 44,
+        minWidth: 44,
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        outlineColor: "var(--ring-on-dark)",
+      }}
+    >
+      {isButton ? (
+        <span
+          className="inline-flex items-center"
+          style={{
+            padding: "8px 16px",
+            maxWidth: "100%",
+            background: "var(--brand)",
+            borderRadius: "var(--radius-dot)",
+            color: readableTextColor("#e84a2c"),
+            fontSize: 12.5,
+            fontWeight: 700,
+            lineHeight: 1.3,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
+          }}
+        >
+          {cta.label || "Reservá ahora"}
+        </span>
+      ) : (
+        <span
+          className="inline-flex items-center"
+          style={{
+            maxWidth: "100%",
+            color: "#fff",
+            fontSize: 13,
+            fontWeight: 700,
+            textDecoration: "underline",
+            textUnderlineOffset: 3,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            textShadow: "0 1px 3px rgba(0,0,0,0.5)",
+          }}
+        >
+          {cta.label || "Reservá ahora"}
+        </span>
+      )}
     </button>
   );
 }
@@ -874,36 +1130,14 @@ function ElementsPanel({
           <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)", flex: 1 }}>+ Texto</span>
         </button>
 
-        {/* Logo — stub disabled, mismo patrón que antes */}
-        <button
-          type="button"
-          disabled
-          className="flex items-center w-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] disabled:cursor-not-allowed disabled:opacity-60"
-          style={{ minHeight: 44, padding: "6px 8px", background: "transparent", border: "none", textAlign: "left", gap: 8, borderRadius: 6, outlineColor: "var(--ring)" }}
-        >
-          <span aria-hidden="true" className="flex items-center justify-center flex-shrink-0" style={{ width: 26, height: 26, background: "#fff", border: "0.5px solid var(--border-ui)", borderRadius: 6, color: "var(--text-secondary)" }}>
-            <ImageIcon size={13} />
-          </span>
-          <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)", flex: 1 }}>+ Logo</span>
-          <Badge tone="warning" style={{ height: 16, fontSize: 8.5 }}>Próximamente</Badge>
-        </button>
+        {/* Logo (marca del sitio) — card con toggle + controles inline. Origen: logo de marca del sitio, no se sube acá. */}
+        <LogoCard post={post} onPatch={onPatch} />
 
         {/* Etiqueta (oferta) — primer elemento "slot" real: card con toggle + controles inline. */}
         <TagCard post={post} onPatch={onPatch} />
 
-        {/* CTA — stub disabled, mismo patrón que antes */}
-        <button
-          type="button"
-          disabled
-          className="flex items-center w-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] disabled:cursor-not-allowed disabled:opacity-60"
-          style={{ minHeight: 44, padding: "6px 8px", background: "transparent", border: "none", textAlign: "left", gap: 8, borderRadius: 6, outlineColor: "var(--ring)" }}
-        >
-          <span aria-hidden="true" className="flex items-center justify-center flex-shrink-0" style={{ width: 26, height: 26, background: "#fff", border: "0.5px solid var(--border-ui)", borderRadius: 6, color: "var(--text-secondary)" }}>
-            <LinkIcon size={13} />
-          </span>
-          <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)", flex: 1 }}>+ CTA</span>
-          <Badge tone="warning" style={{ height: 16, fontSize: 8.5 }}>Próximamente</Badge>
-        </button>
+        {/* CTA — card con toggle + controles inline (label, estilo, posición restringida). */}
+        <CtaCard post={post} onPatch={onPatch} />
       </div>
     </aside>
   );
@@ -1059,13 +1293,305 @@ function TagCard({ post, onPatch }: { post: SocialPost; onPatch: (patch: Partial
             </div>
           </div>
 
-          {/* Posición — mini-grid genérico, reusable por Logo/CTA */}
+          {/* Posición — mini-grid genérico, reusable por Logo/CTA. Resuelve choques con otros elementos habilitados. */}
           <div>
             <span style={settingLabel}>Posición</span>
             <PositionPicker
               value={tag.position}
-              onChange={(position) => patchTag({ position })}
+              onChange={(position) => onPatch(resolvePositionClaim(post, "tag", position))}
               ariaLabel="Posición de la etiqueta sobre la imagen"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Card del Logo en el panel de Elementos — mismo patrón que TagCard: header
+ * con toggle, controles inline al activarse (tamaño + posición, sin campo de
+ * texto porque es una imagen). Origen del logo: "Marca del sitio" — NO se sube
+ * ad-hoc acá. Si el sitio no tiene logo cargado (`SITE_LOGO_URL` null), el
+ * toggle queda disabled con tooltip explicando dónde cargarlo.
+ */
+function LogoCard({ post, onPatch }: { post: SocialPost; onPatch: (patch: Partial<SocialPost>) => void }) {
+  const logo = resolveLogo(post);
+  const hasSiteLogo = !!SITE_LOGO_URL;
+
+  function patchLogo(partial: Partial<LogoElement>) {
+    onPatch({ logo: { ...logo, ...partial } });
+  }
+
+  return (
+    <div
+      style={{
+        background: "#fff",
+        border: "0.5px solid var(--border-ui)",
+        borderRadius: 8,
+        overflow: "hidden",
+      }}
+    >
+      <button
+        type="button"
+        role="switch"
+        aria-checked={logo.enabled}
+        disabled={!hasSiteLogo}
+        title={hasSiteLogo ? undefined : "Subí tu logo en Marca del sitio"}
+        onClick={() => patchLogo({ enabled: !logo.enabled })}
+        className="flex items-center w-full transition-colors hover:bg-[var(--surface-page)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+        style={{ minHeight: 44, padding: "6px 8px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", gap: 8 }}
+      >
+        <span
+          aria-hidden="true"
+          className="flex items-center justify-center flex-shrink-0"
+          style={{ width: 26, height: 26, background: "var(--surface-page)", border: "0.5px solid var(--border-ui)", borderRadius: 6, color: "var(--text-secondary)" }}
+        >
+          <ImageIcon size={13} />
+        </span>
+        <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)", flex: 1 }}>
+          {logo.enabled ? "Logo" : "+ Logo"}
+        </span>
+        <span
+          aria-hidden="true"
+          style={{
+            width: 32,
+            height: 18,
+            borderRadius: 9,
+            padding: 2,
+            display: "flex",
+            flexShrink: 0,
+            background: logo.enabled ? "var(--status-active)" : "var(--border-ui)",
+            justifyContent: logo.enabled ? "flex-end" : "flex-start",
+            transition: "background 0.15s ease",
+          }}
+        >
+          <span style={{ width: 14, height: 14, borderRadius: 7, background: "#fff" }} />
+        </span>
+      </button>
+
+      {!hasSiteLogo && (
+        <p style={{ fontSize: 10, color: "var(--text-tertiary)", margin: "0 10px 10px", lineHeight: 1.4 }}>
+          Subí tu logo en Marca del sitio para poder agregarlo a las piezas.
+        </p>
+      )}
+
+      {logo.enabled && hasSiteLogo && (
+        <div className="flex flex-col" style={{ padding: "0 10px 12px", gap: 12, borderTop: "0.5px solid var(--border-ui)" }}>
+          {/* Tamaño */}
+          <div style={{ marginTop: 10 }}>
+            <span style={settingLabel}>Tamaño</span>
+            <div
+              role="tablist"
+              aria-label="Tamaño del logo"
+              className="flex items-center"
+              style={{ background: "var(--surface-page)", border: "0.5px solid var(--border-ui)", borderRadius: 7, padding: 2, gap: 2 }}
+            >
+              {(
+                [
+                  { id: "sm" as const, label: "Sm" },
+                  { id: "md" as const, label: "Md" },
+                ]
+              ).map((opt) => {
+                const active = logo.size === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    id={opt.id === "sm" ? LOGO_SIZE_SM_BUTTON_ID : undefined}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => patchLogo({ size: opt.id })}
+                    className="flex-1 flex items-center justify-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+                    style={{
+                      height: 30,
+                      background: active ? "#fff" : "transparent",
+                      border: "none",
+                      borderRadius: 5,
+                      fontSize: 11.5,
+                      fontWeight: active ? 600 : 500,
+                      color: active ? "var(--text-primary)" : "var(--text-secondary)",
+                      cursor: "pointer",
+                      outlineColor: "var(--accent-info)",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Posición — mismo mini-grid genérico */}
+          <div>
+            <span style={settingLabel}>Posición</span>
+            <PositionPicker
+              value={logo.position}
+              onChange={(position) => onPatch(resolvePositionClaim(post, "logo", position))}
+              ariaLabel="Posición del logo sobre la imagen"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Card del CTA en el panel de Elementos — mismo patrón: header con toggle,
+ * controles inline (label con contador, estilo, posición restringida a
+ * bottom-izq/der/centro porque no compite con el overlay de título/subtítulo).
+ */
+function CtaCard({ post, onPatch }: { post: SocialPost; onPatch: (patch: Partial<SocialPost>) => void }) {
+  const cta = resolveCta(post);
+  const overLimit = cta.label.length > CTA_MAX_CHARS;
+
+  function patchCta(partial: Partial<CtaElement>) {
+    onPatch({ cta: { ...cta, ...partial } });
+  }
+
+  return (
+    <div
+      style={{
+        background: "#fff",
+        border: "0.5px solid var(--border-ui)",
+        borderRadius: 8,
+        overflow: "hidden",
+      }}
+    >
+      <button
+        type="button"
+        role="switch"
+        aria-checked={cta.enabled}
+        onClick={() => patchCta({ enabled: !cta.enabled })}
+        className="flex items-center w-full transition-colors hover:bg-[var(--surface-page)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+        style={{ minHeight: 44, padding: "6px 8px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", gap: 8 }}
+      >
+        <span
+          aria-hidden="true"
+          className="flex items-center justify-center flex-shrink-0"
+          style={{ width: 26, height: 26, background: "var(--surface-page)", border: "0.5px solid var(--border-ui)", borderRadius: 6, color: "var(--text-secondary)" }}
+        >
+          <LinkIcon size={13} />
+        </span>
+        <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)", flex: 1 }}>
+          {cta.enabled ? "CTA" : "+ CTA"}
+        </span>
+        <span
+          aria-hidden="true"
+          style={{
+            width: 32,
+            height: 18,
+            borderRadius: 9,
+            padding: 2,
+            display: "flex",
+            flexShrink: 0,
+            background: cta.enabled ? "var(--status-active)" : "var(--border-ui)",
+            justifyContent: cta.enabled ? "flex-end" : "flex-start",
+            transition: "background 0.15s ease",
+          }}
+        >
+          <span style={{ width: 14, height: 14, borderRadius: 7, background: "#fff" }} />
+        </span>
+      </button>
+
+      {cta.enabled && (
+        <div className="flex flex-col" style={{ padding: "0 10px 12px", gap: 12, borderTop: "0.5px solid var(--border-ui)" }}>
+          {/* Label */}
+          <div style={{ marginTop: 10 }}>
+            <label htmlFor={CTA_LABEL_INPUT_ID} style={settingLabel}>
+              Texto del botón
+            </label>
+            <input
+              id={CTA_LABEL_INPUT_ID}
+              type="text"
+              value={cta.label}
+              onChange={(e) => patchCta({ label: e.target.value })}
+              placeholder="Ej: Reservá ahora"
+              aria-describedby="cta-label-counter"
+              className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              style={{
+                width: "100%",
+                height: 34,
+                padding: "0 10px",
+                background: "var(--surface-page)",
+                border: overLimit ? "1px solid var(--destructive)" : "0.5px solid var(--border-ui)",
+                borderRadius: 6,
+                fontSize: 12,
+                color: "var(--text-primary)",
+                outline: "none",
+                outlineColor: "var(--accent-info)",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+              }}
+            />
+            <p
+              id="cta-label-counter"
+              role={overLimit ? "alert" : undefined}
+              style={{
+                fontSize: 10,
+                margin: "4px 0 0",
+                textAlign: "right",
+                color: overLimit ? "var(--destructive)" : "var(--text-tertiary)",
+              }}
+            >
+              {overLimit
+                ? `Un poco largo para verse bien — probá acortarlo (${cta.label.length}/${CTA_MAX_CHARS})`
+                : `${cta.label.length}/${CTA_MAX_CHARS}`}
+            </p>
+          </div>
+
+          {/* Estilo */}
+          <div>
+            <span style={settingLabel}>Estilo</span>
+            <div
+              role="tablist"
+              aria-label="Estilo del CTA"
+              className="flex items-center"
+              style={{ background: "var(--surface-page)", border: "0.5px solid var(--border-ui)", borderRadius: 7, padding: 2, gap: 2 }}
+            >
+              {(
+                [
+                  { id: "button" as const, label: "Botón" },
+                  { id: "text-link" as const, label: "Texto" },
+                ]
+              ).map((opt) => {
+                const active = cta.style === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => patchCta({ style: opt.id })}
+                    className="flex-1 flex items-center justify-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+                    style={{
+                      height: 30,
+                      background: active ? "#fff" : "transparent",
+                      border: "none",
+                      borderRadius: 5,
+                      fontSize: 11.5,
+                      fontWeight: active ? 600 : 500,
+                      color: active ? "var(--text-primary)" : "var(--text-secondary)",
+                      cursor: "pointer",
+                      outlineColor: "var(--accent-info)",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Posición — restringida a bottom-izq/der/centro, no compite con el overlay de título/subtítulo. */}
+          <div>
+            <span style={settingLabel}>Posición</span>
+            <PositionPicker
+              value={cta.position}
+              onChange={(position) => onPatch(resolvePositionClaim(post, "cta", position))}
+              ariaLabel="Posición del CTA sobre la imagen"
+              allowedPositions={CTA_POSITIONS.map((p) => p.id)}
             />
           </div>
         </div>
@@ -1083,10 +1609,13 @@ function PositionPicker({
   value,
   onChange,
   ariaLabel,
+  allowedPositions,
 }: {
   value: ElementPosition;
   onChange: (position: ElementPosition) => void;
   ariaLabel: string;
+  /** Subset habilitado — ej. el CTA no ofrece top-*. Si no se pasa, las 5 posiciones están disponibles. */
+  allowedPositions?: ElementPosition[];
 }) {
   // Layout fijo 3x2 que mapea a las 5 posiciones del modelo (centro ocupa el medio de la fila del medio).
   const grid: (ElementPosition | null)[][] = [
@@ -1095,8 +1624,12 @@ function PositionPicker({
     ["bottom-left", null, "bottom-right"],
   ];
 
+  function isAllowed(pos: ElementPosition): boolean {
+    return !allowedPositions || allowedPositions.includes(pos);
+  }
+
   function move(delta: [number, number]) {
-    const flat = ELEMENT_POSITIONS.map((p) => p.id);
+    const flat = ELEMENT_POSITIONS.map((p) => p.id).filter(isAllowed);
     const idx = flat.indexOf(value);
     const next = flat[(idx + delta[0] + flat.length) % flat.length];
     onChange(next);
@@ -1125,24 +1658,27 @@ function PositionPicker({
           }
           const meta = ELEMENT_POSITIONS.find((p) => p.id === cell)!;
           const active = value === cell;
+          const disabled = !isAllowed(cell);
           return (
             <button
               key={cell}
               type="button"
               role="radio"
               aria-checked={active}
-              aria-label={meta.label}
-              title={meta.label}
+              aria-label={disabled ? `${meta.label} (no disponible para este elemento)` : meta.label}
+              title={disabled ? `${meta.label} — no disponible para este elemento` : meta.label}
               tabIndex={active ? 0 : -1}
+              disabled={disabled}
               onClick={() => onChange(cell)}
-              className="flex items-center justify-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+              className="flex items-center justify-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 disabled:cursor-not-allowed"
               style={{
                 width: 44,
                 height: 44,
-                background: active ? "var(--badge-blue-bg)" : "var(--surface-page)",
+                background: disabled ? "var(--surface-page)" : active ? "var(--badge-blue-bg)" : "var(--surface-page)",
                 border: active ? "1.5px solid var(--accent-info)" : "0.5px solid var(--border-ui)",
                 borderRadius: 6,
-                cursor: "pointer",
+                cursor: disabled ? "not-allowed" : "pointer",
+                opacity: disabled ? 0.35 : 1,
                 outlineColor: "var(--accent-info)",
               }}
             >
