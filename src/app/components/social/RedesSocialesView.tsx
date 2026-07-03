@@ -314,10 +314,19 @@ function PostCard({ post, onAction }: PostCardProps) {
  * Componente principal
  * ────────────────────────────────────────────────────────────────────────────── */
 
+/** Pool mensual de prompts IA — única fuente de verdad, compartida entre el
+ * generador de assets ("Generar nuevos assets") y el chat IA del editor
+ * (SocialEditorView → IaPanel). Ambos gastan del mismo total de 200. */
+const MAX_PROMPTS_POOL = 200;
+/** Costo en prompts de generar una tanda de 6 assets nuevos. */
+const GENERATE_ASSETS_COST = 6;
+
 export function RedesSocialesView({ siteName, navigate }: Props) {
   const [activeNetwork, setActiveNetwork] = useState("Instagram");
   const [campaign, setCampaign] = useState(campaignOptions[0]);
   const [generating, setGenerating] = useState(false);
+  // Pool compartido de prompts IA (generador de assets + chat IA del editor).
+  const [remainingPrompts, setRemainingPrompts] = useState(184);
   const [modal, setModal] = useState<ModalInfo | null>(null);
   const [showPhone, setShowPhone] = useState(true);
   // Anuncio accesible de assets listos
@@ -358,10 +367,13 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
     }, 0);
   }, []);
 
+  const promptsExhausted = remainingPrompts < GENERATE_ASSETS_COST;
+
   function triggerGenerate() {
-    if (generating) return;
+    if (generating || promptsExhausted) return;
     setGenerating(true);
     setLiveMessage("");
+    setRemainingPrompts((r) => Math.max(0, r - GENERATE_ASSETS_COST));
     setTimeout(() => {
       setGenerating(false);
       const msg = `6 nuevos assets listos para ${activeNetwork}`;
@@ -573,21 +585,26 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
             </div>
 
             {/* Botón generar — div wrapper para retorno de foco al cerrar modal */}
-            <div ref={generateBtnWrapRef}>
-            <Button
-              variant="primary"
-              disabled={generating}
-              onClick={triggerGenerate}
-              leftIcon={
-                generating
-                  ? <Loader2 size={13} aria-hidden="true" className="animate-spin" />
-                  : <Sparkles size={13} aria-hidden="true" />
-              }
-              aria-busy={generating}
-              aria-live="polite"
-            >
-              {generating ? "Generando…" : "Generar nuevos assets"}
-            </Button>
+            <div className="flex flex-col items-end" style={{ gap: 4 }}>
+              <div ref={generateBtnWrapRef}>
+              <Button
+                variant="primary"
+                disabled={generating || promptsExhausted}
+                onClick={triggerGenerate}
+                leftIcon={
+                  generating
+                    ? <Loader2 size={13} aria-hidden="true" className="animate-spin" />
+                    : <Sparkles size={13} aria-hidden="true" />
+                }
+                aria-busy={generating}
+                aria-live="polite"
+              >
+                {generating ? "Generando…" : "Generar nuevos assets"}
+              </Button>
+              </div>
+              <span style={{ fontSize: 10.5, color: promptsExhausted ? "var(--destructive)" : "var(--text-tertiary)" }}>
+                Te quedan {remainingPrompts} / {MAX_PROMPTS_POOL} prompts este mes
+              </span>
             </div>
           </section>
 
@@ -896,6 +913,8 @@ export function RedesSocialesView({ siteName, navigate }: Props) {
           connected={NETWORKS.find((n) => n.id === editing.network)?.connected ?? false}
           onPatch={(patch) => patchPost(editing.network, editing.index, patch)}
           onClose={() => setEditing(null)}
+          remainingPrompts={remainingPrompts}
+          onSpendPrompt={() => setRemainingPrompts((r) => Math.max(0, r - 1))}
           onDownload={() =>
             setModal({
               title: "Descarga iniciada",

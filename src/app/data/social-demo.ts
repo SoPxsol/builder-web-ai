@@ -27,6 +27,28 @@ export const hotelImages = {
   room3:      u("photo-1590490360182-c33d57733427", 1200),
 };
 
+/**
+ * Capa de tinte (scrim) sobre la imagen del lienzo — resuelve legibilidad del
+ * texto superpuesto. Independiente de "aplicar marca": el toggle de marca solo
+ * decide el color (marca vs. neutro), pero la capa siempre está disponible.
+ */
+export interface ScrimConfig {
+  enabled: boolean;
+  /** Hex. Con marca aplicada = color de marca del sitio; si no, negro neutro. */
+  color: string;
+  /** 0..100 */
+  opacity: number;
+  /** "flat" = tinte parejo; "gradient" = degradé desde abajo. */
+  type: "flat" | "gradient";
+}
+
+export const DEFAULT_SCRIM: ScrimConfig = {
+  enabled: true,
+  color: "#000000",
+  opacity: 55,
+  type: "gradient",
+};
+
 export interface SocialPost {
   type: string;
   size: string;
@@ -37,8 +59,10 @@ export interface SocialPost {
   caption?: string;
   /** Ej: "#hotel #cartagena". */
   hashtags?: string;
-  /** Si el editor aplicó la marca del hotel sobre la pieza. */
+  /** Si el editor aplicó la marca del hotel sobre la pieza (define el color del scrim). */
   brandApplied?: boolean;
+  /** Capa de tinte sobre la imagen. Opcional/retrocompatible — si falta, se usa DEFAULT_SCRIM. */
+  scrim?: ScrimConfig;
   status?: "draft" | "published" | "scheduled";
   /** ISO, presente cuando status === "scheduled". */
   scheduledAt?: string;

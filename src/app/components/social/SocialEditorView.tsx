@@ -40,12 +40,13 @@ import {
 } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { hotelImages } from "../../data/social-demo";
-import type { SocialPost } from "../../data/social-demo";
+import { hotelImages, DEFAULT_SCRIM } from "../../data/social-demo";
+import type { SocialPost, ScrimConfig } from "../../data/social-demo";
 import { SocialPhonePreview } from "./SocialPhonePreview";
 import { useAutosave, formatSavedAgo, type AutosaveStatus } from "../builder/useAutosave";
 import { FOCUSABLE_SELECTOR } from "../../utils/focus";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
+import { readableTextColor } from "../../utils/color";
 
 /* ──────────────────────────────────────────────────────────────────────────────
  * Props
@@ -59,6 +60,13 @@ interface Props {
   onPatch: (patch: Partial<SocialPost>) => void;
   onClose: () => void;
   onDownload?: () => void;
+  /**
+   * Prompts que quedan del pool mensual de 200 — fuente de verdad única,
+   * compartida con "Generar nuevos assets" en RedesSocialesView. Si no se
+   * pasa, el panel de IA cae a MAX_PROMPTS (retrocompatible con otros callers).
+   */
+  remainingPrompts?: number;
+  onSpendPrompt?: () => void;
 }
 
 /* ──────────────────────────────────────────────────────────────────────────────
@@ -75,6 +83,44 @@ function aspectFor(size: string): string {
   if (ratio < 0.95) return "aspect-[4/5]";
   return "aspect-square";
 }
+
+/**
+ * Color de marca del hotel — en este mock usamos el token de marca del Builder
+ * (`--brand`) como proxy, igual que ya hacía el borde del canvas. En producción
+ * esto vendría del color de marca configurado por el sitio (Nexus/CMS).
+ */
+const SITE_BRAND_COLOR = "#e84a2c";
+const NEUTRAL_SCRIM_COLOR = "#000000";
+
+/** Resuelve el scrim efectivo del post: retrocompatible si `post.scrim` no existe. */
+function resolveScrim(post: SocialPost): ScrimConfig {
+  return post.scrim ?? DEFAULT_SCRIM;
+}
+
+/** Genera el `background` CSS de la capa de tinte según tipo/color/opacidad. */
+function scrimBackground(scrim: ScrimConfig): string {
+  if (!scrim.enabled) return "transparent";
+  const alpha = Math.max(0, Math.min(100, scrim.opacity)) / 100;
+  const rgb = hexToRgba(scrim.color, alpha);
+  if (scrim.type === "flat") return rgb;
+  // Degradé desde abajo: transparente arriba, color a la opacidad elegida abajo.
+  return `linear-gradient(180deg, ${hexToRgba(scrim.color, 0)} 40%, ${rgb})`;
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace("#", "");
+  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+  const r = parseInt(full.slice(0, 2), 16) || 0;
+  const g = parseInt(full.slice(2, 4), 16) || 0;
+  const b = parseInt(full.slice(4, 6), 16) || 0;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * Piso mínimo de legibilidad, no configurable: un degradé sutil que garantiza
+ * contraste bajo el texto incluso si el usuario baja la opacidad del scrim a 0.
+ */
+const MIN_LEGIBILITY_GRADIENT = "linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.45) 100%)";
 
 const MAX_PROMPTS = 200;
 
@@ -93,7 +139,16 @@ function pickVariant(seed: number) {
  * Editor unificado de pieza social — barra superior + 3 zonas (mobile: 1
  * columna + bottom sheets). Ver brief en el pase para el detalle de cada zona.
  */
-export function SocialEditorView({ post, network, connected, onPatch, onClose, onDownload }: Props) {
+export function SocialEditorView({
+  post,
+  network,
+  connected,
+  onPatch,
+  onClose,
+  onDownload,
+  remainingPrompts = MAX_PROMPTS,
+  onSpendPrompt = () => {},
+}: Props) {
   const isStory = post.type === "Historia" || post.type === "Story";
 
   /* ─── Autosave ────────────────────────────────────────────────────────── */
@@ -104,7 +159,7 @@ export function SocialEditorView({ post, network, connected, onPatch, onClose, o
       }),
     [],
   );
-  const watched = `${post.overlay} ${post.sub} ${post.caption ?? ""} ${post.hashtags ?? ""} ${post.image} ${post.brandApplied}`;
+  const watched = `${post.overlay} ${post.sub} ${post.caption ?? ""} ${post.hashtags ?? ""} ${post.image} ${post.brandApplied} ${JSON.stringify(post.scrim)}`;
   const autosave = useAutosave({ value: watched, save });
 
   /* ─── UI ephemeral ────────────────────────────────────────────────────── */
@@ -170,7 +225,9 @@ export function SocialEditorView({ post, network, connected, onPatch, onClose, o
     />
   );
 
-  const iaZone = <IaPanel post={post} onPatch={onPatch} />;
+  const iaZone = (
+    <IaPanel post={post} onPatch={onPatch} remainingPrompts={remainingPrompts} onSpendPrompt={onSpendPrompt} />
+  );
 
   const overlay = (
     <div
@@ -462,6 +519,16 @@ function Canvas({
     if (editingSub) subRef.current?.focus();
   }, [editingSub]);
 
+  const scrim = resolveScrim(post);
+  // Color de texto dinámico: se calcula sobre el color del scrim cuando está
+  // activo y con opacidad relevante; si no, cae al piso oscuro no-configurable
+  // (que siempre garantiza texto blanco legible).
+  const effectiveBg = scrim.enabled && scrim.opacity >= 35 ? scrim.color : NEUTRAL_SCRIM_COLOR;
+  const overlayTextColor = readableTextColor(effectiveBg);
+  const overlaySubColor = overlayTextColor === "var(--text-primary)" ? "var(--text-secondary)" : "rgba(255,255,255,0.85)";
+  const overlayInputBg = overlayTextColor === "var(--text-primary)" ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.35)";
+  const overlayInputBorder = overlayTextColor === "var(--text-primary)" ? "1px dashed rgba(0,0,0,0.35)" : "1px dashed rgba(255,255,255,0.6)";
+
   return (
     <div className="flex flex-col items-center" style={{ gap: 8, width: "100%", maxWidth: isStory ? 320 : 460 }}>
       <div
@@ -473,9 +540,13 @@ function Canvas({
         }}
       >
         <img src={post.image} alt="" className="w-full h-full object-cover" />
+        {/* Piso mínimo de legibilidad — no configurable, garantiza contraste aunque el scrim esté en 0%. */}
+        <div className="absolute inset-0" aria-hidden="true" style={{ background: MIN_LEGIBILITY_GRADIENT }} />
+        {/* Capa de tinte configurable por el usuario (marca / neutro, parejo / degradé). */}
+        <div className="absolute inset-0" aria-hidden="true" style={{ background: scrimBackground(scrim) }} />
         <div
           className="absolute inset-0 flex flex-col justify-end"
-          style={{ padding: 16, background: "linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.65))" }}
+          style={{ padding: 16 }}
         >
           {editingTitle ? (
             <textarea
@@ -497,16 +568,16 @@ function Canvas({
               aria-label="Título sobre la imagen"
               className="w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
               style={{
-                background: "rgba(0,0,0,0.35)",
-                border: "1px dashed rgba(255,255,255,0.6)",
+                background: overlayInputBg,
+                border: overlayInputBorder,
                 borderRadius: 6,
                 padding: "6px 8px",
-                color: "#fff",
+                color: overlayTextColor,
                 fontWeight: 600,
                 fontSize: 15,
                 lineHeight: 1.25,
                 resize: "vertical",
-                outlineColor: "var(--accent-info)",
+                outlineColor: "var(--ring-on-dark)",
                 fontFamily: "inherit",
               }}
             />
@@ -522,12 +593,12 @@ function Canvas({
                 padding: "4px 6px",
                 margin: "-4px -6px",
                 borderRadius: 6,
-                color: "#fff",
+                color: overlayTextColor,
                 fontWeight: 600,
                 fontSize: 15,
                 lineHeight: 1.25,
                 cursor: "text",
-                outlineColor: "var(--accent-info)",
+                outlineColor: "var(--ring-on-dark)",
                 minHeight: 44,
               }}
             >
@@ -554,13 +625,13 @@ function Canvas({
                 className="w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                 style={{
                   marginTop: 4,
-                  background: "rgba(0,0,0,0.35)",
-                  border: "1px dashed rgba(255,255,255,0.6)",
+                  background: overlayInputBg,
+                  border: overlayInputBorder,
                   borderRadius: 6,
                   padding: "5px 8px",
-                  color: "rgba(255,255,255,0.9)",
+                  color: overlaySubColor,
                   fontSize: 12.5,
-                  outlineColor: "var(--accent-info)",
+                  outlineColor: "var(--ring-on-dark)",
                   fontFamily: "inherit",
                 }}
               />
@@ -576,10 +647,10 @@ function Canvas({
                   border: "none",
                   padding: "3px 6px",
                   borderRadius: 6,
-                  color: "rgba(255,255,255,0.85)",
+                  color: overlaySubColor,
                   fontSize: 12.5,
                   cursor: "text",
-                  outlineColor: "var(--accent-info)",
+                  outlineColor: "var(--ring-on-dark)",
                   minHeight: 44,
                   display: "flex",
                   alignItems: "center",
@@ -828,16 +899,91 @@ function ContentPanel({
         </div>
       </div>
 
-      {/* Marca */}
+      {/* Marca + capa sobre la imagen (mismo bloque: la marca define el color del tinte) */}
       <div>
         <ChromeToggle
           label="Aplicar marca"
           on={!!post.brandApplied}
-          onChange={(v) => onPatch({ brandApplied: v })}
+          onChange={(v) => {
+            const scrim = resolveScrim(post);
+            onPatch({
+              brandApplied: v,
+              scrim: { ...scrim, color: v ? SITE_BRAND_COLOR : NEUTRAL_SCRIM_COLOR },
+            });
+          }}
         />
         <p style={{ fontSize: 10, color: "var(--text-tertiary)", margin: "6px 0 0", lineHeight: 1.4 }}>
-          Agrega el acento de marca del hotel sobre el lienzo.
+          Tiñe el degradé sobre la imagen con el color de marca del hotel en vez de negro neutro.
         </p>
+
+        {/* Capa sobre la imagen — siempre disponible, independiente de la marca */}
+        {resolveScrim(post).enabled && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "0.5px solid var(--border-ui)" }}>
+            <span style={settingLabel}>Capa sobre la imagen</span>
+
+            {/* Segmented control Parejo | Degradé — mismo patrón que el selector de Formato */}
+            <div
+              role="tablist"
+              aria-label="Tipo de capa sobre la imagen"
+              className="flex items-center"
+              style={{ background: "var(--surface-page)", border: "0.5px solid var(--border-ui)", borderRadius: 7, padding: 2, gap: 2, marginBottom: 12 }}
+            >
+              {(
+                [
+                  { id: "flat" as const, label: "Parejo" },
+                  { id: "gradient" as const, label: "Degradé" },
+                ]
+              ).map((opt) => {
+                const scrim = resolveScrim(post);
+                const active = scrim.type === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => onPatch({ scrim: { ...scrim, type: opt.id } })}
+                    className="flex-1 flex items-center justify-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+                    style={{
+                      height: 30,
+                      background: active ? "#fff" : "transparent",
+                      border: "none",
+                      borderRadius: 5,
+                      fontSize: 11.5,
+                      fontWeight: active ? 600 : 500,
+                      color: active ? "var(--text-primary)" : "var(--text-secondary)",
+                      cursor: "pointer",
+                      outlineColor: "var(--accent-info)",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Slider de intensidad */}
+            <label htmlFor="scrim-opacity" style={settingLabel}>
+              Intensidad
+            </label>
+            <input
+              id="scrim-opacity"
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={resolveScrim(post).opacity}
+              onChange={(e) => onPatch({ scrim: { ...resolveScrim(post), opacity: Number(e.target.value) } })}
+              aria-label="Intensidad de la capa sobre la imagen"
+              className="w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              style={{ width: "100%", accentColor: "var(--brand)", outlineColor: "var(--accent-info)", minHeight: 24 }}
+            />
+            <div className="flex items-center justify-between" style={{ marginTop: 2 }}>
+              <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Transparente</span>
+              <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Cubre todo</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Caption — solo Post */}
@@ -976,22 +1122,33 @@ interface IaMsg {
   text: string;
 }
 
-function IaPanel({ post, onPatch }: { post: SocialPost; onPatch: (patch: Partial<SocialPost>) => void }) {
-  const [remaining, setRemaining] = useState(184);
+function IaPanel({
+  post,
+  onPatch,
+  remainingPrompts,
+  onSpendPrompt,
+}: {
+  post: SocialPost;
+  onPatch: (patch: Partial<SocialPost>) => void;
+  /** Prompts que quedan del pool mensual — fuente de verdad única, elevada a RedesSocialesView. */
+  remainingPrompts: number;
+  /** Descuenta 1 prompt del pool compartido (generador de assets + chat IA gastan del mismo total). */
+  onSpendPrompt: () => void;
+}) {
   const [messages, setMessages] = useState<IaMsg[]>([]);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [proposal, setProposal] = useState<{ overlay: string; sub: string } | null>(null);
   const seedRef = useRef(0);
 
-  const exhausted = remaining <= 0;
+  const exhausted = remainingPrompts <= 0;
 
   function send() {
     const clean = draft.trim();
     if (!clean || loading || exhausted) return;
     setMessages((m) => [...m, { role: "user", text: clean }]);
     setDraft("");
-    setRemaining((r) => Math.max(0, r - 1));
+    onSpendPrompt();
     setLoading(true);
     window.setTimeout(() => {
       const variant = pickVariant(seedRef.current++);
@@ -1012,7 +1169,7 @@ function IaPanel({ post, onPatch }: { post: SocialPost; onPatch: (patch: Partial
         style={{ padding: "6px 8px", marginBottom: 8, background: "var(--surface-page)", border: "0.5px solid var(--border-ui)", borderRadius: 8 }}
       >
         <span style={{ fontSize: 10.5, color: "var(--text-secondary)" }}>
-          Te quedan <strong style={{ color: "var(--text-primary)" }}>{remaining} / {MAX_PROMPTS}</strong> prompts este mes
+          Te quedan <strong style={{ color: "var(--text-primary)" }}>{remainingPrompts} / {MAX_PROMPTS}</strong> prompts este mes
         </span>
       </div>
 
