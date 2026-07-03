@@ -33,6 +33,15 @@ export interface SocialPost {
   image: string;
   overlay: string;
   sub: string;
+  /** Epígrafe del posteo (va debajo de la imagen al publicar). Solo Post, no Historia. */
+  caption?: string;
+  /** Ej: "#hotel #cartagena". */
+  hashtags?: string;
+  /** Si el editor aplicó la marca del hotel sobre la pieza. */
+  brandApplied?: boolean;
+  status?: "draft" | "published" | "scheduled";
+  /** ISO, presente cuando status === "scheduled". */
+  scheduledAt?: string;
 }
 
 const igPosts: SocialPost[] = [
