@@ -684,7 +684,7 @@ function Canvas({
         className={`${aspectFor(post.size)} relative overflow-hidden w-full`}
         style={{
           borderRadius: 10,
-          border: post.brandApplied ? "3px solid var(--brand)" : "0.5px solid var(--border-ui)",
+          border: "0.5px solid var(--border-ui)",
           background: "#111",
         }}
       >
