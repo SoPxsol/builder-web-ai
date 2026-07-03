@@ -325,6 +325,65 @@ Los botones internos son candidatos a migración con `<Button>` en sprint 2.
 
 ---
 
+### 4.7 SectionTabs `src/app/components/ui/section-tabs.tsx` — NUEVO (v1.1, ritual DS 2026-07-03)
+
+**Propósito:** barra de tabs del nivel más profundo del nav del sitio, renderizada arriba del contenido. Los grupos del hub Sitios (Formatos, Contenido, Configuración) exponen sus ítems como TABS, unificando el patrón con Redes Sociales y la Suite SEO/GEO. **Extraído de `App.tsx`** como primera pieza del sistema de navegación en el DS. Cuándo NO usarlo: para navegación de primer/segundo nivel (eso es el rail de hubs + drill-in, todavía inline en `App.tsx`).
+
+**API:**
+```tsx
+interface SectionTabsProps {
+  items: SiteNavItem[];   // ítems de la sección (tipo compartido en app/types.ts)
+  view: View;             // vista activa — determina la tab seleccionada
+  navigate: (v: View) => void;
+}
+```
+Un ítem con `disabled: true` se renderiza como tab bloqueada ("Próximamente" + icono Lock). El destino de cada tab es `item.nav ?? item.id`.
+
+**Estados:**
+- **default / inactiva:** texto `--text-secondary`, borde inferior transparente, `fontWeight` 400.
+- **active (seleccionada):** texto `--text-primary`, borde inferior `2px --brand`, `fontWeight` 600. La selección NO depende solo del color (borde + peso + color juntos).
+- **hover:** heredado (transition-all); sin cambio de fondo (patrón de tab minimalista).
+- **focus:** outline visible `--ring` (focus-visible, offset 2px).
+- **disabled:** texto `--text-tertiary`, `cursor: not-allowed`, `<button disabled>` + `aria-disabled` + `title="Próximamente"` + icono Lock. Fuera del roving y no activable.
+- **empty:** si `items` está vacío, no renderiza tabs (el caller decide no montarlo).
+
+**Accesibilidad (WCAG 2.2 AA):**
+- Contenedor `role="tablist"` con `aria-label="Secciones"`; cada tab `role="tab"` + `aria-selected`.
+- **Roving tabindex:** solo la tab activa es `tabIndex=0`; el resto `tabIndex=-1`. Flechas ← → mueven foco Y activan entre tabs habilitadas (2.1.1 / 4.1.2). Deshabilitadas quedan fuera del ciclo.
+- Selección no-solo-color (1.4.1). Foco visible (2.4.7).
+- **Deuda conocida (A11Y-04, reporte DS 2026-07-03):** usa `role="tab"` sin `role="tabpanel"`/`aria-controls` porque las tabs NAVEGAN de vista (son navegación, no paneles co-presentes). Pendiente de gate: completar el contrato ARIA de tabs o migrar a `<nav>`+`aria-current`.
+
+**Do's:**
+- Alimentar `items` desde el árbol de nav (`SiteNavItem`), no armar arrays ad-hoc.
+- Mantener el destino en `item.nav`/`item.id` — no hardcodear la vista.
+
+**Don'ts:**
+- No usarlo como navegación primaria ni como filtro de contenido (para filtros hay `radiogroup`, ver DashboardView).
+- No agregar tabs que abren dialogs — las tabs cambian de vista, no disparan acciones.
+
+**Ejemplo de uso:**
+```tsx
+import { SectionTabs } from "./ui/section-tabs";
+
+const sectionItems = findSectionItems(view);   // SiteNavItem[] | null
+{sectionItems && (
+  <SectionTabs items={sectionItems} view={view} navigate={navigate} />
+)}
+```
+
+---
+
+## 4-bis. Sistema de navegación (estado y plan)
+
+El nav del Builder vive hoy mayormente inline en `src/app/App.tsx` (rail de hubs → drill-in a L2 → tabs de L3). En el ritual DS 2026-07-03 se extrajo la primera pieza (`SectionTabs`) y se movió el tipo `SiteNavItem` a `app/types.ts` (fuente única del contrato de nav).
+
+**Pendiente de extracción (cuando WEB-737 estabilice — no tocar el archivo caliente en pleno sprint):**
+- `NavItem` (ítem del sub-nav, con estados disabled/addon/launcher) → candidato a `ui/nav-item.tsx`.
+- El rail de hubs (L1, iconos + labels, `aria-current`, colapso) → candidato a `ui/hub-rail.tsx`.
+- Documentar el contrato de a11y del rail (roving/tab order, `aria-current`, disabled+title) una vez extraído.
+
+---
+
 ## 5. Plan de migración priorizado
 
 Criterio de priorización: impacto por densidad de duplicación + visibilidad del usuario final.
@@ -478,6 +537,7 @@ src/app/components/ui/
 ├── badge.tsx                 — NUEVO v1.0 (sprint 3 migra call-sites)
 ├── button.tsx                — NUEVO v1.0 (sprint 1 y 2 migran call-sites)
 ├── confirm-destructive-dialog.tsx  — existente, sprint 2 migra botones internos
+├── section-tabs.tsx          — NUEVO v1.1 (extraído de App.tsx, ritual DS 2026-07-03)
 ├── text-field.tsx            — NUEVO v1.0 (sprint 4 migra call-sites)
 └── view-header.tsx           — existente, estable
 ```

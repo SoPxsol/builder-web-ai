@@ -1,7 +1,8 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { LayoutGrid, Hotel, BarChart2, Bell, Building2, Rocket, Lock, Menu, Share2, MapPin, BedDouble, MessageSquare, Megaphone } from "lucide-react";
 import { useMediaQuery } from "./hooks/useMediaQuery";
-import type { View, Site } from "./types";
+import type { View, Site, SiteNavItem } from "./types";
+import { SectionTabs } from "./components/ui/section-tabs";
 import { DashboardView } from "./components/DashboardView";
 import { MisSitiosView } from "./components/MisSitiosView";
 import { TemplatesView } from "./components/TemplatesView";
@@ -77,7 +78,7 @@ const initialSites: Site[] = [
  *   - Gris = para después (Perfiles OTAs, CRM, ADS) → deshabilitado en el nav.
  * ⚠ PROTOTIPO para la discusión de IA con Fernanda/Santi — pendiente card-sort de validación.
  */
-type SiteNavItem = { id?: string; label: string; nav?: string; addon?: boolean; disabled?: boolean; app?: boolean; subheader?: boolean; children?: SiteNavItem[] };
+// SiteNavItem se movió a ./types (compartido con el primitivo SectionTabs).
 
 /** Hub del rail (nivel 1). `defaultView` = vista a la que navega el clic en el hub.
  *  `children` = sub-nav que aparece en la 2da columna cuando el hub está activo.
@@ -234,114 +235,7 @@ function findSectionItems(view: View): SiteNavItem[] | null {
   return sec?.children ?? null;
 }
 
-/**
- * Barra de tabs del nivel más profundo, renderizada arriba del contenido.
- * role="tablist" accesible con navegación por flechas (mismo patrón que la Suite SEO/GEO).
- */
-function SectionTabs({
-  items,
-  view,
-  navigate,
-}: {
-  items: SiteNavItem[];
-  view: View;
-  navigate: (v: View) => void;
-}) {
-  const tablistRef = useRef<HTMLDivElement>(null);
-
-  function onKeyDown(e: React.KeyboardEvent, idx: number) {
-    const tabs = tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]:not([disabled])');
-    if (!tabs || tabs.length === 0) return;
-    const enabled = Array.from(tabs);
-    const currentPos = enabled.findIndex((t) => t === e.currentTarget);
-    if (e.key === "ArrowRight") {
-      e.preventDefault();
-      enabled[(currentPos + 1) % enabled.length].focus();
-      enabled[(currentPos + 1) % enabled.length].click();
-    } else if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      const prev = (currentPos - 1 + enabled.length) % enabled.length;
-      enabled[prev].focus();
-      enabled[prev].click();
-    }
-  }
-
-  return (
-    <div
-      style={{
-        background: "var(--surface-card)",
-        borderBottom: "0.5px solid var(--border-ui)",
-        padding: "0 var(--space-5)",
-        flexShrink: 0,
-      }}
-    >
-      <div
-        ref={tablistRef}
-        role="tablist"
-        aria-label="Secciones"
-        className="flex items-center gap-1 overflow-x-auto"
-        style={{ scrollbarWidth: "none" }}
-      >
-        {items.map((item, idx) => {
-          const target = (item.nav ?? item.id) as View;
-          const isActive = ((item.nav ?? item.id) as string) === view;
-          if (item.disabled) {
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                disabled
-                aria-disabled="true"
-                title="Próximamente"
-                className="flex items-center gap-2 whitespace-nowrap cursor-not-allowed"
-                style={{
-                  padding: "11px 12px",
-                  fontSize: "var(--font-size-sm)",
-                  fontWeight: 400,
-                  color: "var(--text-tertiary)",
-                  background: "transparent",
-                  border: "none",
-                  borderBottom: "2px solid transparent",
-                  flexShrink: 0,
-                }}
-              >
-                {item.label}
-                <Lock size={11} aria-hidden="true" style={{ flexShrink: 0 }} />
-              </button>
-            );
-          }
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              tabIndex={isActive ? 0 : -1}
-              onClick={() => navigate(target)}
-              onKeyDown={(e) => onKeyDown(e, idx)}
-              className="flex items-center gap-2 whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-all"
-              style={{
-                padding: "11px 12px",
-                fontSize: "var(--font-size-sm)",
-                fontWeight: isActive ? 600 : 400,
-                color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
-                background: "transparent",
-                border: "none",
-                borderBottom: isActive ? "2px solid var(--brand)" : "2px solid transparent",
-                cursor: "pointer",
-                outlineColor: "var(--ring)",
-                flexShrink: 0,
-              }}
-            >
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+// SectionTabs se extrajo a ./components/ui/section-tabs.tsx (primitivo del DS).
 
 // ── Ítems secundarios del rail (abajo del divider, fuera de los 7 hubs) ──────
 const railSecondary = [

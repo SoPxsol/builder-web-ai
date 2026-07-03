@@ -29,6 +29,22 @@ export type View =
   | "resenas"
   | "ads";
 
+/**
+ * Ítem del árbol de navegación del sitio (rail de hubs → secciones → tabs).
+ * `nav` apunta a una View destino cuando difiere del `id` (ítem "lanzador").
+ * `children` define el siguiente nivel (grupos que drilean a tabs).
+ */
+export type SiteNavItem = {
+  id?: string;
+  label: string;
+  nav?: string;
+  addon?: boolean;
+  disabled?: boolean;
+  app?: boolean;
+  subheader?: boolean;
+  children?: SiteNavItem[];
+};
+
 export interface Site {
   id: number;
   name: string;
