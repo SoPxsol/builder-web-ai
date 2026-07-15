@@ -244,15 +244,24 @@ export const BUILDER_COPY = {
       textFallbackPlaceholder: "Nombre del hotel",
     },
 
-    /** Disposición. */
+    /**
+     * Disposición. Cada opción tiene, además del label, un `*Desc` de una
+     * línea (microcopy bajo el mini-diagrama en LayoutRadioGroup) orientado
+     * al huésped, no a jerga de layout.
+     */
     layout: {
       mobile: "Distribución mobile",
       mobileTop: "Superior",
+      mobileTopDesc: "Solo barra superior con logo y menú.",
       mobileBoth: "Ambas",
+      mobileBothDesc: "Barra arriba + barra fija abajo con accesos rápidos.",
       mobileBottom: "Inferior",
+      mobileBottomDesc: "Sin barra superior; accesos rápidos fijos abajo.",
       desktop: "Distribución escritorio",
       desktopSingle: "Una fila",
+      desktopSingleDesc: "Todo en una sola fila: logo, menú y reservar.",
       desktopTwo: "Dos filas",
+      desktopTwoDesc: "Franja utilitaria arriba + barra principal debajo.",
     },
 
     /** Barra utilitaria. */

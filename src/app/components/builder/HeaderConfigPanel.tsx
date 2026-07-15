@@ -195,6 +195,144 @@ function SegRadioGroup<T>({
   );
 }
 
+/**
+ * Mini-diagrama (CSS puro — divs con tokens, sin SVG/imágenes) de la
+ * disposición mobile: representa una pantalla con barra(s) arriba y/o abajo
+ * según la variante, para que la opción se entienda de un vistazo.
+ */
+function MobileLayoutDiagram({ variant }: { variant: "top" | "both" | "bottom" }) {
+  const barHeight = variant === "both" ? 6 : 8;
+  return (
+    <div
+      aria-hidden="true"
+      className="flex flex-col shrink-0"
+      style={{
+        width: 36,
+        height: 56,
+        padding: 3,
+        gap: 2,
+        background: "var(--surface-page)",
+        border: "0.5px solid var(--border-ui)",
+        borderRadius: 6,
+      }}
+    >
+      {variant !== "bottom" && (
+        <div style={{ height: barHeight, borderRadius: 2, background: "var(--text-secondary)" }} />
+      )}
+      <div style={{ flex: 1, borderRadius: 2, background: "var(--surface-card)" }} />
+      {variant !== "top" && (
+        <div style={{ height: barHeight, borderRadius: 2, background: "var(--text-secondary)" }} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Mini-diagrama de disposición desktop: una sola fila (una barra) o dos
+ * filas (franja utilitaria fina + barra principal más gruesa debajo).
+ */
+function DesktopLayoutDiagram({ variant }: { variant: "single-row" | "two-rows" }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="flex flex-col shrink-0"
+      style={{
+        width: 56,
+        height: 40,
+        padding: 3,
+        gap: 2,
+        background: "var(--surface-page)",
+        border: "0.5px solid var(--border-ui)",
+        borderRadius: 4,
+      }}
+    >
+      {variant === "two-rows" && (
+        <div style={{ height: 4, borderRadius: 1, background: "var(--border-ui)" }} />
+      )}
+      <div
+        style={{
+          height: variant === "two-rows" ? 8 : 10,
+          borderRadius: 2,
+          background: "var(--text-secondary)",
+        }}
+      />
+      <div style={{ flex: 1, borderRadius: 2, background: "var(--surface-card)" }} />
+    </div>
+  );
+}
+
+/**
+ * Radiogroup visual de disposición — hermano de SegRadioGroup, mismo
+ * contrato a11y (radiogroup/radio, aria-checked, roving tabindex), pero cada
+ * opción es una card con mini-diagrama + label + microcopy en vez de un
+ * botón de solo texto. Se usa para "Disposición" (mobile/desktop) donde la
+ * forma del layout es más clara mostrada que descrita con una palabra.
+ * Las cards van en columna (una debajo de otra): a 300px de panel no entran
+ * en fila sin sacrificar la legibilidad del diagrama + la descripción.
+ */
+function LayoutRadioGroup<T>({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  options: { value: T; label: string; description: string; diagram: React.ReactNode }[];
+  value: T;
+  onChange: (next: T) => void;
+  ariaLabel: string;
+}) {
+  const { refs, onKeyDown } = useRovingRadioGroup(options.length, (i) => onChange(options[i].value));
+
+  return (
+    <div role="radiogroup" aria-label={ariaLabel} className="flex flex-col" style={{ gap: 6 }}>
+      {options.map((opt, i) => {
+        const active = opt.value === value;
+        return (
+          <button
+            key={i}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            tabIndex={active ? 0 : -1}
+            onClick={() => onChange(opt.value)}
+            onKeyDown={(e) => onKeyDown(e, i)}
+            className="flex items-center text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+            style={{
+              gap: 10,
+              minHeight: 44,
+              padding: "7px 10px",
+              background: active ? "var(--control-selected-bg)" : "#fff",
+              border: active ? "0.5px solid var(--control-selected-border)" : "0.5px solid var(--border-ui)",
+              borderRadius: 6,
+              cursor: "pointer",
+              outlineColor: "var(--accent-info)",
+            }}
+          >
+            {opt.diagram}
+            <span className="flex flex-col" style={{ gap: 2 }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: active ? "var(--control-selected-fg)" : "var(--text-primary)",
+                }}
+              >
+                {opt.label}
+              </span>
+              <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", lineHeight: 1.4 }}>
+                {opt.description}
+              </span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Separador horizontal entre secciones. */
 function Divider() {
   return (
@@ -1061,14 +1199,29 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
           <SectionLabel>{H.sections.layout}</SectionLabel>
 
           <Field label={H.layout.mobile}>
-            <SegRadioGroup
+            <LayoutRadioGroup
               ariaLabel={H.layout.mobile}
               value={cfg.mobileLayout}
               onChange={(next) => set("mobileLayout", next)}
               options={[
-                { value: "top", label: H.layout.mobileTop },
-                { value: "both", label: H.layout.mobileBoth },
-                { value: "bottom", label: H.layout.mobileBottom },
+                {
+                  value: "top",
+                  label: H.layout.mobileTop,
+                  description: H.layout.mobileTopDesc,
+                  diagram: <MobileLayoutDiagram variant="top" />,
+                },
+                {
+                  value: "both",
+                  label: H.layout.mobileBoth,
+                  description: H.layout.mobileBothDesc,
+                  diagram: <MobileLayoutDiagram variant="both" />,
+                },
+                {
+                  value: "bottom",
+                  label: H.layout.mobileBottom,
+                  description: H.layout.mobileBottomDesc,
+                  diagram: <MobileLayoutDiagram variant="bottom" />,
+                },
               ]}
             />
           </Field>
@@ -1288,13 +1441,23 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
           <SectionLabel>{H.sections.layout}</SectionLabel>
 
           <Field label={H.layout.desktop}>
-            <SegRadioGroup
+            <LayoutRadioGroup
               ariaLabel={H.layout.desktop}
               value={cfg.desktopLayout}
               onChange={(next) => set("desktopLayout", next)}
               options={[
-                { value: "single-row", label: H.layout.desktopSingle },
-                { value: "two-rows", label: H.layout.desktopTwo },
+                {
+                  value: "single-row",
+                  label: H.layout.desktopSingle,
+                  description: H.layout.desktopSingleDesc,
+                  diagram: <DesktopLayoutDiagram variant="single-row" />,
+                },
+                {
+                  value: "two-rows",
+                  label: H.layout.desktopTwo,
+                  description: H.layout.desktopTwoDesc,
+                  diagram: <DesktopLayoutDiagram variant="two-rows" />,
+                },
               ]}
             />
           </Field>
