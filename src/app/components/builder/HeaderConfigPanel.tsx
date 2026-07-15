@@ -92,12 +92,12 @@ function SegBtn({
       className="transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
       style={{
         padding: "5px 10px",
-        background: active ? "var(--accent-info)" : "#fff",
-        border: active ? "0.5px solid var(--accent-info)" : "0.5px solid var(--border-ui)",
+        background: active ? "var(--control-selected-bg)" : "#fff",
+        border: active ? "0.5px solid var(--control-selected-border)" : "0.5px solid var(--border-ui)",
         borderRadius: 5,
         fontSize: 11,
         fontWeight: 500,
-        color: active ? "#fff" : disabled ? "var(--text-tertiary)" : "var(--text-secondary)",
+        color: active ? "var(--control-selected-fg)" : disabled ? "var(--text-tertiary)" : "var(--text-secondary)",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.55 : 1,
         outlineColor: "var(--accent-info)",
@@ -177,12 +177,12 @@ function SegRadioGroup<T>({
             className="transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
             style={{
               padding: "5px 10px",
-              background: active ? "var(--accent-info)" : "#fff",
-              border: active ? "0.5px solid var(--accent-info)" : "0.5px solid var(--border-ui)",
+              background: active ? "var(--control-selected-bg)" : "#fff",
+              border: active ? "0.5px solid var(--control-selected-border)" : "0.5px solid var(--border-ui)",
               borderRadius: 5,
               fontSize: 11,
               fontWeight: 500,
-              color: active ? "#fff" : "var(--text-secondary)",
+              color: active ? "var(--control-selected-fg)" : "var(--text-secondary)",
               cursor: "pointer",
               outlineColor: "var(--accent-info)",
             }}
@@ -293,10 +293,10 @@ function IconPicker({
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: active ? "var(--accent-info)" : "#fff",
-    border: active ? "0.5px solid var(--accent-info)" : "0.5px solid var(--border-ui)",
+    background: active ? "var(--control-selected-bg)" : "#fff",
+    border: active ? "0.5px solid var(--control-selected-border)" : "0.5px solid var(--border-ui)",
     borderRadius: 5,
-    color: active ? "#fff" : "var(--text-secondary)",
+    color: active ? "var(--control-selected-fg)" : "var(--text-secondary)",
     cursor: "pointer",
     padding: 0,
     outlineColor: "var(--accent-info)",
@@ -1031,11 +1031,11 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
                   padding: "7px 10px",
                   fontSize: 11,
                   fontWeight: isActive ? 600 : 500,
-                  color: isActive ? "var(--accent-info)" : "var(--text-secondary)",
+                  color: isActive ? "var(--control-selected-fg)" : "var(--text-secondary)",
                   background: "transparent",
                   border: "none",
                   borderBottom: isActive
-                    ? "2px solid var(--accent-info)"
+                    ? "2px solid var(--control-selected-border)"
                     : "2px solid transparent",
                   cursor: "pointer",
                   outlineColor: "var(--accent-info)",

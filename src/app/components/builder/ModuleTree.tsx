@@ -344,7 +344,7 @@ export function ModuleTree({
                       style={{
                         position: "relative",
                         padding: "3px 10px 3px 8px",
-                        background: isSelectedProp ? "var(--accent-info-bg)" : "transparent",
+                        background: isSelectedProp ? "var(--control-selected-bg)" : "transparent",
                         border: "none",
                         cursor: "pointer",
                         textAlign: "left",
@@ -367,7 +367,7 @@ export function ModuleTree({
                         style={{
                           fontSize: 10,
                           fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                          color: isSelectedProp ? "var(--accent-info)" : "var(--text-secondary)",
+                          color: isSelectedProp ? "var(--control-selected-fg)" : "var(--text-secondary)",
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -473,14 +473,14 @@ function SectionRow({
   const aliasEmpty = aliasRaw.trim() === "";
 
   const background = grabbed
-    ? "var(--accent-info-bg)"
+    ? "var(--control-selected-bg)"
     : selected
-    ? "var(--accent-info-bg)"
+    ? "var(--control-selected-bg)"
     : "transparent";
   const borderLeft = grabbed
-    ? "2px solid var(--accent-info)"
+    ? "2px solid var(--control-selected-border)"
     : selected
-    ? "2px solid var(--accent-info)"
+    ? "2px solid var(--control-selected-border)"
     : "2px solid transparent";
 
   return (
@@ -514,7 +514,7 @@ function SectionRow({
           border: "none",
           padding: 0,
           cursor: "grab",
-          color: grabbed ? "var(--accent-info)" : "var(--text-tertiary)",
+          color: grabbed ? "var(--control-selected-fg)" : "var(--text-tertiary)",
           outlineColor: "var(--accent-info)",
           touchAction: "none",
         }}
@@ -576,7 +576,7 @@ function SectionRow({
               color: isAi
                 ? "var(--wizard-purple-text)"
                 : selected
-                ? "var(--accent-info)"
+                ? "var(--control-selected-fg)"
                 : "var(--text-secondary)",
               flexShrink: 0,
             }}
@@ -589,7 +589,7 @@ function SectionRow({
                 color: aliasEmpty
                   ? "var(--text-tertiary)"
                   : selected
-                  ? "var(--accent-info)"
+                  ? "var(--control-selected-fg)"
                   : "var(--text-primary)",
                 fontStyle: aliasEmpty ? "italic" : "normal",
                 whiteSpace: "nowrap",

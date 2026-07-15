@@ -255,9 +255,26 @@
    *                                  "Borrador", "Próximamente", "Setup incompleto".
    *  --destructive        (rojo)  → errores y acciones destructivas (eliminar).
    *                                  NUNCA mezclar con sugerencias — confunde con error.
+   *  --control-selected   (gris)  → selección/activo de CONTROLES (tabs, seg-
+   *                                  radios, item seleccionado en un árbol/lista,
+   *                                  swatch de icono elegido). Es el estado
+   *                                  "esto está elegido ahora", no una acción.
+   *                                  NO usar --brand (reservado al único CTA de
+   *                                  la pantalla) ni --accent-info (reservado a
+   *                                  hints/links) para este propósito.
    * ────────────────────────────────────────────────────────────────────── */
   --accent-info:       var(--badge-blue-text);
   --accent-info-bg:    var(--badge-blue-bg);
+
+  /* Selección de controles (tabs, seg-radios, ítem activo en árbol/lista,
+     swatch elegido). Neutro a propósito: no compite con --brand (CTA único)
+     ni con --accent-info (hints/links). Ver contrato de colores arriba.
+     Contraste verificado (WCAG 2.2 AA) sobre --control-selected-bg (#ececf0):
+       texto  --text-primary   (#1a1a1a) → 15.1:1  (mínimo AA texto: 4.5:1)
+       borde  --text-secondary (#737373) →  4.0:1  (mínimo AA componente: 3:1) */
+  --control-selected-bg:     var(--muted);
+  --control-selected-fg:     var(--text-primary);
+  --control-selected-border: var(--text-secondary);
 }
 
 .dark {
@@ -366,6 +383,9 @@
   --color-border-ui: var(--border-ui);
   --color-status-active: var(--status-active);
   --color-status-warning: var(--status-warning);
+  --color-control-selected-bg: var(--control-selected-bg);
+  --color-control-selected-fg: var(--control-selected-fg);
+  --color-control-selected-border: var(--control-selected-border);
 }
 
 @layer base {
