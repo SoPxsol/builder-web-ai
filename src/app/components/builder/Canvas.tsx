@@ -239,7 +239,7 @@ function CanvasDropLine({ active }: { active: boolean }) {
       <div
         style={{
           height: 3,
-          background: "var(--accent-info)",
+          background: "var(--drop-indicator)",
           margin: "0 12px",
           borderRadius: 2,
           boxShadow: "0 0 0 1px rgba(255,255,255,0.6)",
@@ -319,7 +319,7 @@ const SectionBlock = forwardRef<HTMLDivElement, SectionBlockProps>(function Sect
         position: "relative",
         cursor: "pointer",
         opacity: dragging ? 0.4 : 1,
-        outline: selected ? "2px solid var(--accent-info)" : "none",
+        outline: selected ? "2px solid var(--canvas-selection)" : "none",
         outlineOffset: -2,
       }}
     >
@@ -1190,7 +1190,7 @@ function NavHeaderPreview({
   return (
     <div
       style={{
-        outline: "2px solid var(--accent-info)",
+        outline: "2px solid var(--canvas-selection)",
         outlineOffset: -2,
         position: "relative",
         /* Reservamos espacio para la bottom bar cuando está activa.
@@ -1244,7 +1244,7 @@ function SiteHeader({ highlighted }: { highlighted: boolean }) {
         padding: "0 32px",
         background: "#fff",
         borderBottom: "0.5px solid var(--border-ui)",
-        outline: highlighted ? "2px solid var(--accent-info)" : "none",
+        outline: highlighted ? "2px solid var(--canvas-selection)" : "none",
         outlineOffset: -2,
       }}
     >
@@ -1283,7 +1283,7 @@ function SiteFooter({ highlighted }: { highlighted: boolean }) {
         padding: "20px 32px",
         background: "var(--text-primary)",
         color: "#fff",
-        outline: highlighted ? "2px solid var(--accent-info)" : "none",
+        outline: highlighted ? "2px solid var(--canvas-selection)" : "none",
         outlineOffset: -2,
       }}
     >

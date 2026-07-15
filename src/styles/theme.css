@@ -262,6 +262,16 @@
    *                                  NO usar --brand (reservado al único CTA de
    *                                  la pantalla) ni --accent-info (reservado a
    *                                  hints/links) para este propósito.
+   *  --canvas-selection   (azul,   → outline del bloque/preview SELECCIONADO
+   *                        hoy)      en el lienzo del Builder (Canvas.tsx).
+   *                                  Distinto de --control-selected: necesita
+   *                                  destacar sobre un canvas cargado (fotos,
+   *                                  colores de marca), donde un outline gris
+   *                                  se pierde entre los demás grises de chrome.
+   *                                  Retuneable a futuro sin tocar --accent-info.
+   *  --drop-indicator     (azul,   → feedback transitorio de inserción durante
+   *                        hoy)      drag&drop (línea/punto de drop). Señal de
+   *                                  sistema en tiempo real, no selección ni hint.
    * ────────────────────────────────────────────────────────────────────── */
   --accent-info:       var(--badge-blue-text);
   --accent-info-bg:    var(--badge-blue-bg);
@@ -275,6 +285,18 @@
   --control-selected-bg:     var(--muted);
   --control-selected-fg:     var(--text-primary);
   --control-selected-border: var(--text-secondary);
+
+  /* Selección de bloque en el canvas del Builder. Hoy = --accent-info (cero
+     cambio visual); tokenizado aparte para poder retunear sin tocar el
+     significado de --accent-info (hints/links). Ver contrato arriba. */
+  --canvas-selection: var(--accent-info);
+
+  /* Indicador transitorio de drop durante drag&drop (línea/punto de inserción,
+     y fondo tenue de la zona de drop). Hoy = --accent-info/--accent-info-bg
+     (cero cambio visual); tokenizado aparte porque es feedback de sistema en
+     tiempo real, no un hint ni una selección. */
+  --drop-indicator: var(--accent-info);
+  --drop-indicator-bg: var(--accent-info-bg);
 }
 
 .dark {
@@ -386,6 +408,9 @@
   --color-control-selected-bg: var(--control-selected-bg);
   --color-control-selected-fg: var(--control-selected-fg);
   --color-control-selected-border: var(--control-selected-border);
+  --color-canvas-selection: var(--canvas-selection);
+  --color-drop-indicator: var(--drop-indicator);
+  --color-drop-indicator-bg: var(--drop-indicator-bg);
 }
 
 @layer base {
