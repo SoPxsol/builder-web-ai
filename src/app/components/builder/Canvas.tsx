@@ -2,11 +2,19 @@ import { forwardRef, useEffect, useRef, useState } from "react";
 import {
   CalendarCheck,
   Copy,
+  Globe,
   GripVertical,
+  Heart,
   KeyRound,
+  Mail,
+  MapPin,
+  Menu,
   MessageCircle,
+  Phone,
   SlidersHorizontal,
   Sparkles,
+  Star,
+  Tag,
   Trash2,
   User,
   type LucideIcon,
@@ -19,13 +27,23 @@ import { displayAlias, sectionSubtitle } from "./sectionMeta";
 
 /* ─── Resolver de íconos del nav (nombre lógico → componente lucide) ────────
  * Solo los íconos que aparecen en UtilityAction.icon del NavConfig.
- * No usamos dynamic import para mantener el bundle determinístico. */
+ * No usamos dynamic import para mantener el bundle determinístico.
+ * Mismo set curado que el selector visual de HeaderConfigPanel (IconPicker) —
+ * si agregás un ícono acá, agregalo también ahí. */
 const NAV_ICON_MAP: Record<string, LucideIcon> = {
   "calendar-check": CalendarCheck,
   "message-circle": MessageCircle,
   sparkles: Sparkles,
   "key-round": KeyRound,
   user: User,
+  phone: Phone,
+  mail: Mail,
+  "map-pin": MapPin,
+  star: Star,
+  menu: Menu,
+  globe: Globe,
+  tag: Tag,
+  heart: Heart,
 };
 
 function NavIcon({ name, size = 14 }: { name?: string; size?: number }) {
@@ -1032,7 +1050,7 @@ function NavHeaderPreview({
 
             {/* Secciones de navegación */}
             {visibleSections.length > 0 && (
-              <nav aria-label="Navegación principal">
+              <nav aria-label={BUILDER_COPY.headerConfig.preview.drawerNavAriaLabel}>
                 {visibleSections.map((section) => (
                   <div
                     key={section.id}
@@ -1202,7 +1220,7 @@ function NavHeaderPreview({
                 color: "var(--text-tertiary)",
               }}
             >
-              <span style={{ fontStyle: "italic" }}>Barra utilitaria — integrada inline en la fila del logo en producción</span>
+              <span style={{ fontStyle: "italic" }}>{BUILDER_COPY.headerConfig.preview.utilityBarInlineNote}</span>
             </div>
           )}
           {isMobile && <UtilityBar />}

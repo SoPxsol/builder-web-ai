@@ -1,4 +1,24 @@
-import { GripVertical, Plus, Trash2 } from "lucide-react";
+import { useRef } from "react";
+import {
+  CalendarCheck,
+  Globe,
+  GripVertical,
+  Heart,
+  KeyRound,
+  Mail,
+  MapPin,
+  Menu,
+  MessageCircle,
+  Phone,
+  Plus,
+  Slash,
+  Sparkles,
+  Star,
+  Tag,
+  Trash2,
+  User,
+  type LucideIcon,
+} from "lucide-react";
 import type { NavConfig, UtilityAction, NavSection, BottomBarSlot, ViewportMode } from "../../types/builder";
 import { BUILDER_COPY } from "./copy";
 
@@ -13,10 +33,13 @@ const textInputStyle: React.CSSProperties = {
   padding: "7px 9px",
   fontSize: 12,
   color: "var(--text-primary)",
-  outline: "none",
   outlineColor: "var(--accent-info)",
   fontFamily: "inherit",
 };
+
+/** Foco de teclado visible (WCAG 2.4.7): sin outline con mouse, anillo con teclado. */
+const inputFocusClass =
+  "focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1";
 
 /* ─── Subcomponentes locales (hermanos de los de ModuleEditPanel) ─────── */
 
@@ -85,6 +108,93 @@ function SegBtn({
   );
 }
 
+/**
+ * Roving tabindex para grupos `role="radiogroup"` (patrón WAI-ARIA APG:
+ * "Radio Group"). Las flechas mueven el foco Y seleccionan a la vez —
+ * es el comportamiento esperado para radios nativos.
+ */
+function useRovingRadioGroup(count: number, onSelect: (index: number) => void) {
+  const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  const focusAt = (index: number) => {
+    const wrapped = ((index % count) + count) % count;
+    refs.current[wrapped]?.focus();
+    onSelect(wrapped);
+  };
+  const onKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      e.preventDefault();
+      focusAt(index + 1);
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      e.preventDefault();
+      focusAt(index - 1);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      focusAt(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      focusAt(count - 1);
+    }
+  };
+  return { refs, onKeyDown };
+}
+
+/**
+ * Grupo de selección ÚNICA accesible — hermano de SegBtn, mismo look visual.
+ * A diferencia de SegBtn suelto (aria-pressed), expone `role="radiogroup"` +
+ * `role="radio"`/`aria-checked` por opción para que un lector de pantalla
+ * entienda que las opciones son mutuamente excluyentes.
+ * Usar SOLO para grupos de selección única (no para toggles multi-selección).
+ */
+function SegRadioGroup<T>({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (next: T) => void;
+  ariaLabel: string;
+}) {
+  const { refs, onKeyDown } = useRovingRadioGroup(options.length, (i) => onChange(options[i].value));
+
+  return (
+    <div role="radiogroup" aria-label={ariaLabel} className="flex items-center flex-wrap" style={{ gap: 6 }}>
+      {options.map((opt, i) => {
+        const active = opt.value === value;
+        return (
+          <button
+            key={i}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            tabIndex={active ? 0 : -1}
+            onClick={() => onChange(opt.value)}
+            onKeyDown={(e) => onKeyDown(e, i)}
+            className="transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+            style={{
+              padding: "5px 10px",
+              background: active ? "var(--accent-info)" : "#fff",
+              border: active ? "0.5px solid var(--accent-info)" : "0.5px solid var(--border-ui)",
+              borderRadius: 5,
+              fontSize: 11,
+              fontWeight: 500,
+              color: active ? "#fff" : "var(--text-secondary)",
+              cursor: "pointer",
+              outlineColor: "var(--accent-info)",
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Separador horizontal entre secciones. */
 function Divider() {
   return (
@@ -140,6 +250,109 @@ function IconBtn({
   );
 }
 
+/* ─── Selector visual de ícono (reemplaza el input de texto libre) ─────────
+ * Mismo set curado que NAV_ICON_MAP en Canvas.tsx — si agregás un ícono acá,
+ * agregalo también ahí (o el preview del canvas no lo va a resolver). */
+const ICON_OPTIONS: { value: string; label: string; Icon: LucideIcon }[] = [
+  { value: "calendar-check", label: "Reservas", Icon: CalendarCheck },
+  { value: "message-circle", label: "WhatsApp", Icon: MessageCircle },
+  { value: "sparkles", label: "Asistente IA", Icon: Sparkles },
+  { value: "key-round", label: "Check-in", Icon: KeyRound },
+  { value: "user", label: "Usuario", Icon: User },
+  { value: "phone", label: "Teléfono", Icon: Phone },
+  { value: "mail", label: "Correo", Icon: Mail },
+  { value: "map-pin", label: "Ubicación", Icon: MapPin },
+  { value: "star", label: "Destacado", Icon: Star },
+  { value: "menu", label: "Menú", Icon: Menu },
+  { value: "globe", label: "Idioma", Icon: Globe },
+  { value: "tag", label: "Oferta", Icon: Tag },
+  { value: "heart", label: "Favorito", Icon: Heart },
+];
+
+/** Tamaño mínimo táctil del botón de ícono del grid (WCAG 2.5.5 ~ target size). */
+const ICON_BTN_SIZE = 26;
+
+function IconPicker({
+  value,
+  onChange,
+}: {
+  value: string | undefined;
+  onChange: (next: string | undefined) => void;
+}) {
+  // "Ninguno" se representa como value undefined; se agrega como primera opción del grupo.
+  const total = ICON_OPTIONS.length + 1;
+  const activeIndex = value ? ICON_OPTIONS.findIndex((o) => o.value === value) + 1 : 0;
+  const { refs, onKeyDown } = useRovingRadioGroup(total, (i) =>
+    onChange(i === 0 ? undefined : ICON_OPTIONS[i - 1].value),
+  );
+
+  const btnStyle = (active: boolean): React.CSSProperties => ({
+    width: ICON_BTN_SIZE,
+    height: ICON_BTN_SIZE,
+    minWidth: ICON_BTN_SIZE,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: active ? "var(--accent-info)" : "#fff",
+    border: active ? "0.5px solid var(--accent-info)" : "0.5px solid var(--border-ui)",
+    borderRadius: 5,
+    color: active ? "#fff" : "var(--text-secondary)",
+    cursor: "pointer",
+    padding: 0,
+    outlineColor: "var(--accent-info)",
+  });
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label={H.action.iconPickerAria}
+      className="flex flex-wrap"
+      style={{ gap: 4 }}
+    >
+      <button
+        key="none"
+        ref={(el) => {
+          refs.current[0] = el;
+        }}
+        type="button"
+        role="radio"
+        aria-checked={activeIndex === 0}
+        aria-label={H.action.iconNone}
+        tabIndex={activeIndex === 0 ? 0 : -1}
+        onClick={() => onChange(undefined)}
+        onKeyDown={(e) => onKeyDown(e, 0)}
+        className="transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+        style={btnStyle(activeIndex === 0)}
+      >
+        <Slash size={16} aria-hidden="true" />
+      </button>
+      {ICON_OPTIONS.map(({ value: v, label, Icon }, idx) => {
+        const i = idx + 1;
+        const active = activeIndex === i;
+        return (
+          <button
+            key={v}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-label={label}
+            tabIndex={active ? 0 : -1}
+            onClick={() => onChange(v)}
+            onKeyDown={(e) => onKeyDown(e, i)}
+            className="transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+            style={btnStyle(active)}
+          >
+            <Icon size={16} aria-hidden="true" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ─── Editor de UtilityAction (reutilizado en varios lugares) ──────────── */
 const ACTION_TYPE_LABELS: Record<UtilityAction["actionType"], string> = {
   link: "Enlace",
@@ -168,36 +381,25 @@ function UtilityActionEditor({
           placeholder={H.action.labelPlaceholder}
           aria-label={H.action.label}
           style={textInputStyle}
+          className={inputFocusClass}
         />
       </Field>
 
       <Field label={H.action.icon}>
-        <input
-          type="text"
-          value={action.icon ?? ""}
-          onChange={(e) => set("icon", e.target.value || undefined)}
-          placeholder={H.action.iconPlaceholder}
-          aria-label={H.action.icon}
-          style={textInputStyle}
-        />
+        <IconPicker value={action.icon} onChange={(next) => set("icon", next)} />
       </Field>
 
-      {/* Tipo de acción como SegBtns en dos filas para que quepan */}
-      <div className="flex flex-col" style={{ gap: 4 }}>
-        <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)" }}>
-          {H.action.type}
-        </span>
-        <div className="flex flex-wrap" style={{ gap: 4 }}>
-          {(["link", "booking-engine", "whatsapp", "ai-chat"] as const).map((t) => (
-            <SegBtn
-              key={t}
-              label={ACTION_TYPE_LABELS[t]}
-              active={action.actionType === t}
-              onClick={() => set("actionType", t)}
-            />
-          ))}
-        </div>
-      </div>
+      <Field label={H.action.type}>
+        <SegRadioGroup
+          ariaLabel={H.action.type}
+          value={action.actionType}
+          onChange={(next) => set("actionType", next)}
+          options={(["link", "booking-engine", "whatsapp", "ai-chat"] as const).map((t) => ({
+            value: t,
+            label: ACTION_TYPE_LABELS[t],
+          }))}
+        />
+      </Field>
 
       {action.actionType === "link" && (
         <Field label={H.action.href}>
@@ -208,6 +410,7 @@ function UtilityActionEditor({
             placeholder="https://..."
             aria-label={H.action.href}
             style={textInputStyle}
+            className={inputFocusClass}
           />
         </Field>
       )}
@@ -221,6 +424,7 @@ function UtilityActionEditor({
             placeholder="+54 9 11 1234-5678"
             aria-label={H.action.phone}
             style={textInputStyle}
+            className={inputFocusClass}
           />
         </Field>
       )}
@@ -575,18 +779,15 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
         <SectionLabel>{H.sections.logo}</SectionLabel>
 
         <Field label={H.logo.type}>
-          <div className="flex items-center" style={{ gap: 6 }}>
-            <SegBtn
-              label={H.logo.typeImage}
-              active={cfg.logo.type === "image"}
-              onClick={() => setLogo("type", "image")}
-            />
-            <SegBtn
-              label={H.logo.typeText}
-              active={cfg.logo.type === "text"}
-              onClick={() => setLogo("type", "text")}
-            />
-          </div>
+          <SegRadioGroup
+            ariaLabel={H.logo.type}
+            value={cfg.logo.type}
+            onChange={(next) => setLogo("type", next)}
+            options={[
+              { value: "image", label: H.logo.typeImage },
+              { value: "text", label: H.logo.typeText },
+            ]}
+          />
         </Field>
 
         {cfg.logo.type === "image" && (
@@ -599,6 +800,7 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
                 placeholder="https://..."
                 aria-label={H.logo.imageUrl}
                 style={textInputStyle}
+                className={inputFocusClass}
               />
             </Field>
             <Field label={H.logo.imageAlt}>
@@ -609,6 +811,7 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
                 placeholder={H.logo.imageAltPlaceholder}
                 aria-label={H.logo.imageAlt}
                 style={textInputStyle}
+                className={inputFocusClass}
               />
             </Field>
           </>
@@ -622,6 +825,7 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
             placeholder={H.logo.textFallbackPlaceholder}
             aria-label={H.logo.textFallback}
             style={textInputStyle}
+            className={inputFocusClass}
           />
         </Field>
 
@@ -631,18 +835,15 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
         <SectionLabel>{H.sections.utilityBar}</SectionLabel>
 
         <Field label={H.utilityBar.visible}>
-          <div className="flex items-center" style={{ gap: 6 }}>
-            <SegBtn
-              label={H.visible}
-              active={cfg.utilityBar.visible}
-              onClick={() => setUtilityBar("visible", true)}
-            />
-            <SegBtn
-              label={H.hidden}
-              active={!cfg.utilityBar.visible}
-              onClick={() => setUtilityBar("visible", false)}
-            />
-          </div>
+          <SegRadioGroup
+            ariaLabel={H.utilityBar.visible}
+            value={cfg.utilityBar.visible}
+            onChange={(next) => setUtilityBar("visible", next)}
+            options={[
+              { value: true, label: H.visible },
+              { value: false, label: H.hidden },
+            ]}
+          />
         </Field>
 
         {cfg.utilityBar.visible && (
@@ -682,18 +883,15 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
         <SectionLabel>{H.sections.bookingButton}</SectionLabel>
 
         <Field label={H.mainBar.showBookingButton}>
-          <div className="flex items-center" style={{ gap: 6 }}>
-            <SegBtn
-              label={H.yes}
-              active={cfg.mainBar.showBookingButton}
-              onClick={() => setMainBar("showBookingButton", true)}
-            />
-            <SegBtn
-              label={H.no}
-              active={!cfg.mainBar.showBookingButton}
-              onClick={() => setMainBar("showBookingButton", false)}
-            />
-          </div>
+          <SegRadioGroup
+            ariaLabel={H.mainBar.showBookingButton}
+            value={cfg.mainBar.showBookingButton}
+            onChange={(next) => setMainBar("showBookingButton", next)}
+            options={[
+              { value: true, label: H.yes },
+              { value: false, label: H.no },
+            ]}
+          />
         </Field>
 
         {cfg.mainBar.showBookingButton && (
@@ -705,6 +903,7 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
               placeholder={H.mainBar.bookingButtonLabelPlaceholder}
               aria-label={H.mainBar.bookingButtonLabel}
               style={textInputStyle}
+              className={inputFocusClass}
             />
           </Field>
         )}
@@ -715,43 +914,46 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
         <SectionLabel>{H.sections.languages}</SectionLabel>
 
         <div className="flex flex-col" style={{ gap: 6 }}>
-          {cfg.languages.map((lang) => (
-            <div key={lang.code} className="flex items-center" style={{ gap: 8 }}>
-              <span
-                style={{
-                  fontSize: 11,
-                  color: "var(--text-primary)",
-                  fontWeight: 500,
-                  flex: 1,
-                  minWidth: 0,
-                }}
-              >
-                {lang.label}
-                <span
-                  style={{
-                    marginLeft: 5,
-                    fontSize: 10,
-                    color: "var(--text-tertiary)",
-                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                  }}
-                >
-                  {lang.code}
-                </span>
-              </span>
-              <SegBtn
-                label={H.enabled}
-                active={lang.enabled}
-                onClick={() =>
-                  set(
-                    "languages",
-                    cfg.languages.map((l) =>
-                      l.code === lang.code ? { ...l, enabled: !l.enabled } : l,
-                    ),
-                  )
-                }
-              />
-            </div>
-          ))}
+          {(() => {
+            const enabledCount = cfg.languages.filter((l) => l.enabled).length;
+            return cfg.languages.map((lang) => {
+              // Guard: no se puede apagar el último idioma habilitado.
+              const isLastEnabled = lang.enabled && enabledCount === 1;
+              return (
+                <div key={lang.code} className="flex items-center" style={{ gap: 8 }}>
+                  <div className="flex flex-col" style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                    <span style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 500 }}>
+                      {lang.label}
+                      <span
+                        style={{
+                          marginLeft: 5,
+                          fontSize: 10,
+                          color: "var(--text-tertiary)",
+                          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                        }}
+                      >
+                        {lang.code}
+                      </span>
+                    </span>
+                    {isLastEnabled && <Hint>{H.minLanguageHint}</Hint>}
+                  </div>
+                  <SegBtn
+                    label={H.enabled}
+                    active={lang.enabled}
+                    disabled={isLastEnabled}
+                    onClick={() =>
+                      set(
+                        "languages",
+                        cfg.languages.map((l) =>
+                          l.code === lang.code ? { ...l, enabled: !l.enabled } : l,
+                        ),
+                      )
+                    }
+                  />
+                </div>
+              );
+            });
+          })()}
         </div>
 
         <Divider />
@@ -760,42 +962,39 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
         <SectionLabel>{H.sections.currencies}</SectionLabel>
 
         <div className="flex flex-col" style={{ gap: 6 }}>
-          {cfg.currencies.map((cur) => (
-            <div key={cur.code} className="flex items-center" style={{ gap: 8 }}>
-              <span
-                style={{
-                  fontSize: 11,
-                  color: "var(--text-primary)",
-                  fontWeight: 500,
-                  flex: 1,
-                  minWidth: 0,
-                }}
-              >
-                {cur.code}
-                <span
-                  style={{
-                    marginLeft: 5,
-                    fontSize: 10,
-                    color: "var(--text-tertiary)",
-                  }}
-                >
-                  {cur.symbol}
-                </span>
-              </span>
-              <SegBtn
-                label={H.enabled}
-                active={cur.enabled}
-                onClick={() =>
-                  set(
-                    "currencies",
-                    cfg.currencies.map((c) =>
-                      c.code === cur.code ? { ...c, enabled: !c.enabled } : c,
-                    ),
-                  )
-                }
-              />
-            </div>
-          ))}
+          {(() => {
+            const enabledCount = cfg.currencies.filter((c) => c.enabled).length;
+            return cfg.currencies.map((cur) => {
+              // Guard: no se puede apagar la última moneda habilitada.
+              const isLastEnabled = cur.enabled && enabledCount === 1;
+              return (
+                <div key={cur.code} className="flex items-center" style={{ gap: 8 }}>
+                  <div className="flex flex-col" style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                    <span style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 500 }}>
+                      {cur.code}
+                      <span style={{ marginLeft: 5, fontSize: 10, color: "var(--text-tertiary)" }}>
+                        {cur.symbol}
+                      </span>
+                    </span>
+                    {isLastEnabled && <Hint>{H.minCurrencyHint}</Hint>}
+                  </div>
+                  <SegBtn
+                    label={H.enabled}
+                    active={cur.enabled}
+                    disabled={isLastEnabled}
+                    onClick={() =>
+                      set(
+                        "currencies",
+                        cfg.currencies.map((c) =>
+                          c.code === cur.code ? { ...c, enabled: !c.enabled } : c,
+                        ),
+                      )
+                    }
+                  />
+                </div>
+              );
+            });
+          })()}
         </div>
 
         <Divider />
@@ -862,23 +1061,16 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
           <SectionLabel>{H.sections.layout}</SectionLabel>
 
           <Field label={H.layout.mobile}>
-            <div className="flex items-center" style={{ gap: 6 }}>
-              <SegBtn
-                label={H.layout.mobileTop}
-                active={cfg.mobileLayout === "top"}
-                onClick={() => set("mobileLayout", "top")}
-              />
-              <SegBtn
-                label={H.layout.mobileBoth}
-                active={cfg.mobileLayout === "both"}
-                onClick={() => set("mobileLayout", "both")}
-              />
-              <SegBtn
-                label={H.layout.mobileBottom}
-                active={cfg.mobileLayout === "bottom"}
-                onClick={() => set("mobileLayout", "bottom")}
-              />
-            </div>
+            <SegRadioGroup
+              ariaLabel={H.layout.mobile}
+              value={cfg.mobileLayout}
+              onChange={(next) => set("mobileLayout", next)}
+              options={[
+                { value: "top", label: H.layout.mobileTop },
+                { value: "both", label: H.layout.mobileBoth },
+                { value: "bottom", label: H.layout.mobileBottom },
+              ]}
+            />
           </Field>
 
           <Divider />
@@ -887,35 +1079,29 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
           <SectionLabel>{H.sections.bottomBar}</SectionLabel>
 
           <Field label={H.bottomBar.visible}>
-            <div className="flex items-center" style={{ gap: 6 }}>
-              <SegBtn
-                label={H.visible}
-                active={cfg.bottomBar.visible}
-                onClick={() => setBottomBar("visible", true)}
-              />
-              <SegBtn
-                label={H.hidden}
-                active={!cfg.bottomBar.visible}
-                onClick={() => setBottomBar("visible", false)}
-              />
-            </div>
+            <SegRadioGroup
+              ariaLabel={H.bottomBar.visible}
+              value={cfg.bottomBar.visible}
+              onChange={(next) => setBottomBar("visible", next)}
+              options={[
+                { value: true, label: H.visible },
+                { value: false, label: H.hidden },
+              ]}
+            />
           </Field>
 
           {cfg.bottomBar.visible && (
             <>
               <Field label={H.bottomBar.backdropBlur}>
-                <div className="flex items-center" style={{ gap: 6 }}>
-                  <SegBtn
-                    label={H.yes}
-                    active={cfg.bottomBar.backdropBlur}
-                    onClick={() => setBottomBar("backdropBlur", true)}
-                  />
-                  <SegBtn
-                    label={H.no}
-                    active={!cfg.bottomBar.backdropBlur}
-                    onClick={() => setBottomBar("backdropBlur", false)}
-                  />
-                </div>
+                <SegRadioGroup
+                  ariaLabel={H.bottomBar.backdropBlur}
+                  value={cfg.bottomBar.backdropBlur}
+                  onChange={(next) => setBottomBar("backdropBlur", next)}
+                  options={[
+                    { value: true, label: H.yes },
+                    { value: false, label: H.no },
+                  ]}
+                />
               </Field>
 
               <div className="flex flex-col" style={{ gap: 4 }}>
@@ -1020,6 +1206,7 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
                     placeholder={H.drawer.sectionLabelPlaceholder}
                     aria-label={H.drawer.sectionLabel}
                     style={textInputStyle}
+                    className={inputFocusClass}
                   />
                 </Field>
                 <Field label={H.drawer.sectionHref}>
@@ -1030,6 +1217,7 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
                     placeholder="#seccion"
                     aria-label={H.drawer.sectionHref}
                     style={textInputStyle}
+                    className={inputFocusClass}
                   />
                 </Field>
                 <div className="flex items-center" style={{ gap: 6 }}>
@@ -1043,15 +1231,14 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
                   >
                     {H.drawer.sectionVisible}
                   </span>
-                  <SegBtn
-                    label={H.visible}
-                    active={section.visible}
-                    onClick={() => updateDrawerSection(section.id, { visible: true })}
-                  />
-                  <SegBtn
-                    label={H.hidden}
-                    active={!section.visible}
-                    onClick={() => updateDrawerSection(section.id, { visible: false })}
+                  <SegRadioGroup
+                    ariaLabel={H.drawer.sectionVisible}
+                    value={section.visible}
+                    onChange={(next) => updateDrawerSection(section.id, { visible: next })}
+                    options={[
+                      { value: true, label: H.visible },
+                      { value: false, label: H.hidden },
+                    ]}
                   />
                 </div>
               </div>
@@ -1101,18 +1288,15 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
           <SectionLabel>{H.sections.layout}</SectionLabel>
 
           <Field label={H.layout.desktop}>
-            <div className="flex items-center" style={{ gap: 6 }}>
-              <SegBtn
-                label={H.layout.desktopSingle}
-                active={cfg.desktopLayout === "single-row"}
-                onClick={() => set("desktopLayout", "single-row")}
-              />
-              <SegBtn
-                label={H.layout.desktopTwo}
-                active={cfg.desktopLayout === "two-rows"}
-                onClick={() => set("desktopLayout", "two-rows")}
-              />
-            </div>
+            <SegRadioGroup
+              ariaLabel={H.layout.desktop}
+              value={cfg.desktopLayout}
+              onChange={(next) => set("desktopLayout", next)}
+              options={[
+                { value: "single-row", label: H.layout.desktopSingle },
+                { value: "two-rows", label: H.layout.desktopTwo },
+              ]}
+            />
           </Field>
 
           <Divider />
