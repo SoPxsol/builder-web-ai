@@ -586,6 +586,8 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
             <HeaderConfigPanel
               navConfig={entities.header.navConfig ?? DEFAULT_NAV_CONFIG}
               onChange={handleNavConfigChange}
+              viewport={viewport}
+              onViewportChange={handleViewportChange}
             />
           ) : editingModule ? (
             <ModuleEditPanel

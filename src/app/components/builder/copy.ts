@@ -195,11 +195,30 @@ export const BUILDER_COPY = {
       layout: "Disposición",
       utilityBar: "Barra utilitaria",
       mainBar: "Barra principal",
+      /** Sección separada del bloque común para el botón de reserva. */
+      bookingButton: "Botón de reserva",
       bottomBar: "Barra inferior (mobile)",
       drawerSections: "Menú de navegación",
       drawerUtility: "Acciones del menú",
       languages: "Idiomas",
       currencies: "Monedas",
+    },
+
+    /**
+     * Contexto de device en el panel.
+     * `common` rotula el bloque de campos compartidos (siempre visible).
+     * `tabMobile` / `tabDesktop` son las etiquetas de los tabs.
+     * `tablistAria` es el aria-label del grupo de tabs.
+     */
+    deviceScope: {
+      /** Rótulo del bloque de campos que aplican a ambos dispositivos. */
+      common: "Aplica a mobile y escritorio",
+      /** Etiqueta del tab de mobile. */
+      tabMobile: "Mobile",
+      /** Etiqueta del tab de escritorio. */
+      tabDesktop: "Escritorio",
+      /** aria-label del grupo de tabs para lectores de pantalla. */
+      tablistAria: "Configuración por dispositivo",
     },
 
     /** Etiquetas genéricas reutilizadas en varios SegBtns. */
@@ -208,6 +227,10 @@ export const BUILDER_COPY = {
     yes: "Sí",
     no: "No",
     enabled: "Activo",
+
+    /** Hints de guard mínimo (no se puede apagar el último idioma/moneda activo). */
+    minLanguageHint: "Debe quedar al menos un idioma activo.",
+    minCurrencyHint: "Debe quedar al menos una moneda activa.",
 
     /** Logo. */
     logo: {
@@ -275,11 +298,14 @@ export const BUILDER_COPY = {
     action: {
       label: "Etiqueta",
       labelPlaceholder: "Ej. Check-in",
-      icon: "Ícono (nombre lucide)",
-      iconPlaceholder: "key-round",
+      icon: "Ícono",
       type: "Tipo de acción",
       href: "URL de destino",
       phone: "Número de WhatsApp",
+      /** aria-label del radiogroup del selector visual de íconos. */
+      iconPickerAria: "Elegir ícono de la acción",
+      /** Opción para no usar ningún ícono. */
+      iconNone: "Ninguno",
     },
 
     /** Controles de listas ordenables. */
@@ -302,6 +328,18 @@ export const BUILDER_COPY = {
       languagesTitle: "Idioma",
       /** Encabezado de la sección de monedas dentro del drawer. */
       currenciesTitle: "Moneda",
+    },
+
+    /**
+     * Copy del preview del header/nav en el Canvas (Canvas.tsx).
+     * No es UI del panel de configuración, pero se agrupa acá porque
+     * describe el mismo dominio (header/nav).
+     */
+    preview: {
+      /** aria-label del <nav> del drawer mobile. */
+      drawerNavAriaLabel: "Navegación principal",
+      /** Nota de placeholder cuando la utility bar se integra inline (desktop single-row). */
+      utilityBarInlineNote: "Barra utilitaria — integrada inline en la fila del logo en producción",
     },
   },
 

@@ -672,12 +672,12 @@ function LanguageSelector({ value, onChange }: LanguageSelectorProps) {
                   style={{
                     padding: "6px 10px",
                     gap: 8,
-                    background: active ? "var(--accent-info-bg)" : "transparent",
+                    background: active ? "var(--control-selected-bg)" : "transparent",
                     border: "none",
                     borderRadius: 4,
                     fontSize: 11,
                     fontWeight: active ? 600 : 500,
-                    color: active ? "var(--accent-info)" : "var(--text-primary)",
+                    color: active ? "var(--control-selected-fg)" : "var(--text-primary)",
                     cursor: "pointer",
                     outlineColor: "var(--accent-info)",
                   }}
@@ -693,7 +693,7 @@ function LanguageSelector({ value, onChange }: LanguageSelectorProps) {
                     aria-hidden="true"
                     style={{
                       fontSize: 9,
-                      color: active ? "var(--accent-info)" : "var(--text-tertiary)",
+                      color: active ? "var(--control-selected-fg)" : "var(--text-tertiary)",
                       fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
                       textTransform: "uppercase",
                     }}
