@@ -791,7 +791,7 @@ function NavHeaderPreview({
       );
     }
     return (
-      <span style={{ fontSize: 16, fontWeight: 700, color: "var(--brand)", letterSpacing: "-0.02em" }}>
+      <span style={{ fontSize: "var(--font-size-lg)", fontWeight: 700, color: "var(--brand)", letterSpacing: "-0.02em" }}>
         {cfg.logo.textFallback || "HOTEL"}
       </span>
     );
@@ -802,7 +802,7 @@ function NavHeaderPreview({
     return (
       <span
         className="flex items-center"
-        style={{ gap: 4, fontSize: 10, color: "var(--text-secondary)", cursor: "default" }}
+        style={{ gap: 4, fontSize: "var(--font-size-xs)", color: "var(--text-secondary)", cursor: "default" }}
       >
         <NavIcon name={icon} size={12} />
         {label}
@@ -871,7 +871,7 @@ function NavHeaderPreview({
               <span
                 key={s.id}
                 style={{
-                  fontSize: 11,
+                  fontSize: "var(--font-size-sm)",
                   fontWeight: 500,
                   color: "var(--text-secondary)",
                   cursor: "default",
@@ -882,7 +882,7 @@ function NavHeaderPreview({
               </span>
             ))}
             {visibleSections.length > 5 && (
-              <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+              <span style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)" }}>
                 +{visibleSections.length - 5}
               </span>
             )}
@@ -894,7 +894,7 @@ function NavHeaderPreview({
           {!isMobile && cfg.mainBar.sticky && (
             <span
               style={{
-                fontSize: 9,
+                fontSize: "var(--font-size-xs)",
                 fontWeight: 600,
                 color: "var(--accent-info)",
                 background: "var(--accent-info-bg)",
@@ -915,7 +915,7 @@ function NavHeaderPreview({
                 background: "var(--brand)",
                 border: "none",
                 borderRadius: 4,
-                fontSize: isMobile ? 11 : 11,
+                fontSize: isMobile ? "var(--font-size-sm)" : "var(--font-size-sm)",
                 fontWeight: 600,
                 color: "#fff",
                 cursor: "default",
@@ -991,7 +991,7 @@ function NavHeaderPreview({
                 padding: "0 20px",
                 background: "var(--surface-page)",
                 borderBottom: "0.5px solid var(--border-ui)",
-                fontSize: 9,
+                fontSize: "var(--font-size-xs)",
                 color: "var(--text-tertiary)",
               }}
             >
@@ -1043,7 +1043,7 @@ function NavBottomBarPreview({ cfg }: { cfg: NavConfig }) {
           </span>
           <span
             style={{
-              fontSize: 9,
+              fontSize: "var(--font-size-xs)",
               fontWeight: 500,
               color: "var(--text-secondary)",
               whiteSpace: "nowrap",
@@ -1172,7 +1172,7 @@ function NavDrawerPreview({
                   key={section.id}
                   style={{
                     padding: "10px 0",
-                    fontSize: 13,
+                    fontSize: "var(--font-size-md)",
                     fontWeight: 500,
                     color: "var(--text-primary)",
                     cursor: "default",
@@ -1197,7 +1197,7 @@ function NavDrawerPreview({
                   style={{
                     gap: 10,
                     padding: "8px 0",
-                    fontSize: 12,
+                    fontSize: "var(--font-size-base)",
                     color: "var(--text-secondary)",
                     cursor: "default",
                   }}
@@ -1221,7 +1221,7 @@ function NavDrawerPreview({
                   <div>
                     <p
                       style={{
-                        fontSize: 9,
+                        fontSize: "var(--font-size-xs)",
                         color: "var(--text-tertiary)",
                         letterSpacing: "0.08em",
                         textTransform: "uppercase",
@@ -1235,7 +1235,7 @@ function NavDrawerPreview({
                         <span
                           key={lang.code}
                           style={{
-                            fontSize: 10,
+                            fontSize: "var(--font-size-xs)",
                             fontWeight: idx === 0 ? 600 : 400,
                             color: idx === 0 ? "#fff" : "var(--text-secondary)",
                             background: idx === 0 ? "var(--brand)" : "var(--surface-page)",
@@ -1257,7 +1257,7 @@ function NavDrawerPreview({
                   <div>
                     <p
                       style={{
-                        fontSize: 9,
+                        fontSize: "var(--font-size-xs)",
                         color: "var(--text-tertiary)",
                         letterSpacing: "0.08em",
                         textTransform: "uppercase",
@@ -1271,7 +1271,7 @@ function NavDrawerPreview({
                         <span
                           key={cur.code}
                           style={{
-                            fontSize: 10,
+                            fontSize: "var(--font-size-xs)",
                             fontWeight: idx === 0 ? 600 : 400,
                             color: idx === 0 ? "#fff" : "var(--text-secondary)",
                             background: idx === 0 ? "var(--brand)" : "var(--surface-page)",
