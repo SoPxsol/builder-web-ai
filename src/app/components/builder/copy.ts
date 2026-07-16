@@ -322,6 +322,8 @@ export const BUILDER_COPY = {
       moveUp: "Mover arriba",
       moveDown: "Mover abajo",
       remove: "Eliminar",
+      /** Handle de arrastre — alternativa por puntero a las flechas ▲▼. */
+      dragHandle: "Arrastrar para reordenar",
     },
 
     /**

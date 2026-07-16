@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import {
   CalendarCheck,
   Globe,
@@ -616,6 +616,9 @@ function UtilitySlotEditor({
 }
 
 /* ─── Editor de lista ordenable con agregar/eliminar ───────────────────── */
+/** MIME interno del drag & drop de filas — mismo criterio que ModuleTree.tsx. */
+const REORDER_MIME = "application/x-header-config-item";
+
 type ReorderableListProps<T> = {
   items: T[];
   keyOf: (item: T) => string;
@@ -628,6 +631,13 @@ type ReorderableListProps<T> = {
   onRemove: (key: string) => void;
   onMoveUp: (key: string) => void;
   onMoveDown: (key: string) => void;
+  /**
+   * Arrastre real con puntero (además de las flechas ▲▼, que siguen siendo
+   * la vía accesible por teclado — WCAG 2.5.7, no se quitan). `toIndex` es
+   * la posición final dentro del array YA SIN el item movido — mismo
+   * criterio que `onReorderModule` en ModuleTree.tsx.
+   */
+  onReorder: (key: string, toIndex: number) => void;
   renderItem: (item: T, idx: number, total: number) => React.ReactNode;
 };
 
@@ -643,64 +653,137 @@ function ReorderableList<T>({
   onRemove,
   onMoveUp,
   onMoveDown,
+  onReorder,
   renderItem,
 }: ReorderableListProps<T>) {
+  /* ─── Estado de drag & drop (puntero) ──────────────────────────────────── */
+  const [draggingKey, setDraggingKey] = useState<string | null>(null);
+  // Índice de inserción en el array ORIGINAL (0..length). La línea indicadora
+  // se dibuja antes de la fila `dropIndex`.
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+
+  function resetDrag() {
+    setDraggingKey(null);
+    setDropIndex(null);
+  }
+
+  /** Calcula el índice de inserción según la mitad de la fila bajo el puntero. */
+  function handleRowDragOver(e: React.DragEvent, index: number) {
+    if (!e.dataTransfer.types.includes(REORDER_MIME)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const after = e.clientY - rect.top > rect.height / 2;
+    setDropIndex(after ? index + 1 : index);
+  }
+
+  function handleListDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const key = e.dataTransfer.getData(REORDER_MIME);
+    const fromIndex = items.findIndex((item) => keyOf(item) === key);
+    if (fromIndex >= 0 && dropIndex !== null) {
+      const finalIndex = dropIndex > fromIndex ? dropIndex - 1 : dropIndex;
+      if (finalIndex !== fromIndex) onReorder(key, finalIndex);
+    }
+    resetDrag();
+  }
+
   return (
-    <div className="flex flex-col" style={{ gap: 6 }}>
+    <div
+      className="flex flex-col"
+      style={{ gap: 6 }}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes(REORDER_MIME)) e.preventDefault();
+      }}
+      onDragLeave={(e) => {
+        // Sólo limpiar si salimos del contenedor entero (no entre filas).
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) resetDrag();
+      }}
+      onDrop={handleListDrop}
+    >
       {items.map((item, idx) => (
-        <div
-          key={keyOf(item)}
-          className="flex flex-col"
-          style={{
-            border: "0.5px solid var(--border-ui)",
-            borderRadius: 6,
-            overflow: "hidden",
-          }}
-        >
-          {/* Barra de controles de la fila */}
+        <div key={keyOf(item)}>
+          <DropLine active={dropIndex === idx} />
           <div
-            className="flex items-center"
+            className="flex flex-col"
+            onDragOver={(e) => handleRowDragOver(e, idx)}
             style={{
-              padding: "4px 8px",
-              background: "var(--surface-page)",
-              borderBottom: "0.5px solid var(--border-ui)",
-              gap: 4,
+              border: "0.5px solid var(--border-ui)",
+              borderRadius: 6,
+              overflow: "hidden",
+              opacity: draggingKey === keyOf(item) ? 0.4 : 1,
+              transition: "opacity 0.1s ease",
             }}
           >
-            <GripVertical
-              size={13}
-              aria-hidden="true"
-              style={{ color: "var(--text-tertiary)", flexShrink: 0 }}
-            />
-            <span style={{ fontSize: 10, color: "var(--text-tertiary)", flex: 1 }}>
-              {idx + 1} / {items.length}
-            </span>
-            <IconBtn
-              onClick={() => onMoveUp(keyOf(item))}
-              label={H.list.moveUp}
-              disabled={idx === 0}
+            {/* Barra de controles de la fila */}
+            <div
+              className="flex items-center"
+              style={{
+                padding: "4px 8px",
+                background: "var(--surface-page)",
+                borderBottom: "0.5px solid var(--border-ui)",
+                gap: 4,
+              }}
             >
-              <span style={{ fontSize: 10, lineHeight: 1 }}>▲</span>
-            </IconBtn>
-            <IconBtn
-              onClick={() => onMoveDown(keyOf(item))}
-              label={H.list.moveDown}
-              disabled={idx === items.length - 1}
-            >
-              <span style={{ fontSize: 10, lineHeight: 1 }}>▼</span>
-            </IconBtn>
-            <IconBtn
-              onClick={() => onRemove(keyOf(item))}
-              label={canRemove ? H.list.remove : (removeDisabledHint ?? H.list.remove)}
-              disabled={!canRemove}
-            >
-              <Trash2 size={11} aria-hidden="true" />
-            </IconBtn>
+              {/* Handle de arrastre — affordance visual + drag source real.
+                  Las flechas ▲▼ siguen siendo la vía accesible por teclado. */}
+              <button
+                type="button"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(REORDER_MIME, keyOf(item));
+                  e.dataTransfer.effectAllowed = "move";
+                  setDraggingKey(keyOf(item));
+                }}
+                onDragEnd={resetDrag}
+                aria-label={`${H.list.dragHandle}: ${idx + 1} / ${items.length}`}
+                className="flex items-center justify-center flex-shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+                style={{
+                  width: 20,
+                  height: 26,
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                  cursor: "grab",
+                  color: "var(--text-tertiary)",
+                  outlineColor: "var(--accent-info)",
+                  touchAction: "none",
+                }}
+              >
+                <GripVertical size={13} aria-hidden="true" />
+              </button>
+              <span style={{ fontSize: 10, color: "var(--text-tertiary)", flex: 1 }}>
+                {idx + 1} / {items.length}
+              </span>
+              <IconBtn
+                onClick={() => onMoveUp(keyOf(item))}
+                label={H.list.moveUp}
+                disabled={idx === 0}
+              >
+                <span style={{ fontSize: 10, lineHeight: 1 }}>▲</span>
+              </IconBtn>
+              <IconBtn
+                onClick={() => onMoveDown(keyOf(item))}
+                label={H.list.moveDown}
+                disabled={idx === items.length - 1}
+              >
+                <span style={{ fontSize: 10, lineHeight: 1 }}>▼</span>
+              </IconBtn>
+              <IconBtn
+                onClick={() => onRemove(keyOf(item))}
+                label={canRemove ? H.list.remove : (removeDisabledHint ?? H.list.remove)}
+                disabled={!canRemove}
+              >
+                <Trash2 size={11} aria-hidden="true" />
+              </IconBtn>
+            </div>
+            {/* Contenido del item */}
+            <div style={{ padding: 10 }}>{renderItem(item, idx, items.length)}</div>
           </div>
-          {/* Contenido del item */}
-          <div style={{ padding: 10 }}>{renderItem(item, idx, items.length)}</div>
         </div>
       ))}
+      {/* Línea indicadora al final de la lista. */}
+      <DropLine active={dropIndex === items.length} />
 
       <button
         type="button"
@@ -729,6 +812,26 @@ function ReorderableList<T>({
   );
 }
 
+/* ─── Línea indicadora de zona de drop (mismo criterio que ModuleTree.tsx) ─ */
+function DropLine({ active }: { active: boolean }) {
+  if (!active) return null;
+  return (
+    <div aria-hidden="true" className="flex items-center" style={{ padding: "0 2px", height: 0 }}>
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: "var(--drop-indicator)",
+          marginLeft: -3,
+          flexShrink: 0,
+        }}
+      />
+      <span style={{ flex: 1, height: 2, background: "var(--drop-indicator)", borderRadius: 1 }} />
+    </div>
+  );
+}
+
 /* ─── Helpers de reordenamiento inmutables ──────────────────────────────── */
 function moveUp<T>(arr: T[], keyOf: (i: T) => string, key: string): T[] {
   const idx = arr.findIndex((i) => keyOf(i) === key);
@@ -743,6 +846,22 @@ function moveDown<T>(arr: T[], keyOf: (i: T) => string, key: string): T[] {
   if (idx < 0 || idx >= arr.length - 1) return arr;
   const next = [...arr];
   [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+  return next;
+}
+
+/**
+ * Mueve `key` a la posición `toIndex` del array resultante (ya sin el
+ * elemento movido) — es el equivalente de moveUp/moveDown para el
+ * drag & drop, donde el destino puede ser cualquier índice, no sólo el
+ * vecino inmediato.
+ */
+function moveTo<T>(arr: T[], keyOf: (i: T) => string, key: string, toIndex: number): T[] {
+  const fromIndex = arr.findIndex((i) => keyOf(i) === key);
+  if (fromIndex < 0) return arr;
+  const next = [...arr];
+  const [item] = next.splice(fromIndex, 1);
+  const clamped = Math.max(0, Math.min(toIndex, next.length));
+  next.splice(clamped, 0, item);
   return next;
 }
 
@@ -1315,6 +1434,15 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
                       })),
                     )
                   }
+                  onReorder={(key, toIndex) =>
+                    setBottomBar(
+                      "slots",
+                      moveTo(cfg.bottomBar.slots, (s) => s.id, key, toIndex).map((s, i) => ({
+                        ...s,
+                        order: i,
+                      })),
+                    )
+                  }
                   renderItem={(slot) => (
                     <UtilityActionEditor
                       action={slot.action}
@@ -1362,6 +1490,15 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
               set(
                 "drawerSections",
                 moveDown(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
+                  ...s,
+                  order: i,
+                })),
+              )
+            }
+            onReorder={(key, toIndex) =>
+              set(
+                "drawerSections",
+                moveTo(cfg.drawerSections, (s) => s.id, key, toIndex).map((s, i) => ({
                   ...s,
                   order: i,
                 })),
@@ -1436,6 +1573,9 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
             }
             onMoveDown={(key) =>
               set("drawerUtility", moveDown(cfg.drawerUtility, (a) => a.id, key))
+            }
+            onReorder={(key, toIndex) =>
+              set("drawerUtility", moveTo(cfg.drawerUtility, (a) => a.id, key, toIndex))
             }
             renderItem={(action) => (
               <UtilityActionEditor
