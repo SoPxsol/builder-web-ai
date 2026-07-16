@@ -30,6 +30,7 @@ import type {
   ViewportMode,
 } from "../../types/builder";
 import { BUILDER_COPY } from "./copy";
+import { Toggle } from "../wizard2/shared/Toggle";
 
 const H = BUILDER_COPY.headerConfig;
 
@@ -153,40 +154,36 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-/** Botón segmentado — mismo look que SegBtn de ModuleEditPanel. */
-function SegBtn({
+/**
+ * Fila de campo booleano: label a la izquierda + Switch del DS a la derecha
+ * ("label ····· switch"). Hermano de Field pero en fila, no en columna —
+ * regla de UX (Paso 7, WEB-686): todo on/off usa el Toggle del DS
+ * (`wizard2/shared/Toggle`), nunca un segmentado de 2 opciones.
+ * `hint` es opcional (ej. guard de mínimo-1 cuando `disabled`).
+ */
+function ToggleField({
   label,
-  active,
-  onClick,
+  checked,
+  onChange,
   disabled,
+  hint,
 }: {
   label: string;
-  active: boolean;
-  onClick: () => void;
+  checked: boolean;
+  onChange: (value: boolean) => void;
   disabled?: boolean;
+  hint?: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      disabled={disabled}
-      className="transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
-      style={{
-        padding: "5px 10px",
-        background: active ? "var(--control-selected-bg)" : "#fff",
-        border: active ? "0.5px solid var(--control-selected-border)" : "0.5px solid var(--border-ui)",
-        borderRadius: 5,
-        fontSize: 11,
-        fontWeight: 500,
-        color: active ? "var(--control-selected-fg)" : disabled ? "var(--text-tertiary)" : "var(--text-secondary)",
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.55 : 1,
-        outlineColor: "var(--accent-info)",
-      }}
-    >
-      {label}
-    </button>
+    <div className="flex flex-col" style={{ gap: 4 }}>
+      <div className="flex items-center" style={{ gap: 8 }}>
+        <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)", flex: 1 }}>
+          {label}
+        </span>
+        <Toggle checked={checked} onChange={onChange} ariaLabel={label} disabled={disabled} />
+      </div>
+      {hint && <Hint>{hint}</Hint>}
+    </div>
   );
 }
 
@@ -221,11 +218,11 @@ function useRovingRadioGroup(count: number, onSelect: (index: number) => void) {
 }
 
 /**
- * Grupo de selección ÚNICA accesible — hermano de SegBtn, mismo look visual.
- * A diferencia de SegBtn suelto (aria-pressed), expone `role="radiogroup"` +
+ * Grupo de selección ÚNICA accesible — expone `role="radiogroup"` +
  * `role="radio"`/`aria-checked` por opción para que un lector de pantalla
  * entienda que las opciones son mutuamente excluyentes.
- * Usar SOLO para grupos de selección única (no para toggles multi-selección).
+ * Usar SOLO para elegir entre opciones (3+, o 2 no-booleanas como tipo de
+ * logo) — los on/off van con Toggle/ToggleField, no acá.
  */
 function SegRadioGroup<T>({
   options,
@@ -675,16 +672,7 @@ function UtilitySlotEditor({
 
   return (
     <div className="flex flex-col" style={{ gap: 8 }}>
-      <div className="flex items-center" style={{ gap: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)", flex: 1 }}>
-          {slotLabel}
-        </span>
-        <SegBtn
-          label={H.visible}
-          active={enabled}
-          onClick={() => onToggle(!enabled)}
-        />
-      </div>
+      <ToggleField label={slotLabel} checked={enabled} onChange={onToggle} />
       {enabled && (
         <div style={{ paddingLeft: 8, borderLeft: "2px solid var(--border-ui)" }}>
           <UtilityActionEditor
@@ -1228,17 +1216,11 @@ export function HeaderConfigPanel({
 
         {/* ── BARRA UTILITARIA ─────────────────────────────────────────── */}
         <CollapsibleSection title={H.sections.utilityBar} highlightPart="utilityBar" onHighlight={onHighlight}>
-          <Field label={H.utilityBar.visible}>
-            <SegRadioGroup
-              ariaLabel={H.utilityBar.visible}
-              value={cfg.utilityBar.visible}
-              onChange={(next) => setUtilityBar("visible", next)}
-              options={[
-                { value: true, label: H.visible },
-                { value: false, label: H.hidden },
-              ]}
-            />
-          </Field>
+          <ToggleField
+            label={H.utilityBar.visible}
+            checked={cfg.utilityBar.visible}
+            onChange={(next) => setUtilityBar("visible", next)}
+          />
 
           {cfg.utilityBar.visible && (
             <>
@@ -1276,17 +1258,11 @@ export function HeaderConfigPanel({
 
         {/* ── BOTÓN DE RESERVA (compartido) ────────────────────────────── */}
         <CollapsibleSection title={H.sections.bookingButton} highlightPart="bookingButton" onHighlight={onHighlight}>
-          <Field label={H.mainBar.showBookingButton}>
-            <SegRadioGroup
-              ariaLabel={H.mainBar.showBookingButton}
-              value={cfg.mainBar.showBookingButton}
-              onChange={(next) => setMainBar("showBookingButton", next)}
-              options={[
-                { value: true, label: H.yes },
-                { value: false, label: H.no },
-              ]}
-            />
-          </Field>
+          <ToggleField
+            label={H.mainBar.showBookingButton}
+            checked={cfg.mainBar.showBookingButton}
+            onChange={(next) => setMainBar("showBookingButton", next)}
+          />
 
           {cfg.mainBar.showBookingButton && (
             <Field label={H.mainBar.bookingButtonLabel}>
@@ -1331,15 +1307,15 @@ export function HeaderConfigPanel({
                       </span>
                       {isLastEnabled && <Hint>{H.minLanguageHint}</Hint>}
                     </div>
-                    <SegBtn
-                      label={H.enabled}
-                      active={lang.enabled}
+                    <Toggle
+                      checked={lang.enabled}
                       disabled={isLastEnabled}
-                      onClick={() =>
+                      ariaLabel={`${H.enabled}: ${lang.label}`}
+                      onChange={(next) =>
                         set(
                           "languages",
                           cfg.languages.map((l) =>
-                            l.code === lang.code ? { ...l, enabled: !l.enabled } : l,
+                            l.code === lang.code ? { ...l, enabled: next } : l,
                           ),
                         )
                       }
@@ -1372,15 +1348,15 @@ export function HeaderConfigPanel({
                       </span>
                       {isLastEnabled && <Hint>{H.minCurrencyHint}</Hint>}
                     </div>
-                    <SegBtn
-                      label={H.enabled}
-                      active={cur.enabled}
+                    <Toggle
+                      checked={cur.enabled}
                       disabled={isLastEnabled}
-                      onClick={() =>
+                      ariaLabel={`${H.enabled}: ${cur.code}`}
+                      onChange={(next) =>
                         set(
                           "currencies",
                           cfg.currencies.map((c) =>
-                            c.code === cur.code ? { ...c, enabled: !c.enabled } : c,
+                            c.code === cur.code ? { ...c, enabled: next } : c,
                           ),
                         )
                       }
@@ -1492,31 +1468,19 @@ export function HeaderConfigPanel({
 
           {/* ── BARRA INFERIOR (MOBILE) ──────────────────────────────── */}
           <CollapsibleSection title={H.sections.bottomBar} highlightPart="bottomBar" onHighlight={onHighlight}>
-            <Field label={H.bottomBar.visible}>
-              <SegRadioGroup
-                ariaLabel={H.bottomBar.visible}
-                value={cfg.bottomBar.visible}
-                onChange={(next) => setBottomBar("visible", next)}
-                options={[
-                  { value: true, label: H.visible },
-                  { value: false, label: H.hidden },
-                ]}
-              />
-            </Field>
+            <ToggleField
+              label={H.bottomBar.visible}
+              checked={cfg.bottomBar.visible}
+              onChange={(next) => setBottomBar("visible", next)}
+            />
 
             {cfg.bottomBar.visible && (
               <>
-                <Field label={H.bottomBar.backdropBlur}>
-                  <SegRadioGroup
-                    ariaLabel={H.bottomBar.backdropBlur}
-                    value={cfg.bottomBar.backdropBlur}
-                    onChange={(next) => setBottomBar("backdropBlur", next)}
-                    options={[
-                      { value: true, label: H.yes },
-                      { value: false, label: H.no },
-                    ]}
-                  />
-                </Field>
+                <ToggleField
+                  label={H.bottomBar.backdropBlur}
+                  checked={cfg.bottomBar.backdropBlur}
+                  onChange={(next) => setBottomBar("backdropBlur", next)}
+                />
 
                 <div className="flex flex-col" style={{ gap: 4 }}>
                   <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)" }}>
@@ -1655,27 +1619,11 @@ export function HeaderConfigPanel({
                       className={inputFocusClass}
                     />
                   </Field>
-                  <div className="flex items-center" style={{ gap: 6 }}>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 500,
-                        color: "var(--text-secondary)",
-                        flex: 1,
-                      }}
-                    >
-                      {H.drawer.sectionVisible}
-                    </span>
-                    <SegRadioGroup
-                      ariaLabel={H.drawer.sectionVisible}
-                      value={section.visible}
-                      onChange={(next) => updateDrawerSection(section.id, { visible: next })}
-                      options={[
-                        { value: true, label: H.visible },
-                        { value: false, label: H.hidden },
-                      ]}
-                    />
-                  </div>
+                  <ToggleField
+                    label={H.drawer.sectionVisible}
+                    checked={section.visible}
+                    onChange={(next) => updateDrawerSection(section.id, { visible: next })}
+                  />
                 </div>
               )}
               highlightPartOf={(section) => `drawerSection:${section.id}`}
@@ -1755,17 +1703,11 @@ export function HeaderConfigPanel({
 
           {/* ── BARRA PRINCIPAL — sticky (desktop only) ──────────────── */}
           <CollapsibleSection title={H.sections.mainBar}>
-            <Field label={H.mainBar.sticky}>
-              <SegRadioGroup
-                ariaLabel={H.mainBar.sticky}
-                value={cfg.mainBar.sticky}
-                onChange={(next) => setMainBar("sticky", next)}
-                options={[
-                  { value: true, label: H.yes },
-                  { value: false, label: H.no },
-                ]}
-              />
-            </Field>
+            <ToggleField
+              label={H.mainBar.sticky}
+              checked={cfg.mainBar.sticky}
+              onChange={(next) => setMainBar("sticky", next)}
+            />
           </CollapsibleSection>
         </div>
 

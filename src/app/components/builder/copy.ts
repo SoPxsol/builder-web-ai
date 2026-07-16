@@ -221,11 +221,12 @@ export const BUILDER_COPY = {
       tablistAria: "Configuración por dispositivo",
     },
 
-    /** Etiquetas genéricas reutilizadas en varios SegBtns. */
-    visible: "Visible",
-    hidden: "Oculta",
-    yes: "Sí",
-    no: "No",
+    /**
+     * Prefijo de aria-label para los Toggle de idiomas/monedas (Paso 7,
+     * WEB-686) — el switch ya no muestra texto "Activo", pero necesita un
+     * aria-label descriptivo por fila (se combina con el label/code de cada
+     * idioma o moneda).
+     */
     enabled: "Activo",
 
     /** Hints de guard mínimo (no se puede apagar el último idioma/moneda activo). */
