@@ -1112,7 +1112,7 @@ function NavDrawerPreview({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={BUILDER_COPY.headerConfig.drawerPreview.openMenuAriaLabel}
+        aria-label={BUILDER_COPY.headerConfig.drawerPreview.dialogAriaLabel}
         style={{
           position: "absolute",
           top: 0,

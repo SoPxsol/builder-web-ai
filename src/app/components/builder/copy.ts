@@ -333,6 +333,8 @@ export const BUILDER_COPY = {
       openMenuAriaLabel: "Abrir menú de navegación",
       /** aria-label del botón cerrar (X) dentro del drawer. */
       closeMenuAriaLabel: "Cerrar menú de navegación",
+      /** aria-label del dialog del drawer ya abierto (describe el panel, no el botón que lo abre). */
+      dialogAriaLabel: "Menú de navegación",
       /** Encabezado de la sección de idiomas dentro del drawer. */
       languagesTitle: "Idioma",
       /** Encabezado de la sección de monedas dentro del drawer. */

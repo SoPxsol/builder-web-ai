@@ -456,6 +456,7 @@ function IconPicker({
         role="radio"
         aria-checked={activeIndex === 0}
         aria-label={H.action.iconNone}
+        title={H.action.iconNone}
         tabIndex={activeIndex === 0 ? 0 : -1}
         onClick={() => onChange(undefined)}
         onKeyDown={(e) => onKeyDown(e, 0)}
@@ -477,6 +478,7 @@ function IconPicker({
             role="radio"
             aria-checked={active}
             aria-label={label}
+            title={label}
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(v)}
             onKeyDown={(e) => onKeyDown(e, i)}
@@ -849,6 +851,17 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
     onViewportChange(device === "mobile" ? "mobile" : "desktop");
   }
 
+  /**
+   * Roving tabindex para los tabs Mobile/Desktop (patrón WAI-ARIA APG "Tabs",
+   * modelo de activación automática): las flechas mueven el foco Y activan
+   * el tab de destino a la vez, reusando el mismo `useRovingRadioGroup` que
+   * ya se usa para los radiogroups del panel.
+   */
+  const TAB_DEVICES = ["mobile", "desktop"] as const;
+  const { refs: tabRefs, onKeyDown: onTabKeyDown } = useRovingRadioGroup(TAB_DEVICES.length, (i) =>
+    handleTabClick(TAB_DEVICES[i]),
+  );
+
   return (
     <aside
       role="complementary"
@@ -1152,18 +1165,23 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
             gap: 0,
           }}
         >
-          {(["mobile", "desktop"] as const).map((device) => {
+          {TAB_DEVICES.map((device, i) => {
             const isActive = activeDevice === device;
             const label = device === "mobile" ? H.deviceScope.tabMobile : H.deviceScope.tabDesktop;
             return (
               <button
                 key={device}
+                ref={(el) => {
+                  tabRefs.current[i] = el;
+                }}
                 role="tab"
                 id={`header-tab-${device}`}
                 aria-selected={isActive}
                 aria-controls={`header-tabpanel-${device}`}
+                tabIndex={isActive ? 0 : -1}
                 type="button"
                 onClick={() => handleTabClick(device)}
+                onKeyDown={(e) => onTabKeyDown(e, i)}
                 className="flex-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
                 style={{
                   padding: "7px 10px",
@@ -1468,18 +1486,15 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
           <SectionLabel>{H.sections.mainBar}</SectionLabel>
 
           <Field label={H.mainBar.sticky}>
-            <div className="flex items-center" style={{ gap: 6 }}>
-              <SegBtn
-                label={H.yes}
-                active={cfg.mainBar.sticky}
-                onClick={() => setMainBar("sticky", true)}
-              />
-              <SegBtn
-                label={H.no}
-                active={!cfg.mainBar.sticky}
-                onClick={() => setMainBar("sticky", false)}
-              />
-            </div>
+            <SegRadioGroup
+              ariaLabel={H.mainBar.sticky}
+              value={cfg.mainBar.sticky}
+              onChange={(next) => setMainBar("sticky", next)}
+              options={[
+                { value: true, label: H.yes },
+                { value: false, label: H.no },
+              ]}
+            />
           </Field>
         </div>
 
