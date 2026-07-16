@@ -1,6 +1,8 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   CalendarCheck,
+  ChevronDown,
+  ChevronRight,
   Globe,
   GripVertical,
   Heart,
@@ -43,21 +45,67 @@ const inputFocusClass =
 
 /* ─── Subcomponentes locales (hermanos de los de ModuleEditPanel) ─────── */
 
-/** Encabezado de sección uppercase — replica el "advancedLabel" de ModuleEditPanel. */
-function SectionLabel({ children }: { children: React.ReactNode }) {
+/**
+ * Sección colapsable del panel — encabezado uppercase (mismo look que el
+ * "advancedLabel" de ModuleEditPanel) convertido en botón que expande/
+ * colapsa su contenido. Arranca SIEMPRE abierta (`useState(true)`): nada se
+ * esconde de entrada, es sólo una ayuda para enfocarse en una sección a la
+ * vez. El estado abierto/cerrado es de UI local — no vive en navConfig ni
+ * en el draft, así que no dispara autosave.
+ *
+ * Sin ícono rotado: se muestra ChevronDown (abierto) o ChevronRight
+ * (cerrado) según el estado, evitando animación de transform — no hace
+ * falta lidiar con `prefers-reduced-motion` si no hay movimiento.
+ */
+function CollapsibleSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(true);
+  const bodyId = useId();
+  const Chevron = open ? ChevronDown : ChevronRight;
+
   return (
-    <p
-      style={{
-        fontSize: 10,
-        fontWeight: 600,
-        color: "var(--text-tertiary)",
-        textTransform: "uppercase",
-        letterSpacing: "0.05em",
-        paddingTop: 4,
-      }}
-    >
-      {children}
-    </p>
+    <div className="flex flex-col" style={{ gap: open ? 10 : 0 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls={bodyId}
+        className="flex items-center justify-between w-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1"
+        style={{
+          gap: 6,
+          padding: "5px 2px",
+          minHeight: 26,
+          background: "transparent",
+          border: "none",
+          borderRadius: 4,
+          cursor: "pointer",
+          outlineColor: "var(--accent-info)",
+        }}
+      >
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: "var(--text-tertiary)",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+          }}
+        >
+          {title}
+        </span>
+        <Chevron size={14} aria-hidden="true" style={{ color: "var(--text-tertiary)", flexShrink: 0 }} />
+      </button>
+      {open && (
+        <div id={bodyId} className="flex flex-col" style={{ gap: 10 }}>
+          {children}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1046,226 +1094,226 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
         </div>
 
         {/* ── LOGO ─────────────────────────────────────────────────────── */}
-        <SectionLabel>{H.sections.logo}</SectionLabel>
-
-        <Field label={H.logo.type}>
-          <SegRadioGroup
-            ariaLabel={H.logo.type}
-            value={cfg.logo.type}
-            onChange={(next) => setLogo("type", next)}
-            options={[
-              { value: "image", label: H.logo.typeImage },
-              { value: "text", label: H.logo.typeText },
-            ]}
-          />
-        </Field>
-
-        {cfg.logo.type === "image" && (
-          <>
-            <Field label={H.logo.imageUrl}>
-              <input
-                type="url"
-                value={cfg.logo.imageUrl ?? ""}
-                onChange={(e) => setLogo("imageUrl", e.target.value || undefined)}
-                placeholder="https://..."
-                aria-label={H.logo.imageUrl}
-                style={textInputStyle}
-                className={inputFocusClass}
-              />
-            </Field>
-            <Field label={H.logo.imageAlt}>
-              <input
-                type="text"
-                value={cfg.logo.imageAlt ?? ""}
-                onChange={(e) => setLogo("imageAlt", e.target.value || undefined)}
-                placeholder={H.logo.imageAltPlaceholder}
-                aria-label={H.logo.imageAlt}
-                style={textInputStyle}
-                className={inputFocusClass}
-              />
-            </Field>
-          </>
-        )}
-
-        <Field label={H.logo.textFallback}>
-          <input
-            type="text"
-            value={cfg.logo.textFallback ?? ""}
-            onChange={(e) => setLogo("textFallback", e.target.value || undefined)}
-            placeholder={H.logo.textFallbackPlaceholder}
-            aria-label={H.logo.textFallback}
-            style={textInputStyle}
-            className={inputFocusClass}
-          />
-        </Field>
-
-        <Divider />
-
-        {/* ── BARRA UTILITARIA ─────────────────────────────────────────── */}
-        <SectionLabel>{H.sections.utilityBar}</SectionLabel>
-
-        <Field label={H.utilityBar.visible}>
-          <SegRadioGroup
-            ariaLabel={H.utilityBar.visible}
-            value={cfg.utilityBar.visible}
-            onChange={(next) => setUtilityBar("visible", next)}
-            options={[
-              { value: true, label: H.visible },
-              { value: false, label: H.hidden },
-            ]}
-          />
-        </Field>
-
-        {cfg.utilityBar.visible && (
-          <>
-            <UtilitySlotEditor
-              slotLabel={H.utilityBar.leftSlot}
-              action={cfg.utilityBar.leftSlot}
-              onToggle={(enabled) =>
-                setUtilityBar(
-                  "leftSlot",
-                  enabled
-                    ? { id: `slot-left-${Date.now()}`, label: "", actionType: "link" }
-                    : undefined,
-                )
-              }
-              onChange={(next) => setUtilityBar("leftSlot", next)}
+        <CollapsibleSection title={H.sections.logo}>
+          <Field label={H.logo.type}>
+            <SegRadioGroup
+              ariaLabel={H.logo.type}
+              value={cfg.logo.type}
+              onChange={(next) => setLogo("type", next)}
+              options={[
+                { value: "image", label: H.logo.typeImage },
+                { value: "text", label: H.logo.typeText },
+              ]}
             />
-            <UtilitySlotEditor
-              slotLabel={H.utilityBar.rightSlot}
-              action={cfg.utilityBar.rightSlot}
-              onToggle={(enabled) =>
-                setUtilityBar(
-                  "rightSlot",
-                  enabled
-                    ? { id: `slot-right-${Date.now()}`, label: "", actionType: "link" }
-                    : undefined,
-                )
-              }
-              onChange={(next) => setUtilityBar("rightSlot", next)}
-            />
-          </>
-        )}
+          </Field>
 
-        <Divider />
+          {cfg.logo.type === "image" && (
+            <>
+              <Field label={H.logo.imageUrl}>
+                <input
+                  type="url"
+                  value={cfg.logo.imageUrl ?? ""}
+                  onChange={(e) => setLogo("imageUrl", e.target.value || undefined)}
+                  placeholder="https://..."
+                  aria-label={H.logo.imageUrl}
+                  style={textInputStyle}
+                  className={inputFocusClass}
+                />
+              </Field>
+              <Field label={H.logo.imageAlt}>
+                <input
+                  type="text"
+                  value={cfg.logo.imageAlt ?? ""}
+                  onChange={(e) => setLogo("imageAlt", e.target.value || undefined)}
+                  placeholder={H.logo.imageAltPlaceholder}
+                  aria-label={H.logo.imageAlt}
+                  style={textInputStyle}
+                  className={inputFocusClass}
+                />
+              </Field>
+            </>
+          )}
 
-        {/* ── BOTÓN DE RESERVA (compartido) ────────────────────────────── */}
-        <SectionLabel>{H.sections.bookingButton}</SectionLabel>
-
-        <Field label={H.mainBar.showBookingButton}>
-          <SegRadioGroup
-            ariaLabel={H.mainBar.showBookingButton}
-            value={cfg.mainBar.showBookingButton}
-            onChange={(next) => setMainBar("showBookingButton", next)}
-            options={[
-              { value: true, label: H.yes },
-              { value: false, label: H.no },
-            ]}
-          />
-        </Field>
-
-        {cfg.mainBar.showBookingButton && (
-          <Field label={H.mainBar.bookingButtonLabel}>
+          <Field label={H.logo.textFallback}>
             <input
               type="text"
-              value={cfg.mainBar.bookingButtonLabel ?? ""}
-              onChange={(e) => setMainBar("bookingButtonLabel", e.target.value || undefined)}
-              placeholder={H.mainBar.bookingButtonLabelPlaceholder}
-              aria-label={H.mainBar.bookingButtonLabel}
+              value={cfg.logo.textFallback ?? ""}
+              onChange={(e) => setLogo("textFallback", e.target.value || undefined)}
+              placeholder={H.logo.textFallbackPlaceholder}
+              aria-label={H.logo.textFallback}
               style={textInputStyle}
               className={inputFocusClass}
             />
           </Field>
-        )}
+        </CollapsibleSection>
+
+        <Divider />
+
+        {/* ── BARRA UTILITARIA ─────────────────────────────────────────── */}
+        <CollapsibleSection title={H.sections.utilityBar}>
+          <Field label={H.utilityBar.visible}>
+            <SegRadioGroup
+              ariaLabel={H.utilityBar.visible}
+              value={cfg.utilityBar.visible}
+              onChange={(next) => setUtilityBar("visible", next)}
+              options={[
+                { value: true, label: H.visible },
+                { value: false, label: H.hidden },
+              ]}
+            />
+          </Field>
+
+          {cfg.utilityBar.visible && (
+            <>
+              <UtilitySlotEditor
+                slotLabel={H.utilityBar.leftSlot}
+                action={cfg.utilityBar.leftSlot}
+                onToggle={(enabled) =>
+                  setUtilityBar(
+                    "leftSlot",
+                    enabled
+                      ? { id: `slot-left-${Date.now()}`, label: "", actionType: "link" }
+                      : undefined,
+                  )
+                }
+                onChange={(next) => setUtilityBar("leftSlot", next)}
+              />
+              <UtilitySlotEditor
+                slotLabel={H.utilityBar.rightSlot}
+                action={cfg.utilityBar.rightSlot}
+                onToggle={(enabled) =>
+                  setUtilityBar(
+                    "rightSlot",
+                    enabled
+                      ? { id: `slot-right-${Date.now()}`, label: "", actionType: "link" }
+                      : undefined,
+                  )
+                }
+                onChange={(next) => setUtilityBar("rightSlot", next)}
+              />
+            </>
+          )}
+        </CollapsibleSection>
+
+        <Divider />
+
+        {/* ── BOTÓN DE RESERVA (compartido) ────────────────────────────── */}
+        <CollapsibleSection title={H.sections.bookingButton}>
+          <Field label={H.mainBar.showBookingButton}>
+            <SegRadioGroup
+              ariaLabel={H.mainBar.showBookingButton}
+              value={cfg.mainBar.showBookingButton}
+              onChange={(next) => setMainBar("showBookingButton", next)}
+              options={[
+                { value: true, label: H.yes },
+                { value: false, label: H.no },
+              ]}
+            />
+          </Field>
+
+          {cfg.mainBar.showBookingButton && (
+            <Field label={H.mainBar.bookingButtonLabel}>
+              <input
+                type="text"
+                value={cfg.mainBar.bookingButtonLabel ?? ""}
+                onChange={(e) => setMainBar("bookingButtonLabel", e.target.value || undefined)}
+                placeholder={H.mainBar.bookingButtonLabelPlaceholder}
+                aria-label={H.mainBar.bookingButtonLabel}
+                style={textInputStyle}
+                className={inputFocusClass}
+              />
+            </Field>
+          )}
+        </CollapsibleSection>
 
         <Divider />
 
         {/* ── IDIOMAS ──────────────────────────────────────────────────── */}
-        <SectionLabel>{H.sections.languages}</SectionLabel>
-
-        <div className="flex flex-col" style={{ gap: 6 }}>
-          {(() => {
-            const enabledCount = cfg.languages.filter((l) => l.enabled).length;
-            return cfg.languages.map((lang) => {
-              // Guard: no se puede apagar el último idioma habilitado.
-              const isLastEnabled = lang.enabled && enabledCount === 1;
-              return (
-                <div key={lang.code} className="flex items-center" style={{ gap: 8 }}>
-                  <div className="flex flex-col" style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                    <span style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 500 }}>
-                      {lang.label}
-                      <span
-                        style={{
-                          marginLeft: 5,
-                          fontSize: 10,
-                          color: "var(--text-tertiary)",
-                          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                        }}
-                      >
-                        {lang.code}
+        <CollapsibleSection title={H.sections.languages}>
+          <div className="flex flex-col" style={{ gap: 6 }}>
+            {(() => {
+              const enabledCount = cfg.languages.filter((l) => l.enabled).length;
+              return cfg.languages.map((lang) => {
+                // Guard: no se puede apagar el último idioma habilitado.
+                const isLastEnabled = lang.enabled && enabledCount === 1;
+                return (
+                  <div key={lang.code} className="flex items-center" style={{ gap: 8 }}>
+                    <div className="flex flex-col" style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                      <span style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 500 }}>
+                        {lang.label}
+                        <span
+                          style={{
+                            marginLeft: 5,
+                            fontSize: 10,
+                            color: "var(--text-tertiary)",
+                            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                          }}
+                        >
+                          {lang.code}
+                        </span>
                       </span>
-                    </span>
-                    {isLastEnabled && <Hint>{H.minLanguageHint}</Hint>}
+                      {isLastEnabled && <Hint>{H.minLanguageHint}</Hint>}
+                    </div>
+                    <SegBtn
+                      label={H.enabled}
+                      active={lang.enabled}
+                      disabled={isLastEnabled}
+                      onClick={() =>
+                        set(
+                          "languages",
+                          cfg.languages.map((l) =>
+                            l.code === lang.code ? { ...l, enabled: !l.enabled } : l,
+                          ),
+                        )
+                      }
+                    />
                   </div>
-                  <SegBtn
-                    label={H.enabled}
-                    active={lang.enabled}
-                    disabled={isLastEnabled}
-                    onClick={() =>
-                      set(
-                        "languages",
-                        cfg.languages.map((l) =>
-                          l.code === lang.code ? { ...l, enabled: !l.enabled } : l,
-                        ),
-                      )
-                    }
-                  />
-                </div>
-              );
-            });
-          })()}
-        </div>
+                );
+              });
+            })()}
+          </div>
+        </CollapsibleSection>
 
         <Divider />
 
         {/* ── MONEDAS ──────────────────────────────────────────────────── */}
-        <SectionLabel>{H.sections.currencies}</SectionLabel>
-
-        <div className="flex flex-col" style={{ gap: 6 }}>
-          {(() => {
-            const enabledCount = cfg.currencies.filter((c) => c.enabled).length;
-            return cfg.currencies.map((cur) => {
-              // Guard: no se puede apagar la última moneda habilitada.
-              const isLastEnabled = cur.enabled && enabledCount === 1;
-              return (
-                <div key={cur.code} className="flex items-center" style={{ gap: 8 }}>
-                  <div className="flex flex-col" style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                    <span style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 500 }}>
-                      {cur.code}
-                      <span style={{ marginLeft: 5, fontSize: 10, color: "var(--text-tertiary)" }}>
-                        {cur.symbol}
+        <CollapsibleSection title={H.sections.currencies}>
+          <div className="flex flex-col" style={{ gap: 6 }}>
+            {(() => {
+              const enabledCount = cfg.currencies.filter((c) => c.enabled).length;
+              return cfg.currencies.map((cur) => {
+                // Guard: no se puede apagar la última moneda habilitada.
+                const isLastEnabled = cur.enabled && enabledCount === 1;
+                return (
+                  <div key={cur.code} className="flex items-center" style={{ gap: 8 }}>
+                    <div className="flex flex-col" style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                      <span style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 500 }}>
+                        {cur.code}
+                        <span style={{ marginLeft: 5, fontSize: 10, color: "var(--text-tertiary)" }}>
+                          {cur.symbol}
+                        </span>
                       </span>
-                    </span>
-                    {isLastEnabled && <Hint>{H.minCurrencyHint}</Hint>}
+                      {isLastEnabled && <Hint>{H.minCurrencyHint}</Hint>}
+                    </div>
+                    <SegBtn
+                      label={H.enabled}
+                      active={cur.enabled}
+                      disabled={isLastEnabled}
+                      onClick={() =>
+                        set(
+                          "currencies",
+                          cfg.currencies.map((c) =>
+                            c.code === cur.code ? { ...c, enabled: !c.enabled } : c,
+                          ),
+                        )
+                      }
+                    />
                   </div>
-                  <SegBtn
-                    label={H.enabled}
-                    active={cur.enabled}
-                    disabled={isLastEnabled}
-                    onClick={() =>
-                      set(
-                        "currencies",
-                        cfg.currencies.map((c) =>
-                          c.code === cur.code ? { ...c, enabled: !c.enabled } : c,
-                        ),
-                      )
-                    }
-                  />
-                </div>
-              );
-            });
-          })()}
-        </div>
+                );
+              });
+            })()}
+          </div>
+        </CollapsibleSection>
 
         <Divider />
 
@@ -1333,257 +1381,257 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
           style={{ gap: 14 }}
         >
           {/* ── DISPOSICIÓN MOBILE ───────────────────────────────────── */}
-          <SectionLabel>{H.sections.layout}</SectionLabel>
-
-          <Field label={H.layout.mobile}>
-            <LayoutRadioGroup
-              ariaLabel={H.layout.mobile}
-              value={cfg.mobileLayout}
-              onChange={(next) => set("mobileLayout", next)}
-              options={[
-                {
-                  value: "top",
-                  label: H.layout.mobileTop,
-                  description: H.layout.mobileTopDesc,
-                  diagram: <MobileLayoutDiagram variant="top" />,
-                },
-                {
-                  value: "both",
-                  label: H.layout.mobileBoth,
-                  description: H.layout.mobileBothDesc,
-                  diagram: <MobileLayoutDiagram variant="both" />,
-                },
-                {
-                  value: "bottom",
-                  label: H.layout.mobileBottom,
-                  description: H.layout.mobileBottomDesc,
-                  diagram: <MobileLayoutDiagram variant="bottom" />,
-                },
-              ]}
-            />
-          </Field>
+          <CollapsibleSection title={H.sections.layout}>
+            <Field label={H.layout.mobile}>
+              <LayoutRadioGroup
+                ariaLabel={H.layout.mobile}
+                value={cfg.mobileLayout}
+                onChange={(next) => set("mobileLayout", next)}
+                options={[
+                  {
+                    value: "top",
+                    label: H.layout.mobileTop,
+                    description: H.layout.mobileTopDesc,
+                    diagram: <MobileLayoutDiagram variant="top" />,
+                  },
+                  {
+                    value: "both",
+                    label: H.layout.mobileBoth,
+                    description: H.layout.mobileBothDesc,
+                    diagram: <MobileLayoutDiagram variant="both" />,
+                  },
+                  {
+                    value: "bottom",
+                    label: H.layout.mobileBottom,
+                    description: H.layout.mobileBottomDesc,
+                    diagram: <MobileLayoutDiagram variant="bottom" />,
+                  },
+                ]}
+              />
+            </Field>
+          </CollapsibleSection>
 
           <Divider />
 
           {/* ── BARRA INFERIOR (MOBILE) ──────────────────────────────── */}
-          <SectionLabel>{H.sections.bottomBar}</SectionLabel>
+          <CollapsibleSection title={H.sections.bottomBar}>
+            <Field label={H.bottomBar.visible}>
+              <SegRadioGroup
+                ariaLabel={H.bottomBar.visible}
+                value={cfg.bottomBar.visible}
+                onChange={(next) => setBottomBar("visible", next)}
+                options={[
+                  { value: true, label: H.visible },
+                  { value: false, label: H.hidden },
+                ]}
+              />
+            </Field>
 
-          <Field label={H.bottomBar.visible}>
-            <SegRadioGroup
-              ariaLabel={H.bottomBar.visible}
-              value={cfg.bottomBar.visible}
-              onChange={(next) => setBottomBar("visible", next)}
-              options={[
-                { value: true, label: H.visible },
-                { value: false, label: H.hidden },
-              ]}
-            />
-          </Field>
+            {cfg.bottomBar.visible && (
+              <>
+                <Field label={H.bottomBar.backdropBlur}>
+                  <SegRadioGroup
+                    ariaLabel={H.bottomBar.backdropBlur}
+                    value={cfg.bottomBar.backdropBlur}
+                    onChange={(next) => setBottomBar("backdropBlur", next)}
+                    options={[
+                      { value: true, label: H.yes },
+                      { value: false, label: H.no },
+                    ]}
+                  />
+                </Field>
 
-          {cfg.bottomBar.visible && (
-            <>
-              <Field label={H.bottomBar.backdropBlur}>
-                <SegRadioGroup
-                  ariaLabel={H.bottomBar.backdropBlur}
-                  value={cfg.bottomBar.backdropBlur}
-                  onChange={(next) => setBottomBar("backdropBlur", next)}
-                  options={[
-                    { value: true, label: H.yes },
-                    { value: false, label: H.no },
-                  ]}
-                />
-              </Field>
-
-              <div className="flex flex-col" style={{ gap: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)" }}>
-                  {H.bottomBar.slots}
-                </span>
-                <ReorderableList
-                  items={cfg.bottomBar.slots}
-                  keyOf={(s) => s.id}
-                  canAdd={cfg.bottomBar.slots.length < BOTTOM_MAX}
-                  canRemove={cfg.bottomBar.slots.length > BOTTOM_MIN}
-                  addLabel={H.bottomBar.addSlot}
-                  addDisabledHint={H.bottomBar.maxSlotsHint}
-                  removeDisabledHint={H.bottomBar.minSlotsHint}
-                  onAdd={addBottomSlot}
-                  onRemove={(key) =>
-                    setBottomBar(
-                      "slots",
-                      removeById(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
-                        ...s,
-                        order: i,
-                      })),
-                    )
-                  }
-                  onMoveUp={(key) =>
-                    setBottomBar(
-                      "slots",
-                      moveUp(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
-                        ...s,
-                        order: i,
-                      })),
-                    )
-                  }
-                  onMoveDown={(key) =>
-                    setBottomBar(
-                      "slots",
-                      moveDown(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
-                        ...s,
-                        order: i,
-                      })),
-                    )
-                  }
-                  onReorder={(key, toIndex) =>
-                    setBottomBar(
-                      "slots",
-                      moveTo(cfg.bottomBar.slots, (s) => s.id, key, toIndex).map((s, i) => ({
-                        ...s,
-                        order: i,
-                      })),
-                    )
-                  }
-                  renderItem={(slot) => (
-                    <UtilityActionEditor
-                      action={slot.action}
-                      onChange={(nextAction) =>
-                        updateBottomSlot(slot.id, { ...slot, action: nextAction })
-                      }
-                    />
-                  )}
-                />
-              </div>
-            </>
-          )}
+                <div className="flex flex-col" style={{ gap: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)" }}>
+                    {H.bottomBar.slots}
+                  </span>
+                  <ReorderableList
+                    items={cfg.bottomBar.slots}
+                    keyOf={(s) => s.id}
+                    canAdd={cfg.bottomBar.slots.length < BOTTOM_MAX}
+                    canRemove={cfg.bottomBar.slots.length > BOTTOM_MIN}
+                    addLabel={H.bottomBar.addSlot}
+                    addDisabledHint={H.bottomBar.maxSlotsHint}
+                    removeDisabledHint={H.bottomBar.minSlotsHint}
+                    onAdd={addBottomSlot}
+                    onRemove={(key) =>
+                      setBottomBar(
+                        "slots",
+                        removeById(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
+                          ...s,
+                          order: i,
+                        })),
+                      )
+                    }
+                    onMoveUp={(key) =>
+                      setBottomBar(
+                        "slots",
+                        moveUp(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
+                          ...s,
+                          order: i,
+                        })),
+                      )
+                    }
+                    onMoveDown={(key) =>
+                      setBottomBar(
+                        "slots",
+                        moveDown(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
+                          ...s,
+                          order: i,
+                        })),
+                      )
+                    }
+                    onReorder={(key, toIndex) =>
+                      setBottomBar(
+                        "slots",
+                        moveTo(cfg.bottomBar.slots, (s) => s.id, key, toIndex).map((s, i) => ({
+                          ...s,
+                          order: i,
+                        })),
+                      )
+                    }
+                    renderItem={(slot) => (
+                      <UtilityActionEditor
+                        action={slot.action}
+                        onChange={(nextAction) =>
+                          updateBottomSlot(slot.id, { ...slot, action: nextAction })
+                        }
+                      />
+                    )}
+                  />
+                </div>
+              </>
+            )}
+          </CollapsibleSection>
 
           <Divider />
 
           {/* ── SECCIONES DEL MENÚ (DRAWER) ─────────────────────────── */}
-          <SectionLabel>{H.sections.drawerSections}</SectionLabel>
-
-          <ReorderableList
-            items={cfg.drawerSections}
-            keyOf={(s) => s.id}
-            canAdd
-            canRemove={cfg.drawerSections.length > 1}
-            addLabel={H.drawer.addSection}
-            onAdd={addDrawerSection}
-            onRemove={(key) =>
-              set(
-                "drawerSections",
-                removeById(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
-                  ...s,
-                  order: i,
-                })),
-              )
-            }
-            onMoveUp={(key) =>
-              set(
-                "drawerSections",
-                moveUp(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
-                  ...s,
-                  order: i,
-                })),
-              )
-            }
-            onMoveDown={(key) =>
-              set(
-                "drawerSections",
-                moveDown(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
-                  ...s,
-                  order: i,
-                })),
-              )
-            }
-            onReorder={(key, toIndex) =>
-              set(
-                "drawerSections",
-                moveTo(cfg.drawerSections, (s) => s.id, key, toIndex).map((s, i) => ({
-                  ...s,
-                  order: i,
-                })),
-              )
-            }
-            renderItem={(section) => (
-              <div className="flex flex-col" style={{ gap: 8 }}>
-                <Field label={H.drawer.sectionLabel}>
-                  <input
-                    type="text"
-                    value={section.label}
-                    onChange={(e) => updateDrawerSection(section.id, { label: e.target.value })}
-                    placeholder={H.drawer.sectionLabelPlaceholder}
-                    aria-label={H.drawer.sectionLabel}
-                    style={textInputStyle}
-                    className={inputFocusClass}
-                  />
-                </Field>
-                <Field label={H.drawer.sectionHref}>
-                  <input
-                    type="text"
-                    value={section.href}
-                    onChange={(e) => updateDrawerSection(section.id, { href: e.target.value })}
-                    placeholder="#seccion"
-                    aria-label={H.drawer.sectionHref}
-                    style={textInputStyle}
-                    className={inputFocusClass}
-                  />
-                </Field>
-                <div className="flex items-center" style={{ gap: 6 }}>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 500,
-                      color: "var(--text-secondary)",
-                      flex: 1,
-                    }}
-                  >
-                    {H.drawer.sectionVisible}
-                  </span>
-                  <SegRadioGroup
-                    ariaLabel={H.drawer.sectionVisible}
-                    value={section.visible}
-                    onChange={(next) => updateDrawerSection(section.id, { visible: next })}
-                    options={[
-                      { value: true, label: H.visible },
-                      { value: false, label: H.hidden },
-                    ]}
-                  />
+          <CollapsibleSection title={H.sections.drawerSections}>
+            <ReorderableList
+              items={cfg.drawerSections}
+              keyOf={(s) => s.id}
+              canAdd
+              canRemove={cfg.drawerSections.length > 1}
+              addLabel={H.drawer.addSection}
+              onAdd={addDrawerSection}
+              onRemove={(key) =>
+                set(
+                  "drawerSections",
+                  removeById(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
+                    ...s,
+                    order: i,
+                  })),
+                )
+              }
+              onMoveUp={(key) =>
+                set(
+                  "drawerSections",
+                  moveUp(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
+                    ...s,
+                    order: i,
+                  })),
+                )
+              }
+              onMoveDown={(key) =>
+                set(
+                  "drawerSections",
+                  moveDown(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
+                    ...s,
+                    order: i,
+                  })),
+                )
+              }
+              onReorder={(key, toIndex) =>
+                set(
+                  "drawerSections",
+                  moveTo(cfg.drawerSections, (s) => s.id, key, toIndex).map((s, i) => ({
+                    ...s,
+                    order: i,
+                  })),
+                )
+              }
+              renderItem={(section) => (
+                <div className="flex flex-col" style={{ gap: 8 }}>
+                  <Field label={H.drawer.sectionLabel}>
+                    <input
+                      type="text"
+                      value={section.label}
+                      onChange={(e) => updateDrawerSection(section.id, { label: e.target.value })}
+                      placeholder={H.drawer.sectionLabelPlaceholder}
+                      aria-label={H.drawer.sectionLabel}
+                      style={textInputStyle}
+                      className={inputFocusClass}
+                    />
+                  </Field>
+                  <Field label={H.drawer.sectionHref}>
+                    <input
+                      type="text"
+                      value={section.href}
+                      onChange={(e) => updateDrawerSection(section.id, { href: e.target.value })}
+                      placeholder="#seccion"
+                      aria-label={H.drawer.sectionHref}
+                      style={textInputStyle}
+                      className={inputFocusClass}
+                    />
+                  </Field>
+                  <div className="flex items-center" style={{ gap: 6 }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 500,
+                        color: "var(--text-secondary)",
+                        flex: 1,
+                      }}
+                    >
+                      {H.drawer.sectionVisible}
+                    </span>
+                    <SegRadioGroup
+                      ariaLabel={H.drawer.sectionVisible}
+                      value={section.visible}
+                      onChange={(next) => updateDrawerSection(section.id, { visible: next })}
+                      options={[
+                        { value: true, label: H.visible },
+                        { value: false, label: H.hidden },
+                      ]}
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
-          />
+              )}
+            />
+          </CollapsibleSection>
 
           <Divider />
 
           {/* ── UTILIDAD DEL DRAWER ─────────────────────────────────── */}
-          <SectionLabel>{H.sections.drawerUtility}</SectionLabel>
-
-          <ReorderableList
-            items={cfg.drawerUtility}
-            keyOf={(a) => a.id}
-            canAdd
-            canRemove={cfg.drawerUtility.length > 1}
-            addLabel={H.drawerUtility.add}
-            onAdd={addDrawerUtility}
-            onRemove={(key) =>
-              set("drawerUtility", removeById(cfg.drawerUtility, (a) => a.id, key))
-            }
-            onMoveUp={(key) =>
-              set("drawerUtility", moveUp(cfg.drawerUtility, (a) => a.id, key))
-            }
-            onMoveDown={(key) =>
-              set("drawerUtility", moveDown(cfg.drawerUtility, (a) => a.id, key))
-            }
-            onReorder={(key, toIndex) =>
-              set("drawerUtility", moveTo(cfg.drawerUtility, (a) => a.id, key, toIndex))
-            }
-            renderItem={(action) => (
-              <UtilityActionEditor
-                action={action}
-                onChange={(next) => updateDrawerUtility(action.id, next)}
-              />
-            )}
-          />
+          <CollapsibleSection title={H.sections.drawerUtility}>
+            <ReorderableList
+              items={cfg.drawerUtility}
+              keyOf={(a) => a.id}
+              canAdd
+              canRemove={cfg.drawerUtility.length > 1}
+              addLabel={H.drawerUtility.add}
+              onAdd={addDrawerUtility}
+              onRemove={(key) =>
+                set("drawerUtility", removeById(cfg.drawerUtility, (a) => a.id, key))
+              }
+              onMoveUp={(key) =>
+                set("drawerUtility", moveUp(cfg.drawerUtility, (a) => a.id, key))
+              }
+              onMoveDown={(key) =>
+                set("drawerUtility", moveDown(cfg.drawerUtility, (a) => a.id, key))
+              }
+              onReorder={(key, toIndex) =>
+                set("drawerUtility", moveTo(cfg.drawerUtility, (a) => a.id, key, toIndex))
+              }
+              renderItem={(action) => (
+                <UtilityActionEditor
+                  action={action}
+                  onChange={(next) => updateDrawerUtility(action.id, next)}
+                />
+              )}
+            />
+          </CollapsibleSection>
         </div>
 
         {/* Panel Desktop */}
@@ -1596,46 +1644,46 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
           style={{ gap: 14 }}
         >
           {/* ── DISPOSICIÓN ESCRITORIO ───────────────────────────────── */}
-          <SectionLabel>{H.sections.layout}</SectionLabel>
-
-          <Field label={H.layout.desktop}>
-            <LayoutRadioGroup
-              ariaLabel={H.layout.desktop}
-              value={cfg.desktopLayout}
-              onChange={(next) => set("desktopLayout", next)}
-              options={[
-                {
-                  value: "single-row",
-                  label: H.layout.desktopSingle,
-                  description: H.layout.desktopSingleDesc,
-                  diagram: <DesktopLayoutDiagram variant="single-row" />,
-                },
-                {
-                  value: "two-rows",
-                  label: H.layout.desktopTwo,
-                  description: H.layout.desktopTwoDesc,
-                  diagram: <DesktopLayoutDiagram variant="two-rows" />,
-                },
-              ]}
-            />
-          </Field>
+          <CollapsibleSection title={H.sections.layout}>
+            <Field label={H.layout.desktop}>
+              <LayoutRadioGroup
+                ariaLabel={H.layout.desktop}
+                value={cfg.desktopLayout}
+                onChange={(next) => set("desktopLayout", next)}
+                options={[
+                  {
+                    value: "single-row",
+                    label: H.layout.desktopSingle,
+                    description: H.layout.desktopSingleDesc,
+                    diagram: <DesktopLayoutDiagram variant="single-row" />,
+                  },
+                  {
+                    value: "two-rows",
+                    label: H.layout.desktopTwo,
+                    description: H.layout.desktopTwoDesc,
+                    diagram: <DesktopLayoutDiagram variant="two-rows" />,
+                  },
+                ]}
+              />
+            </Field>
+          </CollapsibleSection>
 
           <Divider />
 
           {/* ── BARRA PRINCIPAL — sticky (desktop only) ──────────────── */}
-          <SectionLabel>{H.sections.mainBar}</SectionLabel>
-
-          <Field label={H.mainBar.sticky}>
-            <SegRadioGroup
-              ariaLabel={H.mainBar.sticky}
-              value={cfg.mainBar.sticky}
-              onChange={(next) => setMainBar("sticky", next)}
-              options={[
-                { value: true, label: H.yes },
-                { value: false, label: H.no },
-              ]}
-            />
-          </Field>
+          <CollapsibleSection title={H.sections.mainBar}>
+            <Field label={H.mainBar.sticky}>
+              <SegRadioGroup
+                ariaLabel={H.mainBar.sticky}
+                value={cfg.mainBar.sticky}
+                onChange={(next) => setMainBar("sticky", next)}
+                options={[
+                  { value: true, label: H.yes },
+                  { value: false, label: H.no },
+                ]}
+              />
+            </Field>
+          </CollapsibleSection>
         </div>
 
         {/* Espacio al pie para que el último item no quede pegado al borde del scroll */}
