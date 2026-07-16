@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { BuilderModule, BuilderTab, NavConfig, ViewportMode } from "../../types/builder";
+import type { BuilderModule, BuilderTab, NavConfig, NavHighlightPart, ViewportMode } from "../../types/builder";
 import { COMPONENT_LIBRARY, DEFAULT_NAV_CONFIG, INITIAL_TREE } from "../../types/builder";
 import { BuilderToolbar, type EditorLanguage } from "./BuilderToolbar";
 import { ModuleTree } from "./ModuleTree";
@@ -83,6 +83,10 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
   const [aiOpen, setAiOpen] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
   const [language, setLanguage] = useState<EditorLanguage>("es");
+  /** Vínculo visual panel ↔ preview (Paso 6, WEB-686): parte del header bajo
+   * hover/focus en HeaderConfigPanel, para resaltarla en el Canvas. Puramente
+   * de UI — no toca navConfig ni dispara autosave. */
+  const [highlightedPart, setHighlightedPart] = useState<NavHighlightPart | null>(null);
 
   /* ─── Publish state per entidad ──────────────────────────────────────── */
   // Recalculado tras cada save/publish vía recomputePublishStatus.
@@ -222,6 +226,7 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
       setAiOpen(false);
       setPreviewMode(false);
       setLanguage("es");
+      setHighlightedPart(null);
       // Reset bandera de hidratación: la próxima apertura vuelve a leer
       // del draftStore (por si cambió desde otra pestaña/sesión).
       hasHydratedRef.current = false;
@@ -588,6 +593,7 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
               onChange={handleNavConfigChange}
               viewport={viewport}
               onViewportChange={handleViewportChange}
+              onHighlight={setHighlightedPart}
             />
           ) : editingModule ? (
             <ModuleEditPanel
@@ -640,6 +646,7 @@ export function BuilderView({ isOpen, onClose, siteId = "demo" }: Props) {
             propertyValues={activePropertyValues}
             selectedId={selectedModuleId}
             navConfig={entities.header.navConfig ?? DEFAULT_NAV_CONFIG}
+            highlightedPart={highlightedPart}
             onSelectModule={handleSelectModule}
             onReorderModule={handleReorderModule}
             onAddFromPalette={handleAddFromPalette}

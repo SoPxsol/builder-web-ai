@@ -19,7 +19,7 @@ import {
   User,
   type LucideIcon,
 } from "lucide-react";
-import type { BuilderModule, BuilderTab, NavConfig, ViewportMode } from "../../types/builder";
+import type { BuilderModule, BuilderTab, NavConfig, NavHighlightPart, ViewportMode } from "../../types/builder";
 import { DEFAULT_NAV_CONFIG } from "../../types/builder";
 import { HOTEL_IMAGES } from "../wizard/preview/hotelImages";
 import { BUILDER_COPY } from "./copy";
@@ -66,6 +66,12 @@ interface CanvasProps {
   selectedId: string | null;
   /** Configuración del header. Solo se usa cuando activeTab === "header". */
   navConfig?: NavConfig;
+  /**
+   * Vínculo visual panel ↔ preview (Paso 6, WEB-686): parte del header bajo
+   * hover/focus en HeaderConfigPanel — se usa para resaltar ese elemento
+   * puntual en el preview del header. `null`/`undefined` = sin resalte.
+   */
+  highlightedPart?: NavHighlightPart | null;
   onSelectModule: (id: string) => void;
   /** Mismo motor de reordenamiento que el panel: mover a posición final. */
   onReorderModule: (fromId: string, toIndex: number) => void;
@@ -86,6 +92,7 @@ export function Canvas({
   propertyValues,
   selectedId,
   navConfig,
+  highlightedPart,
   onSelectModule,
   onReorderModule,
   onAddFromPalette,
@@ -217,6 +224,7 @@ export function Canvas({
             editing={activeTab === "header"}
             drawerOpen={drawerOpen}
             onToggleDrawer={() => setDrawerOpen((prev) => !prev)}
+            highlightedPart={highlightedPart}
           />
         )}
 
@@ -270,12 +278,13 @@ export function Canvas({
 
         {/* Bottom bar y drawer del header, fijados al MARCO completo (no al
             header) — ver Fix WEB-686 #2. */}
-        {bottomBarActive && <NavBottomBarPreview cfg={cfg} />}
+        {bottomBarActive && <NavBottomBarPreview cfg={cfg} highlightedPart={highlightedPart} />}
         {showHeaderPreview && (
           <NavDrawerPreview
             cfg={cfg}
             open={drawerOpen && isMobileViewport}
             onClose={() => setDrawerOpen(false)}
+            highlightedPart={highlightedPart}
           />
         )}
       </div>
@@ -731,6 +740,26 @@ function getVisibleNavSections(cfg: NavConfig) {
 }
 
 /**
+ * Estilo del resalte de hover/focus (Paso 6, WEB-686): vínculo visual panel ↔
+ * preview. Es ADICIONAL al outline `editing` (que enmarca todo el header en
+ * el tab Header) — un outline más puntual, sobre el elemento exacto que la
+ * sección del panel controla. Sin transición: es puramente un
+ * aparece/desaparece, no hace falta lidiar con `prefers-reduced-motion`
+ * porque no hay movimiento que atenuar.
+ */
+function partHighlightStyle(active: boolean): React.CSSProperties {
+  if (!active) return {};
+  return {
+    // Mismo criterio de outline que `editing`/`selected` en este archivo
+    // (offset negativo: el trazo queda hacia adentro del elemento, no le
+    // agrega espacio al layout de alrededor).
+    outline: "2px solid var(--canvas-selection)",
+    outlineOffset: -2,
+    borderRadius: 4,
+  };
+}
+
+/**
  * NavHeaderPreview — representación visual fiel del header según la
  * configuración activa. Es mock visual (no interactivo): los botones tienen
  * cursor: default, igual que HeroBlock.
@@ -759,6 +788,7 @@ function NavHeaderPreview({
   editing,
   drawerOpen,
   onToggleDrawer,
+  highlightedPart,
 }: {
   navConfig: NavConfig;
   viewport: ViewportMode;
@@ -766,6 +796,8 @@ function NavHeaderPreview({
   editing: boolean;
   drawerOpen: boolean;
   onToggleDrawer: () => void;
+  /** Vínculo visual panel ↔ preview (Paso 6, WEB-686). */
+  highlightedPart?: NavHighlightPart | null;
 }) {
   const isMobile = viewport === "mobile";
   const showTopBar = !isMobile || cfg.mobileLayout === "top" || cfg.mobileLayout === "both";
@@ -821,6 +853,7 @@ function NavHeaderPreview({
           padding: "0 20px",
           background: "var(--surface-page)",
           borderBottom: "0.5px solid var(--border-ui)",
+          ...partHighlightStyle(highlightedPart === "utilityBar"),
         }}
       >
         <div style={{ minWidth: 0 }}>
@@ -857,7 +890,7 @@ function NavHeaderPreview({
         }}
       >
         {/* Logo */}
-        <div style={{ flexShrink: 0 }}>
+        <div style={{ flexShrink: 0, padding: 2, ...partHighlightStyle(highlightedPart === "logo") }}>
           <LogoEl />
         </div>
 
@@ -920,6 +953,7 @@ function NavHeaderPreview({
                 color: "#fff",
                 cursor: "default",
                 whiteSpace: "nowrap",
+                ...partHighlightStyle(highlightedPart === "bookingButton"),
               }}
             >
               {cfg.mainBar.bookingButtonLabel || "Reservar"}
@@ -993,6 +1027,7 @@ function NavHeaderPreview({
                 borderBottom: "0.5px solid var(--border-ui)",
                 fontSize: "var(--font-size-xs)",
                 color: "var(--text-tertiary)",
+                ...partHighlightStyle(highlightedPart === "utilityBar"),
               }}
             >
               <span style={{ fontStyle: "italic" }}>{BUILDER_COPY.headerConfig.preview.utilityBarInlineNote}</span>
@@ -1009,7 +1044,14 @@ function NavHeaderPreview({
 /* ─── Bottom bar del preview del header — fijada al pie del MARCO completo
    del canvas (no del header), para que en mobile quede pegada al fondo de
    la pantalla simulada y no debajo del nav. Ver Canvas → bottomBarActive. */
-function NavBottomBarPreview({ cfg }: { cfg: NavConfig }) {
+function NavBottomBarPreview({
+  cfg,
+  highlightedPart,
+}: {
+  cfg: NavConfig;
+  /** Vínculo visual panel ↔ preview (Paso 6, WEB-686). */
+  highlightedPart?: NavHighlightPart | null;
+}) {
   const sortedSlots = [...cfg.bottomBar.slots].sort((a, b) => a.order - b.order);
   return (
     <div
@@ -1030,13 +1072,20 @@ function NavBottomBarPreview({ cfg }: { cfg: NavConfig }) {
         boxShadow: "0 -2px 12px rgba(0,0,0,0.08)",
         padding: "0 8px",
         zIndex: 4,
+        ...partHighlightStyle(highlightedPart === "bottomBar"),
       }}
     >
       {sortedSlots.map((slot) => (
         <div
           key={slot.id}
           className="flex flex-col items-center"
-          style={{ gap: 3, cursor: "default", flex: 1, minWidth: 0 }}
+          style={{
+            gap: 3,
+            cursor: "default",
+            flex: 1,
+            minWidth: 0,
+            ...partHighlightStyle(highlightedPart === `bottomSlot:${slot.id}`),
+          }}
         >
           <span style={{ color: "var(--text-secondary)" }}>
             <NavIcon name={slot.action.icon} size={18} />
@@ -1070,10 +1119,13 @@ function NavDrawerPreview({
   cfg,
   open,
   onClose,
+  highlightedPart,
 }: {
   cfg: NavConfig;
   open: boolean;
   onClose: () => void;
+  /** Vínculo visual panel ↔ preview (Paso 6, WEB-686). */
+  highlightedPart?: NavHighlightPart | null;
 }) {
   if (!open) return null;
 
@@ -1166,7 +1218,12 @@ function NavDrawerPreview({
         <div style={{ padding: "12px 16px", flex: 1 }}>
           {/* Secciones de navegación */}
           {visibleSections.length > 0 && (
-            <nav aria-label={BUILDER_COPY.headerConfig.preview.drawerNavAriaLabel}>
+            <nav
+              aria-label={BUILDER_COPY.headerConfig.preview.drawerNavAriaLabel}
+              style={{
+                ...(highlightedPart === "drawer" ? partHighlightStyle(true) : {}),
+              }}
+            >
               {visibleSections.map((section) => (
                 <div
                   key={section.id}
@@ -1177,6 +1234,7 @@ function NavDrawerPreview({
                     color: "var(--text-primary)",
                     cursor: "default",
                     borderBottom: "0.5px solid var(--border-ui)",
+                    ...partHighlightStyle(highlightedPart === `drawerSection:${section.id}`),
                   }}
                 >
                   {section.label || "—"}
@@ -1189,7 +1247,14 @@ function NavDrawerPreview({
 
           {/* Acciones de utilidad del drawer */}
           {cfg.drawerUtility.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+                ...partHighlightStyle(highlightedPart === "drawer"),
+              }}
+            >
               {cfg.drawerUtility.map((action) => (
                 <div
                   key={action.id}
@@ -1218,7 +1283,7 @@ function NavDrawerPreview({
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {/* Selector de idiomas */}
                 {enabledLanguages.length > 0 && (
-                  <div>
+                  <div style={{ padding: 2, ...partHighlightStyle(highlightedPart === "languages") }}>
                     <p
                       style={{
                         fontSize: "var(--font-size-xs)",
@@ -1254,7 +1319,7 @@ function NavDrawerPreview({
 
                 {/* Selector de monedas */}
                 {enabledCurrencies.length > 0 && (
-                  <div>
+                  <div style={{ padding: 2, ...partHighlightStyle(highlightedPart === "currencies") }}>
                     <p
                       style={{
                         fontSize: "var(--font-size-xs)",

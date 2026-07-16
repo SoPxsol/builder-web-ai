@@ -21,7 +21,14 @@ import {
   User,
   type LucideIcon,
 } from "lucide-react";
-import type { NavConfig, UtilityAction, NavSection, BottomBarSlot, ViewportMode } from "../../types/builder";
+import type {
+  NavConfig,
+  UtilityAction,
+  NavSection,
+  BottomBarSlot,
+  NavHighlightPart,
+  ViewportMode,
+} from "../../types/builder";
 import { BUILDER_COPY } from "./copy";
 
 const H = BUILDER_COPY.headerConfig;
@@ -60,16 +67,43 @@ const inputFocusClass =
 function CollapsibleSection({
   title,
   children,
+  highlightPart,
+  onHighlight,
 }: {
   title: string;
   children: React.ReactNode;
+  /**
+   * Parte del preview que resalta esta sección (vínculo visual panel ↔
+   * preview, Paso 6 WEB-686). Si no se pasa, la sección no dispara highlight
+   * (caso de Disposición/Barra principal/Sticky: no tienen un elemento
+   * puntual en el preview).
+   */
+  highlightPart?: NavHighlightPart;
+  onHighlight?: (part: NavHighlightPart | null) => void;
 }) {
   const [open, setOpen] = useState(true);
   const bodyId = useId();
   const Chevron = open ? ChevronDown : ChevronRight;
 
+  /* Hover/focus del wrapper entero (encabezado + cuerpo) dispara el
+   * highlight — mouseenter/leave no burbujean, así que alcanza con
+   * ponerlos acá. El foco sí burbujea (onFocus/onBlur en React usan
+   * focusin/focusout): en onBlur chequeamos que el foco no haya ido a
+   * OTRO elemento dentro del mismo wrapper (mismo criterio que el
+   * onDragLeave de ReorderableList más abajo). */
+  const highlightHandlers = highlightPart
+    ? {
+        onMouseEnter: () => onHighlight?.(highlightPart),
+        onMouseLeave: () => onHighlight?.(null),
+        onFocus: () => onHighlight?.(highlightPart),
+        onBlur: (e: React.FocusEvent) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) onHighlight?.(null);
+        },
+      }
+    : {};
+
   return (
-    <div className="flex flex-col" style={{ gap: open ? 10 : 0 }}>
+    <div className="flex flex-col" style={{ gap: open ? 10 : 0 }} {...highlightHandlers}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -687,6 +721,18 @@ type ReorderableListProps<T> = {
    */
   onReorder: (key: string, toIndex: number) => void;
   renderItem: (item: T, idx: number, total: number) => React.ReactNode;
+  /**
+   * Granularidad por ítem del vínculo visual panel ↔ preview (bonus del
+   * Paso 6, WEB-686): si se pasa, cada fila dispara el highlight de SU
+   * propio ítem en hover/focus (ej. `bottomSlot:${id}`). Al salir de la
+   * fila (pero sin salir de la sección) el highlight vuelve al de la
+   * sección entera (`sectionHighlightPart`) — el propio wrapper de
+   * CollapsibleSection ya se encarga de limpiarlo del todo al salir de la
+   * sección completa.
+   */
+  highlightPartOf?: (item: T) => NavHighlightPart;
+  sectionHighlightPart?: NavHighlightPart;
+  onHighlight?: (part: NavHighlightPart | null) => void;
 };
 
 function ReorderableList<T>({
@@ -703,6 +749,9 @@ function ReorderableList<T>({
   onMoveDown,
   onReorder,
   renderItem,
+  highlightPartOf,
+  sectionHighlightPart,
+  onHighlight,
 }: ReorderableListProps<T>) {
   /* ─── Estado de drag & drop (puntero) ──────────────────────────────────── */
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
@@ -749,7 +798,21 @@ function ReorderableList<T>({
       }}
       onDrop={handleListDrop}
     >
-      {items.map((item, idx) => (
+      {items.map((item, idx) => {
+        const itemHighlightPart = highlightPartOf?.(item);
+        const rowHighlightHandlers = itemHighlightPart
+          ? {
+              onMouseEnter: () => onHighlight?.(itemHighlightPart),
+              onMouseLeave: () => onHighlight?.(sectionHighlightPart ?? null),
+              onFocus: () => onHighlight?.(itemHighlightPart),
+              onBlur: (e: React.FocusEvent) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                  onHighlight?.(sectionHighlightPart ?? null);
+                }
+              },
+            }
+          : {};
+        return (
         <div key={keyOf(item)}>
           <DropLine active={dropIndex === idx} />
           <div
@@ -762,6 +825,7 @@ function ReorderableList<T>({
               opacity: draggingKey === keyOf(item) ? 0.4 : 1,
               transition: "opacity 0.1s ease",
             }}
+            {...rowHighlightHandlers}
           >
             {/* Barra de controles de la fila */}
             <div
@@ -829,7 +893,8 @@ function ReorderableList<T>({
             <div style={{ padding: 10 }}>{renderItem(item, idx, items.length)}</div>
           </div>
         </div>
-      ))}
+        );
+      })}
       {/* Línea indicadora al final de la lista. */}
       <DropLine active={dropIndex === items.length} />
 
@@ -925,9 +990,21 @@ interface HeaderConfigPanelProps {
   viewport: ViewportMode;
   /** Callback para cambiar el viewport desde el panel (sincroniza con el toolbar). */
   onViewportChange: (v: ViewportMode) => void;
+  /**
+   * Vínculo visual panel ↔ preview (Paso 6, WEB-686): se dispara con la parte
+   * del header bajo hover/focus (o `null` al salir) para que Canvas la
+   * resalte en el preview. Estado de UI efímero — no afecta navConfig.
+   */
+  onHighlight: (part: NavHighlightPart | null) => void;
 }
 
-export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewportChange }: HeaderConfigPanelProps) {
+export function HeaderConfigPanel({
+  navConfig: cfg,
+  onChange,
+  viewport,
+  onViewportChange,
+  onHighlight,
+}: HeaderConfigPanelProps) {
   /**
    * El tab activo DERIVA del viewport — no hay estado local propio.
    * mobile → tab "mobile"; desktop | tablet → tab "desktop".
@@ -1094,7 +1171,7 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
         </div>
 
         {/* ── LOGO ─────────────────────────────────────────────────────── */}
-        <CollapsibleSection title={H.sections.logo}>
+        <CollapsibleSection title={H.sections.logo} highlightPart="logo" onHighlight={onHighlight}>
           <Field label={H.logo.type}>
             <SegRadioGroup
               ariaLabel={H.logo.type}
@@ -1150,7 +1227,7 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
         <Divider />
 
         {/* ── BARRA UTILITARIA ─────────────────────────────────────────── */}
-        <CollapsibleSection title={H.sections.utilityBar}>
+        <CollapsibleSection title={H.sections.utilityBar} highlightPart="utilityBar" onHighlight={onHighlight}>
           <Field label={H.utilityBar.visible}>
             <SegRadioGroup
               ariaLabel={H.utilityBar.visible}
@@ -1198,7 +1275,7 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
         <Divider />
 
         {/* ── BOTÓN DE RESERVA (compartido) ────────────────────────────── */}
-        <CollapsibleSection title={H.sections.bookingButton}>
+        <CollapsibleSection title={H.sections.bookingButton} highlightPart="bookingButton" onHighlight={onHighlight}>
           <Field label={H.mainBar.showBookingButton}>
             <SegRadioGroup
               ariaLabel={H.mainBar.showBookingButton}
@@ -1229,7 +1306,7 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
         <Divider />
 
         {/* ── IDIOMAS ──────────────────────────────────────────────────── */}
-        <CollapsibleSection title={H.sections.languages}>
+        <CollapsibleSection title={H.sections.languages} highlightPart="languages" onHighlight={onHighlight}>
           <div className="flex flex-col" style={{ gap: 6 }}>
             {(() => {
               const enabledCount = cfg.languages.filter((l) => l.enabled).length;
@@ -1277,7 +1354,7 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
         <Divider />
 
         {/* ── MONEDAS ──────────────────────────────────────────────────── */}
-        <CollapsibleSection title={H.sections.currencies}>
+        <CollapsibleSection title={H.sections.currencies} highlightPart="currencies" onHighlight={onHighlight}>
           <div className="flex flex-col" style={{ gap: 6 }}>
             {(() => {
               const enabledCount = cfg.currencies.filter((c) => c.enabled).length;
@@ -1414,7 +1491,7 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
           <Divider />
 
           {/* ── BARRA INFERIOR (MOBILE) ──────────────────────────────── */}
-          <CollapsibleSection title={H.sections.bottomBar}>
+          <CollapsibleSection title={H.sections.bottomBar} highlightPart="bottomBar" onHighlight={onHighlight}>
             <Field label={H.bottomBar.visible}>
               <SegRadioGroup
                 ariaLabel={H.bottomBar.visible}
@@ -1498,6 +1575,9 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
                         }
                       />
                     )}
+                    highlightPartOf={(slot) => `bottomSlot:${slot.id}`}
+                    sectionHighlightPart="bottomBar"
+                    onHighlight={onHighlight}
                   />
                 </div>
               </>
@@ -1507,7 +1587,7 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
           <Divider />
 
           {/* ── SECCIONES DEL MENÚ (DRAWER) ─────────────────────────── */}
-          <CollapsibleSection title={H.sections.drawerSections}>
+          <CollapsibleSection title={H.sections.drawerSections} highlightPart="drawer" onHighlight={onHighlight}>
             <ReorderableList
               items={cfg.drawerSections}
               keyOf={(s) => s.id}
@@ -1598,13 +1678,16 @@ export function HeaderConfigPanel({ navConfig: cfg, onChange, viewport, onViewpo
                   </div>
                 </div>
               )}
+              highlightPartOf={(section) => `drawerSection:${section.id}`}
+              sectionHighlightPart="drawer"
+              onHighlight={onHighlight}
             />
           </CollapsibleSection>
 
           <Divider />
 
           {/* ── UTILIDAD DEL DRAWER ─────────────────────────────────── */}
-          <CollapsibleSection title={H.sections.drawerUtility}>
+          <CollapsibleSection title={H.sections.drawerUtility} highlightPart="drawer" onHighlight={onHighlight}>
             <ReorderableList
               items={cfg.drawerUtility}
               keyOf={(a) => a.id}

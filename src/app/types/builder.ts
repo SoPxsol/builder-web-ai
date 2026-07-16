@@ -63,6 +63,27 @@ export interface ComponentDef {
 export type ViewportMode = "desktop" | "tablet" | "mobile";
 
 /**
+ * Vínculo visual panel ↔ preview (Paso 6, WEB-686): parte del header que se
+ * resalta en el Canvas cuando el hotelero pasa el mouse o el foco por la
+ * sección correspondiente del `HeaderConfigPanel`. Es estado de UI efímero
+ * (vive en BuilderView vía useState) — no toca `NavConfig` ni el draft.
+ *
+ * Nivel sección (obligatorio) + granularidad por ítem (bonus) para la barra
+ * inferior y las secciones del drawer, donde distinguir el slot/sección
+ * puntual da más señal que resaltar todo el bloque.
+ */
+export type NavHighlightPart =
+  | "logo"
+  | "utilityBar"
+  | "bookingButton"
+  | "bottomBar"
+  | "drawer"
+  | "languages"
+  | "currencies"
+  | `bottomSlot:${string}`
+  | `drawerSection:${string}`;
+
+/**
  * Datos mock iniciales del árbol de la página "Inicio".
  *
  * Cada sección lleva alias legible, tipo, origen e ícono — el canvas se
