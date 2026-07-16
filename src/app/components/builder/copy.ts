@@ -206,19 +206,29 @@ export const BUILDER_COPY = {
 
     /**
      * Contexto de device en el panel.
-     * `common` rotula el bloque de campos compartidos (siempre visible).
      * `tabMobile` / `tabDesktop` son las etiquetas de los tabs.
      * `tablistAria` es el aria-label del grupo de tabs.
      */
     deviceScope: {
-      /** Rótulo del bloque de campos que aplican a ambos dispositivos. */
-      common: "Aplica a mobile y escritorio",
       /** Etiqueta del tab de mobile. */
       tabMobile: "Mobile",
       /** Etiqueta del tab de escritorio. */
       tabDesktop: "Escritorio",
       /** aria-label del grupo de tabs para lectores de pantalla. */
       tablistAria: "Configuración por dispositivo",
+    },
+
+    /**
+     * Bloque "Identidad del sitio" (Paso 8, WEB-686): Logo, Idiomas y Monedas
+     * quedan siempre visibles, sin condicionar a la disposición elegida —
+     * aplican por igual a mobile y escritorio. Vive al final del panel, fuera
+     * de los tabs de dispositivo.
+     */
+    identity: {
+      /** Rótulo del bloque. */
+      title: "Identidad del sitio",
+      /** Aclaración bajo el rótulo. */
+      hint: "Aplica a mobile y escritorio.",
     },
 
     /**
@@ -297,6 +307,8 @@ export const BUILDER_COPY = {
       sectionLabelPlaceholder: "Habitaciones",
       sectionHref: "Enlace",
       sectionVisible: "Visibilidad",
+      /** Guard: no se puede ocultar la última sección de navegación visible. */
+      minVisibleHint: "Debe quedar al menos una sección visible.",
     },
 
     /** Utilidad del drawer. */

@@ -1025,6 +1025,28 @@ export function HeaderConfigPanel({
   const BOTTOM_MIN = 2;
   const BOTTOM_MAX = 4;
 
+  /**
+   * Visibilidad contextual a la disposición (Paso 8, WEB-686): la disposición
+   * elegida define qué barras existen — las secciones que configuran el
+   * CONTENIDO de una barra sólo tienen sentido si esa barra está presente.
+   * `mobileLayout "top"|"both"` → hay barra superior (logo + hamburguesa).
+   * `mobileLayout "both"|"bottom"` → hay barra inferior fija.
+   * Ocultar los controles NO borra datos de navConfig — sólo deja de
+   * mostrarlos; el estado (utilityBar, drawerSections, etc.) se preserva
+   * intacto para cuando se vuelva a elegir una disposición que los muestre.
+   */
+  const mobileTopBarVisible = cfg.mobileLayout === "top" || cfg.mobileLayout === "both";
+  const mobileBottomBarVisible = cfg.mobileLayout === "both" || cfg.mobileLayout === "bottom";
+
+  /**
+   * Guard (Paso 8, WEB-686): no se puede ocultar la última sección de
+   * navegación visible — mismo criterio que el guard de mínimo-1 idioma/
+   * moneda más abajo. `drawerSections` alimenta TANTO el drawer mobile
+   * (hamburguesa) COMO el nav inline de escritorio (ver MainBar en
+   * Canvas.tsx) — un solo guard cubre ambos devices porque es una sola lista.
+   */
+  const visibleDrawerSectionsCount = cfg.drawerSections.filter((s) => s.visible).length;
+
   /* ── Drawer sections ── */
   const addDrawerSection = () => {
     const id = `nav-${Date.now()}`;
@@ -1094,6 +1116,212 @@ export function HeaderConfigPanel({
     handleTabClick(TAB_DEVICES[i]),
   );
 
+  /**
+   * ── Secciones contextuales compartidas entre tabs (Paso 8, WEB-686) ────
+   * La barra utilitaria, el botón de reserva y el menú de navegación son UNA
+   * sola configuración (cfg.utilityBar / cfg.mainBar / cfg.drawerSections)
+   * que aplica a los dos devices — sólo cambia CÓMO se ve en el preview
+   * (franja separada en desktop two-rows, nota inline en single-row, barra
+   * superior + drawer en mobile). Por eso el control vive en los DOS
+   * tabpanels (mobile lo muestra si hay barra superior; desktop siempre) en
+   * vez de duplicarse como dos configs independientes.
+   * Son funciones simples (no componentes) para no perder el estado local
+   * de `CollapsibleSection` (`open`) al re-renderizar — no son `<Foo/>` con
+   * un tipo nuevo por render, son JSX invocado inline.
+   */
+  function renderUtilityBarSection() {
+    return (
+      <CollapsibleSection title={H.sections.utilityBar} highlightPart="utilityBar" onHighlight={onHighlight}>
+        <ToggleField
+          label={H.utilityBar.visible}
+          checked={cfg.utilityBar.visible}
+          onChange={(next) => setUtilityBar("visible", next)}
+        />
+
+        {cfg.utilityBar.visible && (
+          <>
+            <UtilitySlotEditor
+              slotLabel={H.utilityBar.leftSlot}
+              action={cfg.utilityBar.leftSlot}
+              onToggle={(enabled) =>
+                setUtilityBar(
+                  "leftSlot",
+                  enabled
+                    ? { id: `slot-left-${Date.now()}`, label: "", actionType: "link" }
+                    : undefined,
+                )
+              }
+              onChange={(next) => setUtilityBar("leftSlot", next)}
+            />
+            <UtilitySlotEditor
+              slotLabel={H.utilityBar.rightSlot}
+              action={cfg.utilityBar.rightSlot}
+              onToggle={(enabled) =>
+                setUtilityBar(
+                  "rightSlot",
+                  enabled
+                    ? { id: `slot-right-${Date.now()}`, label: "", actionType: "link" }
+                    : undefined,
+                )
+              }
+              onChange={(next) => setUtilityBar("rightSlot", next)}
+            />
+          </>
+        )}
+      </CollapsibleSection>
+    );
+  }
+
+  function renderBookingButtonSection() {
+    return (
+      <CollapsibleSection title={H.sections.bookingButton} highlightPart="bookingButton" onHighlight={onHighlight}>
+        <ToggleField
+          label={H.mainBar.showBookingButton}
+          checked={cfg.mainBar.showBookingButton}
+          onChange={(next) => setMainBar("showBookingButton", next)}
+        />
+
+        {cfg.mainBar.showBookingButton && (
+          <Field label={H.mainBar.bookingButtonLabel}>
+            <input
+              type="text"
+              value={cfg.mainBar.bookingButtonLabel ?? ""}
+              onChange={(e) => setMainBar("bookingButtonLabel", e.target.value || undefined)}
+              placeholder={H.mainBar.bookingButtonLabelPlaceholder}
+              aria-label={H.mainBar.bookingButtonLabel}
+              style={textInputStyle}
+              className={inputFocusClass}
+            />
+          </Field>
+        )}
+      </CollapsibleSection>
+    );
+  }
+
+  function renderDrawerSectionsSection() {
+    return (
+      <CollapsibleSection title={H.sections.drawerSections} highlightPart="drawer" onHighlight={onHighlight}>
+        <ReorderableList
+          items={cfg.drawerSections}
+          keyOf={(s) => s.id}
+          canAdd
+          canRemove={cfg.drawerSections.length > 1}
+          addLabel={H.drawer.addSection}
+          onAdd={addDrawerSection}
+          onRemove={(key) =>
+            set(
+              "drawerSections",
+              removeById(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
+                ...s,
+                order: i,
+              })),
+            )
+          }
+          onMoveUp={(key) =>
+            set(
+              "drawerSections",
+              moveUp(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
+                ...s,
+                order: i,
+              })),
+            )
+          }
+          onMoveDown={(key) =>
+            set(
+              "drawerSections",
+              moveDown(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
+                ...s,
+                order: i,
+              })),
+            )
+          }
+          onReorder={(key, toIndex) =>
+            set(
+              "drawerSections",
+              moveTo(cfg.drawerSections, (s) => s.id, key, toIndex).map((s, i) => ({
+                ...s,
+                order: i,
+              })),
+            )
+          }
+          renderItem={(section) => {
+            // Guard (Paso 8, WEB-686): no se puede ocultar la última sección visible.
+            const isLastVisible = section.visible && visibleDrawerSectionsCount === 1;
+            return (
+              <div className="flex flex-col" style={{ gap: 8 }}>
+                <Field label={H.drawer.sectionLabel}>
+                  <input
+                    type="text"
+                    value={section.label}
+                    onChange={(e) => updateDrawerSection(section.id, { label: e.target.value })}
+                    placeholder={H.drawer.sectionLabelPlaceholder}
+                    aria-label={H.drawer.sectionLabel}
+                    style={textInputStyle}
+                    className={inputFocusClass}
+                  />
+                </Field>
+                <Field label={H.drawer.sectionHref}>
+                  <input
+                    type="text"
+                    value={section.href}
+                    onChange={(e) => updateDrawerSection(section.id, { href: e.target.value })}
+                    placeholder="#seccion"
+                    aria-label={H.drawer.sectionHref}
+                    style={textInputStyle}
+                    className={inputFocusClass}
+                  />
+                </Field>
+                <ToggleField
+                  label={H.drawer.sectionVisible}
+                  checked={section.visible}
+                  disabled={isLastVisible}
+                  hint={isLastVisible ? H.drawer.minVisibleHint : undefined}
+                  onChange={(next) => updateDrawerSection(section.id, { visible: next })}
+                />
+              </div>
+            );
+          }}
+          highlightPartOf={(section) => `drawerSection:${section.id}`}
+          sectionHighlightPart="drawer"
+          onHighlight={onHighlight}
+        />
+      </CollapsibleSection>
+    );
+  }
+
+  function renderDrawerUtilitySection() {
+    return (
+      <CollapsibleSection title={H.sections.drawerUtility} highlightPart="drawer" onHighlight={onHighlight}>
+        <ReorderableList
+          items={cfg.drawerUtility}
+          keyOf={(a) => a.id}
+          canAdd
+          canRemove={cfg.drawerUtility.length > 1}
+          addLabel={H.drawerUtility.add}
+          onAdd={addDrawerUtility}
+          onRemove={(key) =>
+            set("drawerUtility", removeById(cfg.drawerUtility, (a) => a.id, key))
+          }
+          onMoveUp={(key) =>
+            set("drawerUtility", moveUp(cfg.drawerUtility, (a) => a.id, key))
+          }
+          onMoveDown={(key) =>
+            set("drawerUtility", moveDown(cfg.drawerUtility, (a) => a.id, key))
+          }
+          onReorder={(key, toIndex) =>
+            set("drawerUtility", moveTo(cfg.drawerUtility, (a) => a.id, key, toIndex))
+          }
+          renderItem={(action) => (
+            <UtilityActionEditor
+              action={action}
+              onChange={(next) => updateDrawerUtility(action.id, next)}
+            />
+          )}
+        />
+      </CollapsibleSection>
+    );
+  }
+
   return (
     <aside
       role="complementary"
@@ -1132,10 +1360,273 @@ export function HeaderConfigPanel({
       >
 
         {/* ══════════════════════════════════════════════════════════════
-            BLOQUE COMÚN — aplica a mobile y escritorio
+            TABS DEVICE — Mobile | Desktop (Paso 8, WEB-686: subidos al tope
+            del panel — el device es la PRIMERA decisión, todo lo demás
+            cuelga de ella).
+            Sincronizados 1:1 con el viewport del canvas vía activeDevice.
            ══════════════════════════════════════════════════════════════ */}
 
-        {/* Rótulo de bloque común */}
+        {/* Barra de tabs */}
+        <div
+          role="tablist"
+          aria-label={H.deviceScope.tablistAria}
+          className="flex"
+          style={{
+            borderBottom: "0.5px solid var(--border-ui)",
+            gap: 0,
+          }}
+        >
+          {TAB_DEVICES.map((device, i) => {
+            const isActive = activeDevice === device;
+            const label = device === "mobile" ? H.deviceScope.tabMobile : H.deviceScope.tabDesktop;
+            return (
+              <button
+                key={device}
+                ref={(el) => {
+                  tabRefs.current[i] = el;
+                }}
+                role="tab"
+                id={`header-tab-${device}`}
+                aria-selected={isActive}
+                aria-controls={`header-tabpanel-${device}`}
+                tabIndex={isActive ? 0 : -1}
+                type="button"
+                onClick={() => handleTabClick(device)}
+                onKeyDown={(e) => onTabKeyDown(e, i)}
+                className="flex-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+                style={{
+                  padding: "7px 10px",
+                  fontSize: 11,
+                  fontWeight: isActive ? 600 : 500,
+                  color: isActive ? "var(--control-selected-fg)" : "var(--text-secondary)",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: isActive
+                    ? "2px solid var(--control-selected-border)"
+                    : "2px solid transparent",
+                  cursor: "pointer",
+                  outlineColor: "var(--accent-info)",
+                  marginBottom: -1,
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Panel Mobile */}
+        <div
+          role="tabpanel"
+          id="header-tabpanel-mobile"
+          aria-labelledby="header-tab-mobile"
+          hidden={activeDevice !== "mobile"}
+          className="flex flex-col"
+          style={{ gap: 14 }}
+        >
+          {/* ── DISPOSICIÓN MOBILE (PRIMERO, Paso 8 WEB-686) ─────────── */}
+          <CollapsibleSection title={H.sections.layout}>
+            <Field label={H.layout.mobile}>
+              <LayoutRadioGroup
+                ariaLabel={H.layout.mobile}
+                value={cfg.mobileLayout}
+                onChange={(next) => set("mobileLayout", next)}
+                options={[
+                  {
+                    value: "top",
+                    label: H.layout.mobileTop,
+                    description: H.layout.mobileTopDesc,
+                    diagram: <MobileLayoutDiagram variant="top" />,
+                  },
+                  {
+                    value: "both",
+                    label: H.layout.mobileBoth,
+                    description: H.layout.mobileBothDesc,
+                    diagram: <MobileLayoutDiagram variant="both" />,
+                  },
+                  {
+                    value: "bottom",
+                    label: H.layout.mobileBottom,
+                    description: H.layout.mobileBottomDesc,
+                    diagram: <MobileLayoutDiagram variant="bottom" />,
+                  },
+                ]}
+              />
+            </Field>
+          </CollapsibleSection>
+
+          {/* ── CONTEXTUAL A "hay barra superior" (top | both) ───────────
+              Barra utilitaria, botón de reserva y menú de navegación viven
+              DENTRO de la barra superior — si no está presente, no hay dónde
+              mostrarlos en el preview, así que se ocultan (sin perder datos:
+              el estado de navConfig sigue intacto). */}
+          {mobileTopBarVisible && (
+            <>
+              <Divider />
+              {renderUtilityBarSection()}
+              <Divider />
+              {renderBookingButtonSection()}
+              <Divider />
+              {renderDrawerSectionsSection()}
+              <Divider />
+              {renderDrawerUtilitySection()}
+            </>
+          )}
+
+          {/* ── CONTEXTUAL A "hay barra inferior" (both | bottom) ────── */}
+          {mobileBottomBarVisible && (
+            <>
+              <Divider />
+              {/* ── BARRA INFERIOR (MOBILE) ──────────────────────────── */}
+              <CollapsibleSection title={H.sections.bottomBar} highlightPart="bottomBar" onHighlight={onHighlight}>
+                <ToggleField
+                  label={H.bottomBar.visible}
+                  checked={cfg.bottomBar.visible}
+                  onChange={(next) => setBottomBar("visible", next)}
+                />
+
+                {cfg.bottomBar.visible && (
+                  <>
+                    <ToggleField
+                      label={H.bottomBar.backdropBlur}
+                      checked={cfg.bottomBar.backdropBlur}
+                      onChange={(next) => setBottomBar("backdropBlur", next)}
+                    />
+
+                    <div className="flex flex-col" style={{ gap: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)" }}>
+                        {H.bottomBar.slots}
+                      </span>
+                      <ReorderableList
+                        items={cfg.bottomBar.slots}
+                        keyOf={(s) => s.id}
+                        canAdd={cfg.bottomBar.slots.length < BOTTOM_MAX}
+                        canRemove={cfg.bottomBar.slots.length > BOTTOM_MIN}
+                        addLabel={H.bottomBar.addSlot}
+                        addDisabledHint={H.bottomBar.maxSlotsHint}
+                        removeDisabledHint={H.bottomBar.minSlotsHint}
+                        onAdd={addBottomSlot}
+                        onRemove={(key) =>
+                          setBottomBar(
+                            "slots",
+                            removeById(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
+                              ...s,
+                              order: i,
+                            })),
+                          )
+                        }
+                        onMoveUp={(key) =>
+                          setBottomBar(
+                            "slots",
+                            moveUp(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
+                              ...s,
+                              order: i,
+                            })),
+                          )
+                        }
+                        onMoveDown={(key) =>
+                          setBottomBar(
+                            "slots",
+                            moveDown(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
+                              ...s,
+                              order: i,
+                            })),
+                          )
+                        }
+                        onReorder={(key, toIndex) =>
+                          setBottomBar(
+                            "slots",
+                            moveTo(cfg.bottomBar.slots, (s) => s.id, key, toIndex).map((s, i) => ({
+                              ...s,
+                              order: i,
+                            })),
+                          )
+                        }
+                        renderItem={(slot) => (
+                          <UtilityActionEditor
+                            action={slot.action}
+                            onChange={(nextAction) =>
+                              updateBottomSlot(slot.id, { ...slot, action: nextAction })
+                            }
+                          />
+                        )}
+                        highlightPartOf={(slot) => `bottomSlot:${slot.id}`}
+                        sectionHighlightPart="bottomBar"
+                        onHighlight={onHighlight}
+                      />
+                    </div>
+                  </>
+                )}
+              </CollapsibleSection>
+            </>
+          )}
+        </div>
+
+        {/* Panel Desktop */}
+        <div
+          role="tabpanel"
+          id="header-tabpanel-desktop"
+          aria-labelledby="header-tab-desktop"
+          hidden={activeDevice !== "desktop"}
+          className="flex flex-col"
+          style={{ gap: 14 }}
+        >
+          {/* ── DISPOSICIÓN ESCRITORIO (PRIMERO, Paso 8 WEB-686) ─────── */}
+          <CollapsibleSection title={H.sections.layout}>
+            <Field label={H.layout.desktop}>
+              <LayoutRadioGroup
+                ariaLabel={H.layout.desktop}
+                value={cfg.desktopLayout}
+                onChange={(next) => set("desktopLayout", next)}
+                options={[
+                  {
+                    value: "single-row",
+                    label: H.layout.desktopSingle,
+                    description: H.layout.desktopSingleDesc,
+                    diagram: <DesktopLayoutDiagram variant="single-row" />,
+                  },
+                  {
+                    value: "two-rows",
+                    label: H.layout.desktopTwo,
+                    description: H.layout.desktopTwoDesc,
+                    diagram: <DesktopLayoutDiagram variant="two-rows" />,
+                  },
+                ]}
+              />
+            </Field>
+          </CollapsibleSection>
+
+          {/* Escritorio SIEMPRE tiene barra principal (con o sin franja
+              utilitaria arriba, según single-row/two-rows) — a diferencia de
+              mobile, acá no hay condición de disposición: sólo NO existe
+              barra inferior (eso es un patrón mobile). */}
+          <Divider />
+          {renderUtilityBarSection()}
+          <Divider />
+          {renderBookingButtonSection()}
+          <Divider />
+          {renderDrawerSectionsSection()}
+
+          <Divider />
+
+          {/* ── BARRA PRINCIPAL — sticky (desktop only) ──────────────── */}
+          <CollapsibleSection title={H.sections.mainBar}>
+            <ToggleField
+              label={H.mainBar.sticky}
+              checked={cfg.mainBar.sticky}
+              onChange={(next) => setMainBar("sticky", next)}
+            />
+          </CollapsibleSection>
+        </div>
+
+        <Divider />
+
+        {/* ══════════════════════════════════════════════════════════════
+            IDENTIDAD DEL SITIO — Logo, Idiomas, Monedas (Paso 8, WEB-686).
+            SIEMPRE visible, sin condicionar a la disposición: aplica por
+            igual a mobile y escritorio.
+           ══════════════════════════════════════════════════════════════ */}
+
         <div
           style={{
             padding: "5px 8px",
@@ -1154,7 +1645,10 @@ export function HeaderConfigPanel({
               margin: 0,
             }}
           >
-            {H.deviceScope.common}
+            {H.identity.title}
+          </p>
+          <p style={{ fontSize: 10, color: "var(--text-tertiary)", margin: "2px 0 0" }}>
+            {H.identity.hint}
           </p>
         </div>
 
@@ -1210,73 +1704,6 @@ export function HeaderConfigPanel({
               className={inputFocusClass}
             />
           </Field>
-        </CollapsibleSection>
-
-        <Divider />
-
-        {/* ── BARRA UTILITARIA ─────────────────────────────────────────── */}
-        <CollapsibleSection title={H.sections.utilityBar} highlightPart="utilityBar" onHighlight={onHighlight}>
-          <ToggleField
-            label={H.utilityBar.visible}
-            checked={cfg.utilityBar.visible}
-            onChange={(next) => setUtilityBar("visible", next)}
-          />
-
-          {cfg.utilityBar.visible && (
-            <>
-              <UtilitySlotEditor
-                slotLabel={H.utilityBar.leftSlot}
-                action={cfg.utilityBar.leftSlot}
-                onToggle={(enabled) =>
-                  setUtilityBar(
-                    "leftSlot",
-                    enabled
-                      ? { id: `slot-left-${Date.now()}`, label: "", actionType: "link" }
-                      : undefined,
-                  )
-                }
-                onChange={(next) => setUtilityBar("leftSlot", next)}
-              />
-              <UtilitySlotEditor
-                slotLabel={H.utilityBar.rightSlot}
-                action={cfg.utilityBar.rightSlot}
-                onToggle={(enabled) =>
-                  setUtilityBar(
-                    "rightSlot",
-                    enabled
-                      ? { id: `slot-right-${Date.now()}`, label: "", actionType: "link" }
-                      : undefined,
-                  )
-                }
-                onChange={(next) => setUtilityBar("rightSlot", next)}
-              />
-            </>
-          )}
-        </CollapsibleSection>
-
-        <Divider />
-
-        {/* ── BOTÓN DE RESERVA (compartido) ────────────────────────────── */}
-        <CollapsibleSection title={H.sections.bookingButton} highlightPart="bookingButton" onHighlight={onHighlight}>
-          <ToggleField
-            label={H.mainBar.showBookingButton}
-            checked={cfg.mainBar.showBookingButton}
-            onChange={(next) => setMainBar("showBookingButton", next)}
-          />
-
-          {cfg.mainBar.showBookingButton && (
-            <Field label={H.mainBar.bookingButtonLabel}>
-              <input
-                type="text"
-                value={cfg.mainBar.bookingButtonLabel ?? ""}
-                onChange={(e) => setMainBar("bookingButtonLabel", e.target.value || undefined)}
-                placeholder={H.mainBar.bookingButtonLabelPlaceholder}
-                aria-label={H.mainBar.bookingButtonLabel}
-                style={textInputStyle}
-                className={inputFocusClass}
-              />
-            </Field>
-          )}
         </CollapsibleSection>
 
         <Divider />
@@ -1367,349 +1794,6 @@ export function HeaderConfigPanel({
             })()}
           </div>
         </CollapsibleSection>
-
-        <Divider />
-
-        {/* ══════════════════════════════════════════════════════════════
-            TABS DEVICE — Mobile | Desktop
-            Sincronizados 1:1 con el viewport del canvas vía activeDevice.
-           ══════════════════════════════════════════════════════════════ */}
-
-        {/* Barra de tabs */}
-        <div
-          role="tablist"
-          aria-label={H.deviceScope.tablistAria}
-          className="flex"
-          style={{
-            borderBottom: "0.5px solid var(--border-ui)",
-            gap: 0,
-          }}
-        >
-          {TAB_DEVICES.map((device, i) => {
-            const isActive = activeDevice === device;
-            const label = device === "mobile" ? H.deviceScope.tabMobile : H.deviceScope.tabDesktop;
-            return (
-              <button
-                key={device}
-                ref={(el) => {
-                  tabRefs.current[i] = el;
-                }}
-                role="tab"
-                id={`header-tab-${device}`}
-                aria-selected={isActive}
-                aria-controls={`header-tabpanel-${device}`}
-                tabIndex={isActive ? 0 : -1}
-                type="button"
-                onClick={() => handleTabClick(device)}
-                onKeyDown={(e) => onTabKeyDown(e, i)}
-                className="flex-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
-                style={{
-                  padding: "7px 10px",
-                  fontSize: 11,
-                  fontWeight: isActive ? 600 : 500,
-                  color: isActive ? "var(--control-selected-fg)" : "var(--text-secondary)",
-                  background: "transparent",
-                  border: "none",
-                  borderBottom: isActive
-                    ? "2px solid var(--control-selected-border)"
-                    : "2px solid transparent",
-                  cursor: "pointer",
-                  outlineColor: "var(--accent-info)",
-                  marginBottom: -1,
-                }}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Panel Mobile */}
-        <div
-          role="tabpanel"
-          id="header-tabpanel-mobile"
-          aria-labelledby="header-tab-mobile"
-          hidden={activeDevice !== "mobile"}
-          className="flex flex-col"
-          style={{ gap: 14 }}
-        >
-          {/* ── DISPOSICIÓN MOBILE ───────────────────────────────────── */}
-          <CollapsibleSection title={H.sections.layout}>
-            <Field label={H.layout.mobile}>
-              <LayoutRadioGroup
-                ariaLabel={H.layout.mobile}
-                value={cfg.mobileLayout}
-                onChange={(next) => set("mobileLayout", next)}
-                options={[
-                  {
-                    value: "top",
-                    label: H.layout.mobileTop,
-                    description: H.layout.mobileTopDesc,
-                    diagram: <MobileLayoutDiagram variant="top" />,
-                  },
-                  {
-                    value: "both",
-                    label: H.layout.mobileBoth,
-                    description: H.layout.mobileBothDesc,
-                    diagram: <MobileLayoutDiagram variant="both" />,
-                  },
-                  {
-                    value: "bottom",
-                    label: H.layout.mobileBottom,
-                    description: H.layout.mobileBottomDesc,
-                    diagram: <MobileLayoutDiagram variant="bottom" />,
-                  },
-                ]}
-              />
-            </Field>
-          </CollapsibleSection>
-
-          <Divider />
-
-          {/* ── BARRA INFERIOR (MOBILE) ──────────────────────────────── */}
-          <CollapsibleSection title={H.sections.bottomBar} highlightPart="bottomBar" onHighlight={onHighlight}>
-            <ToggleField
-              label={H.bottomBar.visible}
-              checked={cfg.bottomBar.visible}
-              onChange={(next) => setBottomBar("visible", next)}
-            />
-
-            {cfg.bottomBar.visible && (
-              <>
-                <ToggleField
-                  label={H.bottomBar.backdropBlur}
-                  checked={cfg.bottomBar.backdropBlur}
-                  onChange={(next) => setBottomBar("backdropBlur", next)}
-                />
-
-                <div className="flex flex-col" style={{ gap: 4 }}>
-                  <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)" }}>
-                    {H.bottomBar.slots}
-                  </span>
-                  <ReorderableList
-                    items={cfg.bottomBar.slots}
-                    keyOf={(s) => s.id}
-                    canAdd={cfg.bottomBar.slots.length < BOTTOM_MAX}
-                    canRemove={cfg.bottomBar.slots.length > BOTTOM_MIN}
-                    addLabel={H.bottomBar.addSlot}
-                    addDisabledHint={H.bottomBar.maxSlotsHint}
-                    removeDisabledHint={H.bottomBar.minSlotsHint}
-                    onAdd={addBottomSlot}
-                    onRemove={(key) =>
-                      setBottomBar(
-                        "slots",
-                        removeById(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
-                          ...s,
-                          order: i,
-                        })),
-                      )
-                    }
-                    onMoveUp={(key) =>
-                      setBottomBar(
-                        "slots",
-                        moveUp(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
-                          ...s,
-                          order: i,
-                        })),
-                      )
-                    }
-                    onMoveDown={(key) =>
-                      setBottomBar(
-                        "slots",
-                        moveDown(cfg.bottomBar.slots, (s) => s.id, key).map((s, i) => ({
-                          ...s,
-                          order: i,
-                        })),
-                      )
-                    }
-                    onReorder={(key, toIndex) =>
-                      setBottomBar(
-                        "slots",
-                        moveTo(cfg.bottomBar.slots, (s) => s.id, key, toIndex).map((s, i) => ({
-                          ...s,
-                          order: i,
-                        })),
-                      )
-                    }
-                    renderItem={(slot) => (
-                      <UtilityActionEditor
-                        action={slot.action}
-                        onChange={(nextAction) =>
-                          updateBottomSlot(slot.id, { ...slot, action: nextAction })
-                        }
-                      />
-                    )}
-                    highlightPartOf={(slot) => `bottomSlot:${slot.id}`}
-                    sectionHighlightPart="bottomBar"
-                    onHighlight={onHighlight}
-                  />
-                </div>
-              </>
-            )}
-          </CollapsibleSection>
-
-          <Divider />
-
-          {/* ── SECCIONES DEL MENÚ (DRAWER) ─────────────────────────── */}
-          <CollapsibleSection title={H.sections.drawerSections} highlightPart="drawer" onHighlight={onHighlight}>
-            <ReorderableList
-              items={cfg.drawerSections}
-              keyOf={(s) => s.id}
-              canAdd
-              canRemove={cfg.drawerSections.length > 1}
-              addLabel={H.drawer.addSection}
-              onAdd={addDrawerSection}
-              onRemove={(key) =>
-                set(
-                  "drawerSections",
-                  removeById(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
-                    ...s,
-                    order: i,
-                  })),
-                )
-              }
-              onMoveUp={(key) =>
-                set(
-                  "drawerSections",
-                  moveUp(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
-                    ...s,
-                    order: i,
-                  })),
-                )
-              }
-              onMoveDown={(key) =>
-                set(
-                  "drawerSections",
-                  moveDown(cfg.drawerSections, (s) => s.id, key).map((s, i) => ({
-                    ...s,
-                    order: i,
-                  })),
-                )
-              }
-              onReorder={(key, toIndex) =>
-                set(
-                  "drawerSections",
-                  moveTo(cfg.drawerSections, (s) => s.id, key, toIndex).map((s, i) => ({
-                    ...s,
-                    order: i,
-                  })),
-                )
-              }
-              renderItem={(section) => (
-                <div className="flex flex-col" style={{ gap: 8 }}>
-                  <Field label={H.drawer.sectionLabel}>
-                    <input
-                      type="text"
-                      value={section.label}
-                      onChange={(e) => updateDrawerSection(section.id, { label: e.target.value })}
-                      placeholder={H.drawer.sectionLabelPlaceholder}
-                      aria-label={H.drawer.sectionLabel}
-                      style={textInputStyle}
-                      className={inputFocusClass}
-                    />
-                  </Field>
-                  <Field label={H.drawer.sectionHref}>
-                    <input
-                      type="text"
-                      value={section.href}
-                      onChange={(e) => updateDrawerSection(section.id, { href: e.target.value })}
-                      placeholder="#seccion"
-                      aria-label={H.drawer.sectionHref}
-                      style={textInputStyle}
-                      className={inputFocusClass}
-                    />
-                  </Field>
-                  <ToggleField
-                    label={H.drawer.sectionVisible}
-                    checked={section.visible}
-                    onChange={(next) => updateDrawerSection(section.id, { visible: next })}
-                  />
-                </div>
-              )}
-              highlightPartOf={(section) => `drawerSection:${section.id}`}
-              sectionHighlightPart="drawer"
-              onHighlight={onHighlight}
-            />
-          </CollapsibleSection>
-
-          <Divider />
-
-          {/* ── UTILIDAD DEL DRAWER ─────────────────────────────────── */}
-          <CollapsibleSection title={H.sections.drawerUtility} highlightPart="drawer" onHighlight={onHighlight}>
-            <ReorderableList
-              items={cfg.drawerUtility}
-              keyOf={(a) => a.id}
-              canAdd
-              canRemove={cfg.drawerUtility.length > 1}
-              addLabel={H.drawerUtility.add}
-              onAdd={addDrawerUtility}
-              onRemove={(key) =>
-                set("drawerUtility", removeById(cfg.drawerUtility, (a) => a.id, key))
-              }
-              onMoveUp={(key) =>
-                set("drawerUtility", moveUp(cfg.drawerUtility, (a) => a.id, key))
-              }
-              onMoveDown={(key) =>
-                set("drawerUtility", moveDown(cfg.drawerUtility, (a) => a.id, key))
-              }
-              onReorder={(key, toIndex) =>
-                set("drawerUtility", moveTo(cfg.drawerUtility, (a) => a.id, key, toIndex))
-              }
-              renderItem={(action) => (
-                <UtilityActionEditor
-                  action={action}
-                  onChange={(next) => updateDrawerUtility(action.id, next)}
-                />
-              )}
-            />
-          </CollapsibleSection>
-        </div>
-
-        {/* Panel Desktop */}
-        <div
-          role="tabpanel"
-          id="header-tabpanel-desktop"
-          aria-labelledby="header-tab-desktop"
-          hidden={activeDevice !== "desktop"}
-          className="flex flex-col"
-          style={{ gap: 14 }}
-        >
-          {/* ── DISPOSICIÓN ESCRITORIO ───────────────────────────────── */}
-          <CollapsibleSection title={H.sections.layout}>
-            <Field label={H.layout.desktop}>
-              <LayoutRadioGroup
-                ariaLabel={H.layout.desktop}
-                value={cfg.desktopLayout}
-                onChange={(next) => set("desktopLayout", next)}
-                options={[
-                  {
-                    value: "single-row",
-                    label: H.layout.desktopSingle,
-                    description: H.layout.desktopSingleDesc,
-                    diagram: <DesktopLayoutDiagram variant="single-row" />,
-                  },
-                  {
-                    value: "two-rows",
-                    label: H.layout.desktopTwo,
-                    description: H.layout.desktopTwoDesc,
-                    diagram: <DesktopLayoutDiagram variant="two-rows" />,
-                  },
-                ]}
-              />
-            </Field>
-          </CollapsibleSection>
-
-          <Divider />
-
-          {/* ── BARRA PRINCIPAL — sticky (desktop only) ──────────────── */}
-          <CollapsibleSection title={H.sections.mainBar}>
-            <ToggleField
-              label={H.mainBar.sticky}
-              checked={cfg.mainBar.sticky}
-              onChange={(next) => setMainBar("sticky", next)}
-            />
-          </CollapsibleSection>
-        </div>
 
         {/* Espacio al pie para que el último item no quede pegado al borde del scroll */}
         <div style={{ height: 8 }} aria-hidden="true" />
